@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <title>Démineur 3D - Modernisé</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Import Map pour résoudre 'three' dans les modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <!-- Vidéo utilisée comme texture -->
+    <video id="image" preload="auto" loop muted autoplay style="display:none;" playsinline>
+        <source src="images/storm_render.mp4" type="video/mp4">
+    </video>
+
+    <div id="ui-container">
+        <h1>Démineur 3D</h1>
+        <p>Clic Gauche: Révéler | Clic Droit: Drapeau</p>
+    </div>
+
+    <!-- Menu de démarrage -->
+    <div id="menu-overlay">
+        <div class="menu-box">
+            <h2>Configuration</h2>
+            <div class="input-group">
+                <label>Largeur (Width)</label>
+                <input type="number" id="grid-width" value="30" min="10" max="200">
+            </div>
+            <div class="input-group">
+                <label>Hauteur (Height)</label>
+                <input type="number" id="grid-height" value="20" min="10" max="150">
+            </div>
+            <div class="input-group">
+                <label>Bombes</label>
+                <input type="number" id="bomb-count" value="50" min="1">
+            </div>
+            <div class="input-group">
+                <label>Vidéo de fond (optionnel)</label>
+                <div class="video-upload-container">
+                    <input type="file" id="video-upload" accept="video/mp4,video/webm,video/ogg">
+                    <label for="video-upload" class="video-upload-btn">
+                        <span class="upload-icon">📁</span>
+                        <span class="upload-text">Choisir une vidéo locale</span>
+                    </label>
+                    <span id="video-filename" class="video-filename">Par défaut: storm_render.mp4</span>
+                </div>
+                <div class="video-webcam">
+                    <label class="webcam-label"><input type="checkbox" id="use-webcam"> Utiliser la webcam si disponible</label>
+                    <small class="hint">Si la webcam est refusée ou absente, on revient à la vidéo par défaut.</small>
+                </div>
+            </div>
+            <button id="start-btn">JOUER</button>
+        </div>
+    </div>
+
+    <div id="container"></div>
+
+    <script type="module">
+        import { MinesweeperGame } from './javascripts/Game.js';
+        import { MinesweeperRenderer } from './javascripts/Renderer.js';
+
+        let game, renderer;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('image');
+            const startBtn = document.getElementById('start-btn');
+            const menuOverlay = document.getElementById('menu-overlay');
+            const videoUpload = document.getElementById('video-upload');
+            const videoFilename = document.getElementById('video-filename');
+            const widthInput = document.getElementById('grid-width');
+            const heightInput = document.getElementById('grid-height');
+            const useWebcamCheckbox = document.getElementById('use-webcam');
+            let customVideoUrl = null;
+            let webcamStream = null;
+
+            const stopWebcam = () => {
+                if (webcamStream) {
+                    webcamStream.getTracks().forEach(t => t.stop());
+                    webcamStream = null;
+                }
+                if (video.srcObject) {
+                    video.srcObject = null;
+                }
+            };
+
+            const startWebcam = async () => {
+                try {
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+                    webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    video.srcObject = webcamStream;
+                    video.muted = false;
+                    video.removeAttribute('muted');
+                    videoFilename.textContent = 'Webcam active';
+                    videoFilename.classList.add('custom-video');
+                    return true;
+                } catch (err) {
+                    console.warn('Webcam non disponible ou refusée:', err);
+                    stopWebcam();
+                    return false;
+                }
+            };
+
+            // Détecter (grossièrement) la capacité GPU pour ajuster les limites
+            const detectGpuTier = () => {
+                const gl = document.createElement('canvas').getContext('webgl');
+                if (!gl) return 'medium';
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : '';
+                const vendor = debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : '';
+                const id = `${vendor} ${renderer}`.toLowerCase();
+
+                // High tier examples: RTX 30/40, RX 6/7, Apple M-series
+                const highPatterns = /(rtx 3|rtx 4|rx 6|rx 7|m1|m2|m3|m4)/;
+                if (highPatterns.test(id)) return 'high';
+
+                // Low tier examples: intel hd/uhd/iris older gens
+                const lowPatterns = /(intel\s+(hd|uhd|iris))/;
+                if (lowPatterns.test(id)) return 'low';
+
+                return 'medium';
+            };
+
+            const gpuTier = detectGpuTier();
+            const LIMITS = {
+                high: { maxW: 200, maxH: 150 },
+                medium: { maxW: 140, maxH: 100 },
+                low: { maxW: 100, maxH: 80 }
+            };
+            const { maxW, maxH } = LIMITS[gpuTier] || LIMITS.medium;
+
+            // Mettre à jour les bornes des inputs selon la capacité détectée
+            widthInput.max = maxW;
+            heightInput.max = maxH;
+
+            // Handle video file upload
+            videoUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    stopWebcam();
+                    useWebcamCheckbox.checked = false;
+                    // Revoke previous custom URL to free memory
+                    if (customVideoUrl) {
+                        URL.revokeObjectURL(customVideoUrl);
+                    }
+                    customVideoUrl = URL.createObjectURL(file);
+                    video.src = customVideoUrl;
+                    video.load();
+                    videoFilename.textContent = file.name;
+                    videoFilename.classList.add('custom-video');
+                    video.muted = false;
+                    video.removeAttribute('muted');
+                }
+            });
+
+            // Toggle webcam usage
+            useWebcamCheckbox.addEventListener('change', async (e) => {
+                if (e.target.checked) {
+                    // Clear any local file selection
+                    videoUpload.value = '';
+                    if (customVideoUrl) {
+                        URL.revokeObjectURL(customVideoUrl);
+                        customVideoUrl = null;
+                    }
+                    const ok = await startWebcam();
+                    if (!ok) {
+                        e.target.checked = false;
+                    }
+                } else {
+                    stopWebcam();
+                    // restore default label
+                    videoFilename.textContent = 'Par défaut: storm_render.mp4';
+                    videoFilename.classList.remove('custom-video');
+                }
+            });
+
+            startBtn.addEventListener('click', async () => {
+                // Récupérer les valeurs et les borner pour éviter de saturer le GPU
+                const MIN_DIM = 10;
+                const MAX_W = parseInt(widthInput.max, 10) || 60;
+                const MAX_H = parseInt(heightInput.max, 10) || 60;
+                let width = parseInt(widthInput.value) || 30;
+                let height = parseInt(heightInput.value) || 20;
+                width = Math.min(Math.max(width, MIN_DIM), MAX_W);
+                height = Math.min(Math.max(height, MIN_DIM), MAX_H);
+                // Répercuter les valeurs clampées dans les inputs
+                widthInput.value = width;
+                heightInput.value = height;
+                const bombs = parseInt(document.getElementById('bomb-count').value) || 50;
+
+                // Choisir la source vidéo (priorité: fichier local > webcam > défaut)
+                if (videoUpload.files && videoUpload.files[0]) {
+                    stopWebcam();
+                    // Already handled in change event; ensure audio on
+                    video.muted = false;
+                    video.removeAttribute('muted');
+                } else if (useWebcamCheckbox.checked) {
+                    const ok = await startWebcam();
+                    if (!ok) {
+                        useWebcamCheckbox.checked = false;
+                        // Fallback default video
+                        if (customVideoUrl) {
+                            URL.revokeObjectURL(customVideoUrl);
+                            customVideoUrl = null;
+                        }
+                        video.crossOrigin = '';
+                        video.src = 'images/storm_render.mp4';
+                        video.load();
+                        videoFilename.textContent = 'Par défaut: storm_render.mp4';
+                        videoFilename.classList.remove('custom-video');
+                        video.muted = false;
+                        video.removeAttribute('muted');
+                    }
+                } else {
+                    stopWebcam();
+                    // Revenir à la vidéo par défaut
+                    if (customVideoUrl) {
+                        URL.revokeObjectURL(customVideoUrl);
+                        customVideoUrl = null;
+                    }
+                    video.crossOrigin = '';
+                    video.src = 'images/storm_render.mp4';
+                    video.load();
+                    videoFilename.textContent = 'Par défaut: storm_render.mp4';
+                    videoFilename.classList.remove('custom-video');
+                    video.muted = false;
+                    video.removeAttribute('muted');
+                }
+
+                // Lancer la vidéo
+                video.play().catch(e => console.warn("Autoplay bloqué:", e));
+
+                // Cacher le menu
+                menuOverlay.style.display = 'none';
+
+                // Nettoyer l'ancien jeu si nécessaire (pour futur restart)
+                if (renderer) {
+                    document.getElementById('container').innerHTML = '';
+                }
+
+                // Initialiser le jeu
+                game = new MinesweeperGame(width, height, bombs);
+                game.init();
+
+                // Initialiser le rendu
+                renderer = new MinesweeperRenderer(game, 'container');
+                
+                // Set callback for when game ends and should return to menu
+                renderer.onGameEnd = () => {
+                    renderer.dispose();
+                    renderer = null;
+                    game = null;
+                    menuOverlay.style.display = 'flex';
+                };
+            });
+        });
+    </script>
+</body>
+
+</html>
