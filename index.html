@@ -27,7 +27,13 @@
     <div id="ui-container">
         <h1>Démineur 3D</h1>
         <p>Clic Gauche: Révéler | Clic Droit: Drapeau</p>
+        <button id="mute-btn"
+            style="position: absolute; top: 20px; right: 20px; background: none; border: 1px solid white; color: white; padding: 5px 10px; cursor: pointer;">🔊
+            ON</button>
     </div>
+
+    <div id="timer-display">⏱️ 00:00</div>
+    <div id="score-display">🏆 Score: 0</div>
 
     <!-- Menu de démarrage -->
     <div id="menu-overlay">
@@ -56,11 +62,21 @@
                     <span id="video-filename" class="video-filename">Par défaut: storm_render.mp4</span>
                 </div>
                 <div class="video-webcam">
-                    <label class="webcam-label"><input type="checkbox" id="use-webcam"> Utiliser la webcam si disponible</label>
+                    <label class="webcam-label"><input type="checkbox" id="use-webcam"> Utiliser la webcam si
+                        disponible</label>
                     <small class="hint">Si la webcam est refusée ou absente, on revient à la vidéo par défaut.</small>
                 </div>
             </div>
             <button id="start-btn">JOUER</button>
+        </div>
+        
+        <!-- Leaderboard -->
+        <div class="leaderboard-box">
+            <h2>🏆 Meilleurs Scores</h2>
+            <div id="leaderboard-list">
+                <p class="no-scores">Aucun score enregistré</p>
+            </div>
+            <button id="clear-scores-btn" class="clear-btn">Effacer les scores</button>
         </div>
     </div>
 
@@ -69,8 +85,10 @@
     <script type="module">
         import { MinesweeperGame } from './javascripts/Game.js';
         import { MinesweeperRenderer } from './javascripts/Renderer.js';
+        import { ScoreManager } from './javascripts/ScoreManager.js';
 
         let game, renderer;
+        const scoreManager = new ScoreManager();
 
         document.addEventListener('DOMContentLoaded', () => {
             const video = document.getElementById('image');
@@ -81,8 +99,41 @@
             const widthInput = document.getElementById('grid-width');
             const heightInput = document.getElementById('grid-height');
             const useWebcamCheckbox = document.getElementById('use-webcam');
+            const clearScoresBtn = document.getElementById('clear-scores-btn');
             let customVideoUrl = null;
             let webcamStream = null;
+
+            // Display leaderboard
+            function updateLeaderboard() {
+                const leaderboardList = document.getElementById('leaderboard-list');
+                const topScores = scoreManager.getTopScores(10);
+                
+                if (topScores.length === 0) {
+                    leaderboardList.innerHTML = '<p class="no-scores">Aucun score enregistré</p>';
+                    return;
+                }
+                
+                leaderboardList.innerHTML = topScores.map((score, index) => `
+                    <div class="score-entry">
+                        <div class="score-rank">#${index + 1}</div>
+                        <div class="score-info">
+                            <div class="score-value">${score.score.toLocaleString()} pts</div>
+                            <div class="score-details">${score.width}x${score.height} | ${score.bombs} 💣 | ${scoreManager.formatTime(score.time)}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Clear scores button
+            clearScoresBtn.addEventListener('click', () => {
+                if (confirm('Êtes-vous sûr de vouloir effacer tous les scores ?')) {
+                    scoreManager.clearAllScores();
+                    updateLeaderboard();
+                }
+            });
+
+            // Initial leaderboard display
+            updateLeaderboard();
 
             const stopWebcam = () => {
                 if (webcamStream) {
@@ -253,15 +304,40 @@
                 game.init();
 
                 // Initialiser le rendu
-                renderer = new MinesweeperRenderer(game, 'container');
-                
+                renderer = new MinesweeperRenderer(game, 'container', scoreManager);
+
+                // Attendre que soundManager soit prêt (petit hack car init est async)
+                setTimeout(() => {
+                    if (renderer.soundManager) {
+                        renderer.soundManager.resumeContext();
+                        updateMuteState();
+                    }
+                }, 100);
+
                 // Set callback for when game ends and should return to menu
                 renderer.onGameEnd = () => {
                     renderer.dispose();
                     renderer = null;
                     game = null;
                     menuOverlay.style.display = 'flex';
+                    updateLeaderboard(); // Refresh leaderboard with new score
                 };
+            });
+
+            // Mute Button Logic
+            const muteBtn = document.getElementById('mute-btn');
+            let isMuted = false;
+
+            function updateMuteState() {
+                muteBtn.textContent = isMuted ? '🔇 OFF' : '🔊 ON';
+                if (renderer && renderer.soundManager) {
+                    renderer.soundManager.setMute(isMuted);
+                }
+            }
+
+            muteBtn.addEventListener('click', () => {
+                isMuted = !isMuted;
+                updateMuteState();
             });
         });
     </script>
