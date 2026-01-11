@@ -43,8 +43,8 @@ export class MinesweeperRenderer {
         this.isIntroAnimating = true;
         this.introTime = 0;
 
-        // Bounding box for cursor
-        this.selectionBox = null;
+        // State for direct instance animation
+        this.lastHoveredId = -1;
 
         this.init();
     }
@@ -80,7 +80,7 @@ export class MinesweeperRenderer {
         this.particleSystem = new ParticleSystem(this.scene, this.textures);
 
         this.createGrid();
-        this.createSelectionBox();
+        // this.createSelectionBox(); // No longer needed
 
         window.addEventListener('resize', () => this.onWindowResize(), false);
         this.renderer.domElement.addEventListener('pointerdown', (e) => this.onMouseClick(e), false);
@@ -131,16 +131,43 @@ export class MinesweeperRenderer {
                 vMapUv = (uv + aGridPos) / uGridSize;
                 `
             );
+
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <color_fragment>',
+                `
+                #if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )
+                    #ifdef USE_INSTANCING_COLOR
+                        diffuseColor.rgb += vInstanceColor;
+                    #else
+                        diffuseColor.rgb += vColor;
+                    #endif
+                #endif
+                `
+            );
         };
 
         const materials = [
+            new THREE.MeshBasicMaterial({ color: 0x000000 }), // Sides (black by default)
             new THREE.MeshBasicMaterial({ color: 0x000000 }),
             new THREE.MeshBasicMaterial({ color: 0x000000 }),
             new THREE.MeshBasicMaterial({ color: 0x000000 }),
-            new THREE.MeshBasicMaterial({ color: 0x000000 }),
-            videoMaterial,
+            videoMaterial,                                    // Front (uses additive instance color)
             new THREE.MeshBasicMaterial({ color: 0x000000 })
         ];
+
+        // We use the same material for sides but with additive colors to make them glow on hover
+        // Wait, if sides are MeshBasicMaterial(0x000000), they won't show anything even with vInstanceColor 
+        // because color_fragment does Multiplication by default in standard MeshBasic.
+        // Let's make sides white materials too and handle them additively in another way or just use one material?
+        // Actually, let's keep it simple: 
+        // Materials 0-3, 5 are pure white materials. 
+        // Instance color 0x000000 makes them black. 
+        // Instance color highlight makes them glow.
+        for (let j = 0; j < 6; j++) {
+            if (j !== 4) {
+                materials[j] = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            }
+        }
 
         this.gridMesh = new THREE.InstancedMesh(geometry, materials, this.game.width * this.game.height);
         const aGridPos = new Float32Array(this.game.width * this.game.height * 2);
@@ -156,7 +183,7 @@ export class MinesweeperRenderer {
                 this.dummy.rotation.x = -Math.PI / 2;
                 this.dummy.updateMatrix();
                 this.gridMesh.setMatrixAt(i, this.dummy.matrix);
-                this.gridMesh.setColorAt(i, new THREE.Color(0xffffff));
+                this.gridMesh.setColorAt(i, new THREE.Color(0x000000)); // Black = Original (no addition)
 
                 aGridPos[i * 2] = x;
                 aGridPos[i * 2 + 1] = y;
@@ -182,27 +209,62 @@ export class MinesweeperRenderer {
     }
 
     updateSelectionBox(instanceId) {
-        if (!this.useHoverHelper) {
-            this.selectionBox.visible = false;
-            return;
+        // Reset last hovered if changed
+        if (this.lastHoveredId !== instanceId && this.lastHoveredId !== -1) {
+            this.resetInstance(this.lastHoveredId);
         }
-        if (instanceId !== -1 && !this.isExploding && !this.game.victory) {
+
+        if (this.useHoverHelper && instanceId !== -1 && !this.isExploding && !this.game.victory) {
             this.gridMesh.getMatrixAt(instanceId, this.dummy.matrix);
             this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
 
-            // Only show if the block hasn't been revealed (scale check simplistique)
             if (this.dummy.scale.x > 0.1) {
-                this.selectionBox.position.copy(this.dummy.position);
-                this.selectionBox.rotation.copy(this.dummy.rotation);
+                const pulse = Math.sin(Date.now() * 0.01);
+                const s = 1.0 + pulse * 0.1;
+                this.dummy.scale.set(s, s, s);
+                this.dummy.updateMatrix();
+                this.gridMesh.setMatrixAt(instanceId, this.dummy.matrix);
 
-                // Pulse effect
-                const s = 1.0 + Math.sin(Date.now() * 0.01) * 0.05;
-                this.selectionBox.scale.set(s, s, s);
-                this.selectionBox.visible = true;
+                // Whiter color on hover
+                const colorVal = (pulse + 1.0) * 0.2; // Add modest highlight (0 to 0.4)
+                this.gridMesh.setColorAt(instanceId, new THREE.Color(colorVal, colorVal, colorVal));
+
+                this.gridMesh.instanceMatrix.needsUpdate = true;
+                this.gridMesh.instanceColor.needsUpdate = true;
+                this.lastHoveredId = instanceId;
                 return;
             }
         }
-        this.selectionBox.visible = false;
+
+        if (instanceId === -1) {
+            this.lastHoveredId = -1;
+        }
+    }
+
+    resetInstance(instanceId) {
+        const y = instanceId % this.game.height;
+        const x = Math.floor(instanceId / this.game.height);
+
+        // Check if revealed
+        if (this.game.visibleGrid[x][y] !== -1) {
+            this.dummy.scale.set(0, 0, 0);
+        } else {
+            this.dummy.scale.set(1, 1, 1);
+        }
+
+        this.dummy.position.set(
+            -(this.game.width * 10) + x * 22,
+            0,
+            (this.game.height * 10) - y * 22
+        );
+        this.dummy.rotation.x = -Math.PI / 2;
+        this.dummy.rotation.y = 0;
+        this.dummy.rotation.z = 0;
+        this.dummy.updateMatrix();
+        this.gridMesh.setMatrixAt(instanceId, this.dummy.matrix);
+        this.gridMesh.setColorAt(instanceId, new THREE.Color(0x000000)); // Back to no addition
+        this.gridMesh.instanceMatrix.needsUpdate = true;
+        this.gridMesh.instanceColor.needsUpdate = true;
     }
 
     onMouseMove(event) {
