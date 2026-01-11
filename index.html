@@ -39,6 +39,7 @@
     <div id="menu-overlay">
         <div class="menu-box">
             <h2>Configuration</h2>
+            <!-- Note: Presets are inserted via UIManager -->
             <div class="input-group">
                 <label>Largeur (Width)</label>
                 <input type="number" id="grid-width" value="30" min="10" max="200">
@@ -66,10 +67,15 @@
                         disponible</label>
                     <small class="hint">Si la webcam est refusée ou absente, on revient à la vidéo par défaut.</small>
                 </div>
+                <div class="hover-helper-toggle" style="margin-top: 14px;">
+                    <label class="checkbox-label"><input type="checkbox" id="hover-helper" checked> Activer l'aide au
+                        survol (Helper)</label>
+                    <small class="hint">Affiche un cadre jaune sur la case survolée.</small>
+                </div>
             </div>
             <button id="start-btn">JOUER</button>
         </div>
-        
+
         <!-- Leaderboard -->
         <div class="leaderboard-box">
             <h2>🏆 Meilleurs Scores</h2>
@@ -86,260 +92,73 @@
         import { MinesweeperGame } from './javascripts/Game.js';
         import { MinesweeperRenderer } from './javascripts/Renderer.js';
         import { ScoreManager } from './javascripts/ScoreManager.js';
+        import { UIManager } from './javascripts/UIManager.js';
 
         let game, renderer;
         const scoreManager = new ScoreManager();
+        let uiManager;
 
         document.addEventListener('DOMContentLoaded', () => {
-            const video = document.getElementById('image');
-            const startBtn = document.getElementById('start-btn');
-            const menuOverlay = document.getElementById('menu-overlay');
-            const videoUpload = document.getElementById('video-upload');
-            const videoFilename = document.getElementById('video-filename');
-            const widthInput = document.getElementById('grid-width');
-            const heightInput = document.getElementById('grid-height');
-            const useWebcamCheckbox = document.getElementById('use-webcam');
-            const clearScoresBtn = document.getElementById('clear-scores-btn');
-            let customVideoUrl = null;
-            let webcamStream = null;
+            // Initialize UI
+            uiManager = new UIManager(null, null, scoreManager);
 
-            // Display leaderboard
-            function updateLeaderboard() {
-                const leaderboardList = document.getElementById('leaderboard-list');
-                const topScores = scoreManager.getTopScores(10);
-                
-                if (topScores.length === 0) {
-                    leaderboardList.innerHTML = '<p class="no-scores">Aucun score enregistré</p>';
-                    return;
-                }
-                
-                leaderboardList.innerHTML = topScores.map((score, index) => `
-                    <div class="score-entry">
-                        <div class="score-rank">#${index + 1}</div>
-                        <div class="score-info">
-                            <div class="score-value">${score.score.toLocaleString()} pts</div>
-                            <div class="score-details">${score.width}x${score.height} | ${score.bombs} 💣 | ${scoreManager.formatTime(score.time)}</div>
-                        </div>
-                    </div>
-                `).join('');
-            }
-
-            // Clear scores button
-            clearScoresBtn.addEventListener('click', () => {
-                if (confirm('Êtes-vous sûr de vouloir effacer tous les scores ?')) {
-                    scoreManager.clearAllScores();
-                    updateLeaderboard();
-                }
-            });
-
-            // Initial leaderboard display
-            updateLeaderboard();
-
-            const stopWebcam = () => {
-                if (webcamStream) {
-                    webcamStream.getTracks().forEach(t => t.stop());
-                    webcamStream = null;
-                }
-                if (video.srcObject) {
-                    video.srcObject = null;
-                }
+            uiManager.onStartGame = (width, height, bombs, useHoverHelper) => {
+                startGame(width, height, bombs, useHoverHelper);
             };
 
-            const startWebcam = async () => {
-                try {
-                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
-                    webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    video.srcObject = webcamStream;
-                    video.muted = false;
-                    video.removeAttribute('muted');
-                    videoFilename.textContent = 'Webcam active';
-                    videoFilename.classList.add('custom-video');
-                    return true;
-                } catch (err) {
-                    console.warn('Webcam non disponible ou refusée:', err);
-                    stopWebcam();
-                    return false;
-                }
-            };
+            // Main Loop integration for Timer/Score updates
+            setInterval(() => {
+                if (game && renderer) {
+                    const timerDisplay = document.getElementById('timer-display');
+                    const scoreDisplay = document.getElementById('score-display');
 
-            // Détecter (grossièrement) la capacité GPU pour ajuster les limites
-            const detectGpuTier = () => {
-                const gl = document.createElement('canvas').getContext('webgl');
-                if (!gl) return 'medium';
-                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-                const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : '';
-                const vendor = debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : '';
-                const id = `${vendor} ${renderer}`.toLowerCase();
+                    if (game.gameStartTime) {
+                        const time = game.getElapsedTime();
+                        timerDisplay.textContent = `⏱️ ${Math.floor(time / 60).toString().padStart(2, '0')}:${(time % 60).toString().padStart(2, '0')}`;
+                        timerDisplay.classList.add('active');
 
-                // High tier examples: RTX 30/40, RX 6/7, Apple M-series
-                const highPatterns = /(rtx 3|rtx 4|rx 6|rx 7|m1|m2|m3|m4)/;
-                if (highPatterns.test(id)) return 'high';
-
-                // Low tier examples: intel hd/uhd/iris older gens
-                const lowPatterns = /(intel\s+(hd|uhd|iris))/;
-                if (lowPatterns.test(id)) return 'low';
-
-                return 'medium';
-            };
-
-            const gpuTier = detectGpuTier();
-            const LIMITS = {
-                high: { maxW: 200, maxH: 150 },
-                medium: { maxW: 140, maxH: 100 },
-                low: { maxW: 100, maxH: 80 }
-            };
-            const { maxW, maxH } = LIMITS[gpuTier] || LIMITS.medium;
-
-            // Mettre à jour les bornes des inputs selon la capacité détectée
-            widthInput.max = maxW;
-            heightInput.max = maxH;
-
-            // Handle video file upload
-            videoUpload.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    stopWebcam();
-                    useWebcamCheckbox.checked = false;
-                    // Revoke previous custom URL to free memory
-                    if (customVideoUrl) {
-                        URL.revokeObjectURL(customVideoUrl);
+                        // Score prediction
+                        const score = scoreManager.calculateScore(game.width, game.height, game.bombCount, time);
+                        scoreDisplay.textContent = `🏆 Score: ${score.toLocaleString()}`;
+                        scoreDisplay.classList.add('active');
+                    } else {
+                        timerDisplay.classList.remove('active');
+                        scoreDisplay.classList.remove('active');
                     }
-                    customVideoUrl = URL.createObjectURL(file);
-                    video.src = customVideoUrl;
-                    video.load();
-                    videoFilename.textContent = file.name;
-                    videoFilename.classList.add('custom-video');
-                    video.muted = false;
-                    video.removeAttribute('muted');
                 }
-            });
-
-            // Toggle webcam usage
-            useWebcamCheckbox.addEventListener('change', async (e) => {
-                if (e.target.checked) {
-                    // Clear any local file selection
-                    videoUpload.value = '';
-                    if (customVideoUrl) {
-                        URL.revokeObjectURL(customVideoUrl);
-                        customVideoUrl = null;
-                    }
-                    const ok = await startWebcam();
-                    if (!ok) {
-                        e.target.checked = false;
-                    }
-                } else {
-                    stopWebcam();
-                    // restore default label
-                    videoFilename.textContent = 'Par défaut: storm_render.mp4';
-                    videoFilename.classList.remove('custom-video');
-                }
-            });
-
-            startBtn.addEventListener('click', async () => {
-                // Récupérer les valeurs et les borner pour éviter de saturer le GPU
-                const MIN_DIM = 10;
-                const MAX_W = parseInt(widthInput.max, 10) || 60;
-                const MAX_H = parseInt(heightInput.max, 10) || 60;
-                let width = parseInt(widthInput.value) || 30;
-                let height = parseInt(heightInput.value) || 20;
-                width = Math.min(Math.max(width, MIN_DIM), MAX_W);
-                height = Math.min(Math.max(height, MIN_DIM), MAX_H);
-                // Répercuter les valeurs clampées dans les inputs
-                widthInput.value = width;
-                heightInput.value = height;
-                const bombs = parseInt(document.getElementById('bomb-count').value) || 50;
-
-                // Choisir la source vidéo (priorité: fichier local > webcam > défaut)
-                if (videoUpload.files && videoUpload.files[0]) {
-                    stopWebcam();
-                    // Already handled in change event; ensure audio on
-                    video.muted = false;
-                    video.removeAttribute('muted');
-                } else if (useWebcamCheckbox.checked) {
-                    const ok = await startWebcam();
-                    if (!ok) {
-                        useWebcamCheckbox.checked = false;
-                        // Fallback default video
-                        if (customVideoUrl) {
-                            URL.revokeObjectURL(customVideoUrl);
-                            customVideoUrl = null;
-                        }
-                        video.crossOrigin = '';
-                        video.src = 'images/storm_render.mp4';
-                        video.load();
-                        videoFilename.textContent = 'Par défaut: storm_render.mp4';
-                        videoFilename.classList.remove('custom-video');
-                        video.muted = false;
-                        video.removeAttribute('muted');
-                    }
-                } else {
-                    stopWebcam();
-                    // Revenir à la vidéo par défaut
-                    if (customVideoUrl) {
-                        URL.revokeObjectURL(customVideoUrl);
-                        customVideoUrl = null;
-                    }
-                    video.crossOrigin = '';
-                    video.src = 'images/storm_render.mp4';
-                    video.load();
-                    videoFilename.textContent = 'Par défaut: storm_render.mp4';
-                    videoFilename.classList.remove('custom-video');
-                    video.muted = false;
-                    video.removeAttribute('muted');
-                }
-
-                // Lancer la vidéo
-                video.play().catch(e => console.warn("Autoplay bloqué:", e));
-
-                // Cacher le menu
-                menuOverlay.style.display = 'none';
-
-                // Nettoyer l'ancien jeu si nécessaire (pour futur restart)
-                if (renderer) {
-                    document.getElementById('container').innerHTML = '';
-                }
-
-                // Initialiser le jeu
-                game = new MinesweeperGame(width, height, bombs);
-                game.init();
-
-                // Initialiser le rendu
-                renderer = new MinesweeperRenderer(game, 'container', scoreManager);
-
-                // Attendre que soundManager soit prêt (petit hack car init est async)
-                setTimeout(() => {
-                    if (renderer.soundManager) {
-                        renderer.soundManager.resumeContext();
-                        updateMuteState();
-                    }
-                }, 100);
-
-                // Set callback for when game ends and should return to menu
-                renderer.onGameEnd = () => {
-                    renderer.dispose();
-                    renderer = null;
-                    game = null;
-                    menuOverlay.style.display = 'flex';
-                    updateLeaderboard(); // Refresh leaderboard with new score
-                };
-            });
-
-            // Mute Button Logic
-            const muteBtn = document.getElementById('mute-btn');
-            let isMuted = false;
-
-            function updateMuteState() {
-                muteBtn.textContent = isMuted ? '🔇 OFF' : '🔊 ON';
-                if (renderer && renderer.soundManager) {
-                    renderer.soundManager.setMute(isMuted);
-                }
-            }
-
-            muteBtn.addEventListener('click', () => {
-                isMuted = !isMuted;
-                updateMuteState();
-            });
+            }, 100);
         });
+
+        function startGame(width, height, bombs, useHoverHelper) {
+            if (renderer) {
+                renderer.dispose();
+                renderer = null;
+            }
+
+            game = new MinesweeperGame(width, height, bombs);
+            game.init();
+
+            renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper);
+
+            // Link UI manager to renderer for mute sync
+            uiManager.setRenderer(renderer);
+
+            // Wait for audio
+            setTimeout(() => {
+                if (renderer.soundManager) {
+                    renderer.soundManager.resumeContext();
+                    renderer.soundManager.setMute(uiManager.isMuted);
+                }
+            }, 100);
+
+            // Game End Callback
+            renderer.onGameEnd = () => {
+                renderer.dispose();
+                renderer = null;
+                game = null;
+                uiManager.showMenu();
+            };
+        }
     </script>
 </body>
 
