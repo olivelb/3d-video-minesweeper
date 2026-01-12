@@ -66,8 +66,8 @@ export class MinesweeperGame {
     }
 
     /**
-     * Place les mines aléatoirement
-     * @param {number} safeX - Coordonnée X du premier clic (pour éviter une mine)
+     * Place les mines aléatoirement en respectant les contraintes de sécurité et de résolvabilité.
+     * @param {number} safeX - Coordonnée X du premier clic
      * @param {number} safeY - Coordonnée Y du premier clic
      */
     placeMines(safeX, safeY) {
@@ -83,6 +83,7 @@ export class MinesweeperGame {
                 const x = Math.floor(Math.random() * this.width);
                 const y = Math.floor(Math.random() * this.height);
 
+                // Éviter la case cliquée et son voisinage immédiat (3x3)
                 if (!this.mines[x][y] && (Math.abs(x - safeX) > 1 || Math.abs(y - safeY) > 1)) {
                     this.mines[x][y] = true;
                     this.grid[x][y] = 1;
@@ -97,7 +98,7 @@ export class MinesweeperGame {
         } while (!MinesweeperSolver.isSolvable(this, safeX, safeY) && attempts < maxAttempts);
 
         if (this.noGuessMode && attempts >= maxAttempts) {
-            console.warn("Could not generate a perfectly solvable board after 100 attempts.");
+            console.warn(`Impossible de générer une grille 100% logique après ${maxAttempts} tentatives.`);
         }
     }
 

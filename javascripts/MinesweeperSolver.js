@@ -154,38 +154,26 @@ export class MinesweeperSolver {
     /**
      * Finds a hint for the current game state (God Mode / Best Move).
      * @param {MinesweeperGame} game 
-     * @returns {Object|null} { x, y, type: 'safe'|'mine' }
+     * @returns {Object|null} { x, y, score, type: 'safe' }
      */
     static getHint(game) {
-        const width = game.width;
-        const height = game.height;
-        const visibleGrid = game.visibleGrid;
-        const flags = game.flags;
-        const mines = game.mines; // Correctly access the boolean mine array
-        const gridNumbers = game.grid; // The numbers grid
+        const { width, height, visibleGrid, flags, mines, grid: gridNumbers } = game;
 
-        // 1. Identify "Frontier" cells: Hidden cells adjacent to revealed cells
-        // Filter immediately for SAFE cells (God Mode assistance)
+        // 1. Identify "Frontier" cells (hidden cells adjacent to revealed cells)
         let safeFrontier = [];
 
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
-                // We only care about hidden, unflagged, SAFE cells
+                // Focus on hidden, unflagged, and guaranteed SAFE cells
                 if (visibleGrid[x][y] === -1 && !flags[x][y] && !mines[x][y]) {
 
-                    // Check if it is on the frontier (has a revealed neighbor)
-                    let checkNeighbors = this.getNeighbors(x, y, width, height);
-                    let revealedNeighborsCount = checkNeighbors.filter(n => visibleGrid[n.x][n.y] > -1).length;
+                    const checkNeighbors = this.getNeighbors(x, y, width, height);
+                    const revealedNeighbors = checkNeighbors.filter(n => visibleGrid[n.x][n.y] > -1);
 
-                    if (revealedNeighborsCount > 0) {
-                        // It is on the frontier.
-                        // Calculate a "Score" for this move.
-                        // 1. Logic Value: Revealing a 0 is huge (score + 10).
-                        // 2. Connectivity: More revealed neighbors = more logic constraints resolved (score + neighbors).
-                        let score = revealedNeighborsCount;
-                        if (gridNumbers[x][y] === 0) {
-                            score += 10;
-                        }
+                    if (revealedNeighbors.length > 0) {
+                        // Scoring: Favor 0s (open big areas) and high connectivity
+                        let score = revealedNeighbors.length;
+                        if (gridNumbers[x][y] === 0) score += 10;
 
                         safeFrontier.push({ x, y, score, type: 'safe' });
                     }
@@ -193,29 +181,23 @@ export class MinesweeperSolver {
             }
         }
 
-        // 2. Return the best safe frontier move
         if (safeFrontier.length > 0) {
-            // Sort descending by score
-            safeFrontier.sort((a, b) => b.score - a.score);
-            return safeFrontier[0];
+            return safeFrontier.sort((a, b) => b.score - a.score)[0];
         }
 
-        // 3. Fallback: If no safe frontier (e.g. isolated island), pick any safe hidden cell
-        // Prefer 0s again if possible
+        // 2. Fallback: Any safe hidden cell (preferring 0s)
         let safeIsland = [];
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
                 if (visibleGrid[x][y] === -1 && !flags[x][y] && !mines[x][y]) {
-                    let score = 0;
-                    if (gridNumbers[x][y] === 0) score += 10;
+                    let score = gridNumbers[x][y] === 0 ? 10 : 0;
                     safeIsland.push({ x, y, score, type: 'safe' });
                 }
             }
         }
 
         if (safeIsland.length > 0) {
-            safeIsland.sort((a, b) => b.score - a.score);
-            return safeIsland[0];
+            return safeIsland.sort((a, b) => b.score - a.score)[0];
         }
 
         return null;

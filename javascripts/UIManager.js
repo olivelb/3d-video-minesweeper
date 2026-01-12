@@ -93,7 +93,6 @@ export class UIManager {
     }
 
     async handleStart() {
-        // GPU Limits
         const MIN_DIM = 10;
         const MAX_W = parseInt(this.widthInput.max, 10) || 60;
         const MAX_H = parseInt(this.heightInput.max, 10) || 60;
@@ -103,17 +102,15 @@ export class UIManager {
         width = Math.min(Math.max(width, MIN_DIM), MAX_W);
         height = Math.min(Math.max(height, MIN_DIM), MAX_H);
 
-        // Update inputs with clamped values
         this.widthInput.value = width;
         this.heightInput.value = height;
 
         const bombs = parseInt(this.bombInput.value) || 50;
 
-        // Video Source Logic
+        // Configuration de la source vidéo
         if (this.videoUpload.files && this.videoUpload.files[0]) {
             this.stopWebcam();
             this.videoElement.muted = false;
-            this.videoElement.removeAttribute('muted');
         } else if (this.useWebcamCheckbox.checked) {
             const ok = await this.startWebcam();
             if (!ok) {
@@ -125,10 +122,9 @@ export class UIManager {
             this.resetToDefaultVideo();
         }
 
-        this.videoElement.play().catch(e => console.warn("Autoplay blocked:", e));
+        this.videoElement.play().catch(e => console.warn("Auto-lecture bloquée:", e));
         this.menuOverlay.style.display = 'none';
 
-        // Trigger Game Start callback
         if (this.onStartGame) {
             const useHoverHelper = this.hoverHelperCheckbox ? this.hoverHelperCheckbox.checked : true;
             const noGuessMode = this.noGuessCheckbox ? this.noGuessCheckbox.checked : false;

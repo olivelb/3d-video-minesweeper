@@ -18,24 +18,20 @@ export class ScoreManager {
     calculateScore(width, height, bombs, timeSeconds, options = {}) {
         const { noGuessMode = false, hintCount = 0 } = options;
 
-        // Facteur de difficulté: grille * densité de bombes
         const gridSize = width * height;
         const bombDensity = bombs / gridSize;
         const difficultyFactor = gridSize * bombDensity * 10;
 
-        // Bonus de vitesse: plus rapide = meilleur score
-        // Base de 10000 points, moins le temps (secondes)
+        // Bonus de vitesse : 10000 points de base moins 10 par seconde
         const timeBonus = Math.max(0, 10000 - timeSeconds * 10);
 
-        // Score final = difficulté * 100 + bonus temps
         let finalScore = difficultyFactor * 100 + timeBonus;
 
-        // Apply penalties
-        if (noGuessMode) {
-            finalScore *= 0.75; // 25% reduction
-        }
+        // Pénalité Mode No Guess (-25%) car la chance est éliminée
+        if (noGuessMode) finalScore *= 0.75;
 
-        finalScore -= hintCount * 500; // 500 points per hint
+        // Pénalité par indice utilisé (-500 pts)
+        finalScore -= hintCount * 500;
 
         return Math.floor(Math.max(0, finalScore));
     }

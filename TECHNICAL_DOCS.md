@@ -62,26 +62,35 @@ floodFill(startX, startY, changes) {
 
 **Performance** : Peut gérer 30 000 cases en ~50ms sans récursion.
 
-### Placement Intelligent des Mines
+### Placement Intelligent (Mode No Guess)
 
-Les mines sont placées **après le premier clic** pour garantir une zone sûre :
+Si le mode **No Guess** est activé, la grille est régénérée (jusqu'à 500 fois) jusqu'à ce que `MinesweeperSolver.isSolvable` confirme que la grille peut être complétée entièrement sans jamais deviner (probabilité 0%).
 
-```javascript
-placeMines(safeX, safeY) {
-  while (minesPlaced < bombCount) {
-    x = random(), y = random();
-    // Éviter la case cliquée ET ses 8 voisins
-    if (!mines[x][y] && distance(x,y, safeX,safeY) > 1) {
-      mines[x][y] = true;
-      minesPlaced++;
-    }
-  }
-}
-```
+### Premier Clic Amélioré
+Pour offrir une meilleure expérience, le premier clic ne se contente pas de ne pas être une mine ; il révèle systématiquement un carré de **3x3** autour du clic (ou plus via flood fill si des zéros sont présents).
 
 ---
 
-## 2. `Renderer.js` – Moteur 3D
+## 2. `MinesweeperSolver.js` – IA & Validation
+
+Ce module implémente les règles de déduction logique du Démineur.
+
+### 2.1 Algorithmes de Résolution
+1.  **Règles de Base** : Décompte des mines voisines vs cases cachées.
+2.  **Subset Logic (Set Reduction)** : Analyse des intersections de voisinages. Si les cases cachées entourant un nombre A sont incluses dans celles d'un nombre B, on peut déduire des informations sur la zone "différence".
+3.  **Global Mine Counting** : Utilise le nombre total de mines restantes pour conclure sur les dernières cases du jeu.
+
+### 2.2 Système d'Aide (Best Next Move)
+Contrairement à une aide basée uniquement sur la logique, le système **"BESOIN D'AIDE"** utilise un mode "Expert" (God Mode) pondéré :
+- Il identifie toutes les cases **sûres** (en consultant la grille réelle).
+- Il calcule un **score d'intérêt** pour chaque case :
+    - `+10 points` si la case est un "0" (dévoilement massif).
+    - `+N points` proportionnellement au nombre de voisins déjà révélés (priorise la progression sur le "front" de jeu).
+- Il retourne la case ayant le score le plus élevé.
+
+---
+
+## 3. `Renderer.js` – Moteur 3D
 
 ### 2.1 Optimisation : InstancedMesh
 
@@ -298,7 +307,19 @@ dispose() {
   if (webcamStream) webcamStream.getTracks().forEach(t => t.stop());
   if (customVideoUrl) URL.revokeObjectURL(customVideoUrl);
 }
-```
+
+---
+
+## 6. `ScoreManager.js` – Leaderboard & Pénalités
+
+### 6.1 Algorithme de Score
+Le score est calculé selon la formule :
+`Score = (Dimension x Bombes) / Temps`
+
+### 6.2 Pénalités (Fair-play)
+Pour maintenir l'équité du leaderboard :
+- **Mode No Guess** : Une réduction globale de **25%** est appliquée car la chance n'est plus un facteur.
+- **Indices** : Chaque utilisation du système "BESOIN D'AIDE" retire **500 points** du score final (minimum 0).
 
 ---
 

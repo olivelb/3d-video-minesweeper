@@ -5,11 +5,12 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 ## Fonctionnalités
 
 ### Gameplay
-- **Grilles Configurables** : Dimensions de 10×10 à 200×150 (auto-adaptées à votre GPU)
-- **Détection GPU** : Limite dynamique basée sur la carte graphique détectée (RTX/RX/M-series: 200×150, Medium: 140×100, Low: 100×80)
-- **Placement Intelligent** : Les mines ne sont jamais sous le premier clic ni dans les cases adjacentes
-- **Flood Fill Optimisé** : Algorithme itératif (non-récursif) pour éviter les stack overflows sur les grandes grilles
-- **Fin de Partie Fluide** : 5 secondes de caméra libre après victoire/défaite avant retour au menu
+- **Grilles Configurables** : Dimensions de 10×10 à 200×150 (auto-adaptées à votre GPU).
+- **Mode "Pas de Hasard" (No Guess)** : Garantit que la grille est 100% résolvable par la logique pure sans jamais devoir deviner.
+- **Aide Intelligente (BESOIN D'AIDE)** : Un système expert qui analyse la grille en temps réel pour suggérer le meilleur coup stratégique suivant.
+- **Premier Clic Optimisé** : En mode No Guess, le premier clic révèle automatiquement une zone de 3x3 pour un départ fluide.
+- **Système de Score & Pénalités** : Le score est influencé par la difficulté, mais aussi par l'utilisation d'aides (pénalité par indice et réduction globale pour le mode No Guess).
+- **Détection GPU** : Ajustement automatique des limites de la grille selon la puissance de votre matériel.
 
 ### Visuels
 - **Moteur 3D Performant** : `InstancedMesh` pour rendre jusqu'à 30 000 cubes avec un seul draw call
@@ -38,16 +39,18 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 - **Clic Gauche** : Révéler une case
 - **Clic Droit** : Placer/Retirer un drapeau
 - **Molette / Glisser** : Zoomer et orbiter autour de la grille
-- **Après Victoire/Défaite** : Caméra libre pendant 5s puis retour auto au menu
+- **🧩 BESOIN D'AIDE** : Suggère le prochain meilleur coup (point vert = sûr, animation pulsée).
+- **Après Victoire/Défaite** : Caméra libre pendant 5s puis retour auto au menu.
 
 ## Configuration Menu
 
-- **Largeur/Hauteur** : Dimensions de la grille (limitées selon GPU détecté)
-- **Bombes** : Nombre de mines (min 1)
+- **Grille & Bombes** : Ajustez la difficulté selon vos préférences.
+- **Mode Pas de Hasard** : Activez pour garantir une résolution 100% logique.
+- **Hover Helper** : Activez l'animation de pulsation lors du survol.
 - **Vidéo de fond** :
-  - Fichier local (MP4/WEBM/OGG) avec audio
-  - Webcam en direct (vidéo + audio si autorisé)
-  - Défaut: `storm_render.mp4`
+  - Fichier local (MP4/WEBM/OGG) avec audio.
+  - Webcam en direct (vidéo + audio si autorisé).
+  - Défaut: `storm_render.mp4`.
 
 ## Architecture Fichiers
 
@@ -61,8 +64,10 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 │   └── style.css          # Styles glassmorphism modernes
 ├── javascripts/
 │   ├── Game.js            # Logique de jeu (mines, flood fill, flags)
+│   ├── MinesweeperSolver.js # IA de résolution & validation No Guess
 │   ├── Renderer.js        # Moteur Three.js (instances, particules, texte)
-│   └── [legacy files]     # Anciens fichiers conservés pour référence
+│   ├── ScoreManager.js    # Calcul des scores et LEADERBOARD
+│   └── SoundManager.js    # Gestion des ressources audio
 └── images/
     ├── storm_render.mp4   # Vidéo par défaut
     ├── j1.png - j8.png    # Textures numéros
@@ -72,9 +77,7 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 
 ## Améliorations Futures Possibles
 
-- **Audio** : Effets sonores (clic, explosion, victoire)
-- **Modes de Jeu** : Challenge chronométré, mode puzzle, graines partageables
-- **Accessibilité** : Thèmes daltoniens, contrôles clavier, police ajustable
-- **Optimisations** : LOD adaptatif, mode light sans particules
-- **Social** : Leaderboards, replays, achievements
-- **VR/AR** : Support WebXR pour immersion totale
+- **Modes de Jeu** : Challenge chronométré, mode puzzle.
+- **Accessibilité** : Thèmes daltoniens, contrôles clavier.
+- **Optimisations** : LOD adaptatif pour grilles > 100k.
+- **Social** : Seeds de grilles partageables pour défier des amis.

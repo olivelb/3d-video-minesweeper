@@ -80,7 +80,6 @@ export class MinesweeperRenderer {
         this.particleSystem = new ParticleSystem(this.scene, this.textures);
 
         this.createGrid();
-        // this.createSelectionBox(); // No longer needed
 
         window.addEventListener('resize', () => this.onWindowResize(), false);
         this.renderer.domElement.addEventListener('pointerdown', (e) => this.onMouseClick(e), false);
