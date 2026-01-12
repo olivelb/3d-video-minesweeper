@@ -328,6 +328,47 @@ export class MinesweeperRenderer {
         }
     }
 
+    /**
+     * Affiche un indice visuel sur une case
+     * @param {number} x 
+     * @param {number} y 
+     * @param {string} type 'safe'|'mine'
+     */
+    showHint(x, y, type) {
+        const index = x * this.game.height + y;
+        const color = type === 'safe' ? new THREE.Color(0x00ff00) : new THREE.Color(0xff0000);
+
+        // Brief pulse effect
+        const originalColor = new THREE.Color(0x000000);
+        this.gridMesh.setColorAt(index, color);
+        this.gridMesh.instanceColor.needsUpdate = true;
+
+        // Restore color after a short delay if not revealed
+        setTimeout(() => {
+            if (this.game.visibleGrid[x][y] === -1 && !this.game.gameOver && !this.game.victory) {
+                this.gridMesh.setColorAt(index, originalColor);
+                this.gridMesh.instanceColor.needsUpdate = true;
+            }
+        }, 1500);
+
+        // Sound effect
+        if (this.soundManager) {
+            this.soundManager.play('click'); // Or a specific hint sound
+        }
+
+        // Particle effect
+        const pos = new THREE.Vector3(
+            -(this.game.width * 10) + x * 22,
+            20,
+            (this.game.height * 10) - y * 22
+        );
+        this.particleSystem.createEmitter(pos, 'hint', {
+            colorStart: color,
+            colorEnd: new THREE.Color(0xffffff),
+            lifeTime: 1.0
+        });
+    }
+
     updateCellVisual(x, y, value) {
         const index = x * this.game.height + y;
         this.gridMesh.getMatrixAt(index, this.dummy.matrix);

@@ -1,3 +1,5 @@
+import { MinesweeperSolver } from './MinesweeperSolver.js';
+
 /**
  * Logique du jeu Démineur
  * Gère la grille, le placement des mines et les règles du jeu.
@@ -8,6 +10,7 @@ export class MinesweeperGame {
         this.height = height;
         this.bombCount = bombCount;
         this.enableChronometer = true;
+        this.noGuessMode = false;
 
         this.grid = []; // Stocke l'état des bombes (0: vide, 1: bombe)
         this.visibleGrid = []; // Stocke l'état visible (-1: caché, 0-8: nombre, 9: bombe explosée)
@@ -20,6 +23,7 @@ export class MinesweeperGame {
         this.elapsedTime = 0; // Time in seconds
         this.gameStartTime = null; // Timestamp when game starts
         this.finalScore = 0; // Score final à la victoire
+        this.hintCount = 0; // Nombre d'indices utilisés
     }
 
     /**
@@ -36,6 +40,7 @@ export class MinesweeperGame {
         this.firstClick = true;
         this.elapsedTime = 0;
         this.finalScore = 0;
+        this.hintCount = 0;
         this.gameStartTime = null;
 
         // Note: On place les mines au premier clic pour éviter de perdre tout de suite
@@ -66,19 +71,34 @@ export class MinesweeperGame {
      * @param {number} safeY - Coordonnée Y du premier clic
      */
     placeMines(safeX, safeY) {
-        let minesPlaced = 0;
-        while (minesPlaced < this.bombCount) {
-            const x = Math.floor(Math.random() * this.width);
-            const y = Math.floor(Math.random() * this.height);
+        let attempts = 0;
+        const maxAttempts = 500;
 
-            // Évite de placer une mine sur la case de départ ou ses voisins immédiats
-            if (!this.mines[x][y] && (Math.abs(x - safeX) > 1 || Math.abs(y - safeY) > 1)) {
-                this.mines[x][y] = true;
-                this.grid[x][y] = 1; // 1 = Mine
-                minesPlaced++;
+        do {
+            this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
+            this.grid = Array(this.width).fill().map(() => Array(this.height).fill(0));
+
+            let minesPlaced = 0;
+            while (minesPlaced < this.bombCount) {
+                const x = Math.floor(Math.random() * this.width);
+                const y = Math.floor(Math.random() * this.height);
+
+                if (!this.mines[x][y] && (Math.abs(x - safeX) > 1 || Math.abs(y - safeY) > 1)) {
+                    this.mines[x][y] = true;
+                    this.grid[x][y] = 1;
+                    minesPlaced++;
+                }
             }
+            this.calculateNumbers();
+
+            attempts++;
+            if (!this.noGuessMode) break;
+
+        } while (!MinesweeperSolver.isSolvable(this, safeX, safeY) && attempts < maxAttempts);
+
+        if (this.noGuessMode && attempts >= maxAttempts) {
+            console.warn("Could not generate a perfectly solvable board after 100 attempts.");
         }
-        this.calculateNumbers();
     }
 
     /**
@@ -119,6 +139,24 @@ export class MinesweeperGame {
             this.placeMines(x, y);
             this.firstClick = false;
             this.startChronometer();
+
+            // Auto-reveal the 3x3 safe area around the first click
+            const changes = [];
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+                        this.floodFill(nx, ny, changes);
+                    }
+                }
+            }
+
+            if (this.checkWin()) {
+                this.victory = true;
+                return { type: 'win', changes };
+            }
+            return { type: 'reveal', changes };
         }
 
         if (this.mines[x][y]) {
@@ -143,10 +181,10 @@ export class MinesweeperGame {
      */
     floodFill(startX, startY, changes) {
         const stack = [[startX, startY]];
-        
+
         while (stack.length > 0) {
             const [x, y] = stack.pop();
-            
+
             // Skip if out of bounds
             if (x < 0 || x >= this.width || y < 0 || y >= this.height) continue;
             // Skip if already visible or flagged
@@ -191,5 +229,18 @@ export class MinesweeperGame {
             }
         }
         return revealedCount === (this.width * this.height - this.bombCount);
+    }
+
+    /**
+     * Obtient un indice pour le joueur
+     */
+    getHint() {
+        if (this.gameOver || this.victory) return null;
+
+        const hint = MinesweeperSolver.getHint(this);
+        if (hint) {
+            this.hintCount++;
+        }
+        return hint;
     }
 }

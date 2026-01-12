@@ -27,9 +27,12 @@
     <div id="ui-container">
         <h1>Démineur 3D</h1>
         <p>Clic Gauche: Révéler | Clic Droit: Drapeau</p>
+        <button id="hint-btn"
+            style="display:none; margin-top: 10px; background: rgba(255,255,255,0.1); border: 1px solid white; color: white; padding: 5px 10px; cursor: pointer; border-radius: 5px;">🧩
+            BESOIN D'AIDE</button>
         <button id="mute-btn"
-            style="position: absolute; top: 20px; right: 20px; background: none; border: 1px solid white; color: white; padding: 5px 10px; cursor: pointer;">🔊
-            ON</button>
+            style="position: absolute; top: 20px; right: 20px; background: none; border: 1px solid white; color: white; padding: 5px 10px; cursor: pointer;">🔇
+            OFF</button>
     </div>
 
     <div id="timer-display">⏱️ 00:00</div>
@@ -72,6 +75,11 @@
                         survol (Helper)</label>
                     <small class="hint">Affiche un cadre jaune sur la case survolée.</small>
                 </div>
+                <div class="no-guess-toggle" style="margin-top: 14px;">
+                    <label class="checkbox-label"><input type="checkbox" id="no-guess-mode"> Mode sans hasard (No
+                        Guess)</label>
+                    <small class="hint">Génère une grille toujours résolvable par la logique (-25% score).</small>
+                </div>
             </div>
             <button id="start-btn">JOUER</button>
         </div>
@@ -102,8 +110,8 @@
             // Initialize UI
             uiManager = new UIManager(null, null, scoreManager);
 
-            uiManager.onStartGame = (width, height, bombs, useHoverHelper) => {
-                startGame(width, height, bombs, useHoverHelper);
+            uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode) => {
+                startGame(width, height, bombs, useHoverHelper, noGuessMode);
             };
 
             // Main Loop integration for Timer/Score updates
@@ -118,7 +126,10 @@
                         timerDisplay.classList.add('active');
 
                         // Score prediction
-                        const score = scoreManager.calculateScore(game.width, game.height, game.bombCount, time);
+                        const score = scoreManager.calculateScore(game.width, game.height, game.bombCount, time, {
+                            noGuessMode: game.noGuessMode,
+                            hintCount: game.hintCount
+                        });
                         scoreDisplay.textContent = `🏆 Score: ${score.toLocaleString()}`;
                         scoreDisplay.classList.add('active');
                     } else {
@@ -129,16 +140,31 @@
             }, 100);
         });
 
-        function startGame(width, height, bombs, useHoverHelper) {
+        function startGame(width, height, bombs, useHoverHelper, noGuessMode) {
             if (renderer) {
                 renderer.dispose();
                 renderer = null;
             }
 
             game = new MinesweeperGame(width, height, bombs);
+            game.noGuessMode = noGuessMode;
             game.init();
 
             renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper);
+
+            // Hint handling
+            const hintBtn = document.getElementById('hint-btn');
+            hintBtn.style.display = 'block';
+            hintBtn.onclick = () => {
+                const hint = game.getHint();
+                if (hint) {
+                    renderer.showHint(hint.x, hint.y, hint.type);
+                } else {
+                    // Visual feedback for no hint
+                    hintBtn.classList.add('no-hint');
+                    setTimeout(() => hintBtn.classList.remove('no-hint'), 500);
+                }
+            };
 
             // Link UI manager to renderer for mute sync
             uiManager.setRenderer(renderer);
@@ -153,6 +179,7 @@
 
             // Game End Callback
             renderer.onGameEnd = () => {
+                document.getElementById('hint-btn').style.display = 'none';
                 renderer.dispose();
                 renderer = null;
                 game = null;

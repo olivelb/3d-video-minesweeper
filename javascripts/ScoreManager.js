@@ -15,20 +15,29 @@ export class ScoreManager {
      * @param {number} timeSeconds - Temps en secondes
      * @returns {number} Score calculé
      */
-    calculateScore(width, height, bombs, timeSeconds) {
+    calculateScore(width, height, bombs, timeSeconds, options = {}) {
+        const { noGuessMode = false, hintCount = 0 } = options;
+
         // Facteur de difficulté: grille * densité de bombes
         const gridSize = width * height;
         const bombDensity = bombs / gridSize;
         const difficultyFactor = gridSize * bombDensity * 10;
-        
+
         // Bonus de vitesse: plus rapide = meilleur score
         // Base de 10000 points, moins le temps (secondes)
         const timeBonus = Math.max(0, 10000 - timeSeconds * 10);
-        
+
         // Score final = difficulté * 100 + bonus temps
-        const finalScore = Math.floor(difficultyFactor * 100 + timeBonus);
-        
-        return finalScore;
+        let finalScore = difficultyFactor * 100 + timeBonus;
+
+        // Apply penalties
+        if (noGuessMode) {
+            finalScore *= 0.75; // 25% reduction
+        }
+
+        finalScore -= hintCount * 500; // 500 points per hint
+
+        return Math.floor(Math.max(0, finalScore));
     }
 
     /**
@@ -45,15 +54,15 @@ export class ScoreManager {
             score: scoreData.score,
             date: scoreData.date || new Date().toISOString()
         });
-        
+
         // Trier par score décroissant
         scores.sort((a, b) => b.score - a.score);
-        
+
         // Garder seulement les 50 meilleurs scores
         const topScores = scores.slice(0, 50);
-        
+
         localStorage.setItem(this.storageKey, JSON.stringify(topScores));
-        
+
         return topScores;
     }
 

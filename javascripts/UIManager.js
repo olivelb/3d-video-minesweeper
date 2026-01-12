@@ -18,6 +18,8 @@ export class UIManager {
         this.leaderboardList = document.getElementById('leaderboard-list');
         this.videoElement = document.getElementById('image');
         this.hoverHelperCheckbox = document.getElementById('hover-helper');
+        this.noGuessCheckbox = document.getElementById('no-guess-mode');
+        this.hintBtn = document.getElementById('hint-btn');
 
         // Difficulty Presets
         this.createDifficultyButtons();
@@ -25,7 +27,7 @@ export class UIManager {
         // State
         this.customVideoUrl = null;
         this.webcamStream = null;
-        this.isMuted = false;
+        this.isMuted = true;
 
         this.bindEvents();
         this.updateLeaderboard();
@@ -129,7 +131,8 @@ export class UIManager {
         // Trigger Game Start callback
         if (this.onStartGame) {
             const useHoverHelper = this.hoverHelperCheckbox ? this.hoverHelperCheckbox.checked : true;
-            this.onStartGame(width, height, bombs, useHoverHelper);
+            const noGuessMode = this.noGuessCheckbox ? this.noGuessCheckbox.checked : false;
+            this.onStartGame(width, height, bombs, useHoverHelper, noGuessMode);
         }
     }
 
@@ -245,6 +248,7 @@ export class UIManager {
 
     showMenu() {
         this.menuOverlay.style.display = 'flex';
+        this.hintBtn.style.display = 'none';
         this.updateLeaderboard();
     }
 
