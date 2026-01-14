@@ -48,6 +48,8 @@ export class ScoreManager {
             bombs: scoreData.bombs,
             time: scoreData.time,
             score: scoreData.score,
+            noGuessMode: scoreData.noGuessMode || false,
+            hintCount: scoreData.hintCount || 0,
             date: scoreData.date || new Date().toISOString()
         });
 

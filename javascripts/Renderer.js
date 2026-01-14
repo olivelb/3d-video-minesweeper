@@ -433,8 +433,12 @@ export class MinesweeperRenderer {
 
         if (this.scoreManager) {
             const finalTime = this.game.getElapsedTime();
+            const options = {
+                noGuessMode: this.game.noGuessMode,
+                hintCount: this.game.hintCount
+            };
             const finalScore = this.scoreManager.calculateScore(
-                this.game.width, this.game.height, this.game.bombCount, finalTime
+                this.game.width, this.game.height, this.game.bombCount, finalTime, options
             );
             this.game.finalScore = finalScore;
             this.scoreManager.saveScore({
@@ -442,7 +446,9 @@ export class MinesweeperRenderer {
                 height: this.game.height,
                 bombs: this.game.bombCount,
                 time: finalTime,
-                score: finalScore
+                score: finalScore,
+                noGuessMode: this.game.noGuessMode,
+                hintCount: this.game.hintCount
             });
         }
 

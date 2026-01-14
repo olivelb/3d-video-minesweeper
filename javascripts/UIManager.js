@@ -223,15 +223,24 @@ export class UIManager {
             return;
         }
 
-        this.leaderboardList.innerHTML = topScores.map((score, index) => `
-            <div class="score-entry">
-                <div class="score-rank">#${index + 1}</div>
-                <div class="score-info">
-                    <div class="score-value">${score.score.toLocaleString()} pts</div>
-                    <div class="score-details">${score.width}x${score.height} | ${score.bombs} 💣 | ${this.scoreManager.formatTime(score.time)}</div>
+        this.leaderboardList.innerHTML = topScores.map((score, index) => {
+            const noGuessBadge = score.noGuessMode ? '<span class="score-badge ng">Logique</span>' : '';
+            const hintsBadge = score.hintCount > 0 ? `<span class="score-badge hints">${score.hintCount} 💡</span>` : '';
+
+            return `
+                <div class="score-entry">
+                    <div class="score-rank">#${index + 1}</div>
+                    <div class="score-info">
+                        <div class="score-value">
+                            ${score.score.toLocaleString()} pts
+                            ${noGuessBadge}
+                            ${hintsBadge}
+                        </div>
+                        <div class="score-details">${score.width}x${score.height} | ${score.bombs} 💣 | ${this.scoreManager.formatTime(score.time)}</div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     toggleMute() {
