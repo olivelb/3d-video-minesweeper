@@ -117,25 +117,36 @@ export class MinesweeperSolver {
                 }
             }
 
-            // 4. Global Mine Counting Rule
-            let totalHiddenCells = [];
-            let totalFlagsCount = 0;
-            for (let gx = 0; gx < width; gx++) {
-                for (let gy = 0; gy < height; gy++) {
-                    if (visibleGrid[gx][gy] === -1 && !flags[gx][gy]) totalHiddenCells.push({ x: gx, y: gy });
-                    if (flags[gx][gy]) totalFlagsCount++;
+            // 4. Advanced Rule: Proof by Contradiction (Tank Solver Lite)
+            // If we assume a cell is a Mine and it leads to a contradiction -> It MUST be Safe
+            // If we assume a cell is Safe and it leads to a contradiction -> It MUST be a Mine
+            if (!progress) {
+                if (this.solveByContradiction(grid, visibleGrid, flags, width, height)) {
+                    progress = true;
                 }
             }
-            const remainingMinesCount = bombCount - totalFlagsCount;
-            if (totalHiddenCells.length > 0) {
-                if (remainingMinesCount === totalHiddenCells.length) {
-                    totalHiddenCells.forEach(n => { flags[n.x][n.y] = true; });
-                    progress = true;
-                } else if (remainingMinesCount === 0) {
-                    totalHiddenCells.forEach(n => {
-                        this.simulateReveal(grid, visibleGrid, flags, width, height, n.x, n.y);
-                    });
-                    progress = true;
+
+            // 5. Global Mine Counting Rule
+            if (!progress) {
+                let totalHiddenCells = [];
+                let totalFlagsCount = 0;
+                for (let gx = 0; gx < width; gx++) {
+                    for (let gy = 0; gy < height; gy++) {
+                        if (visibleGrid[gx][gy] === -1 && !flags[gx][gy]) totalHiddenCells.push({ x: gx, y: gy });
+                        if (flags[gx][gy]) totalFlagsCount++;
+                    }
+                }
+                const remainingMinesCount = bombCount - totalFlagsCount;
+                if (totalHiddenCells.length > 0) {
+                    if (remainingMinesCount === totalHiddenCells.length) {
+                        totalHiddenCells.forEach(n => { flags[n.x][n.y] = true; });
+                        progress = true;
+                    } else if (remainingMinesCount === 0) {
+                        totalHiddenCells.forEach(n => {
+                            this.simulateReveal(grid, visibleGrid, flags, width, height, n.x, n.y);
+                        });
+                        progress = true;
+                    }
                 }
             }
         }
@@ -201,6 +212,102 @@ export class MinesweeperSolver {
         }
 
         return null;
+    }
+
+    /**
+     * Tries to solve by assuming a state and checking for contradictions.
+     */
+    static solveByContradiction(grid, visibleGrid, flags, width, height) {
+        // Identify Frontier: Hidden cells adj to Revealed Cells
+        const frontier = [];
+        for (let x = 0; x < width; x++) {
+            for (let y = 0; y < height; y++) {
+                if (visibleGrid[x][y] === -1 && !flags[x][y]) {
+                    const neighbors = this.getNeighbors(x, y, width, height);
+                    if (neighbors.some(n => visibleGrid[n.x][n.y] >= 0)) {
+                        frontier.push({ x, y });
+                    }
+                }
+            }
+        }
+
+        for (const cell of frontier) {
+            // 1. Hypothesis: Cell is a MINE
+            // If this leads to contradiction, it MUST be SAFE.
+            if (this.checkDeepContradiction(visibleGrid, flags, width, height, cell, true)) {
+                this.simulateReveal(grid, visibleGrid, flags, width, height, cell.x, cell.y);
+                return true;
+            }
+
+            // 2. Hypothesis: Cell is SAFE
+            // If this leads to contradiction, it MUST be a MINE.
+            if (this.checkDeepContradiction(visibleGrid, flags, width, height, cell, false)) {
+                flags[cell.x][cell.y] = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Simulates a state (Mine or Safe) and propagates basic rules.
+     * Returns true if a contradiction is found.
+     */
+    static checkDeepContradiction(visibleGrid, flags, width, height, assumptionCell, assumeMine) {
+        // Clone state (Deep copy required)
+        const simGrid = visibleGrid.map(row => [...row]);
+        const simFlags = flags.map(row => [...row]);
+
+        if (assumeMine) {
+            simFlags[assumptionCell.x][assumptionCell.y] = true;
+        } else {
+            // Mark as 'Assumed Safe' (Revealed but unknown value)
+            // We use -2 to denote this special state
+            simGrid[assumptionCell.x][assumptionCell.y] = -2;
+        }
+
+        // Propagate Rules 1 & 2
+        let changed = true;
+        while (changed) {
+            changed = false;
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    const val = simGrid[x][y];
+
+                    // Skip hidden (-1) or Assumed Safe (-2) for SOURCE of logic
+                    // We only derive logic from actual numbers (0-8)
+                    if (val < 0) continue;
+
+                    const neighbors = this.getNeighbors(x, y, width, height);
+                    const hidden = neighbors.filter(n => simGrid[n.x][n.y] === -1 && !simFlags[n.x][n.y]);
+                    const flagged = neighbors.filter(n => simFlags[n.x][n.y]);
+
+                    // Check for Invalid States (Contradictions)
+                    if (flagged.length > val) return true; // Overload: More flags than number
+                    if (flagged.length + hidden.length < val) return true; // Underload: Not enough mines available
+
+                    // Propagate Implications
+                    if (hidden.length > 0) {
+                        // Rule 1: All Satisfied -> Rest are Safe
+                        if (flagged.length === val) {
+                            hidden.forEach(n => {
+                                simGrid[n.x][n.y] = -2; // Mark safe (don't need to know value for contradiction check)
+                            });
+                            changed = true;
+                        }
+                        // Rule 2: Remaining = Remaining Hidden -> Rest are Mines
+                        else if (flagged.length + hidden.length === val) {
+                            hidden.forEach(n => {
+                                simFlags[n.x][n.y] = true;
+                            });
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     static simulateReveal(grid, visibleGrid, flags, width, height, startX, startY) {
