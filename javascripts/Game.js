@@ -72,19 +72,29 @@ export class MinesweeperGame {
      */
     placeMines(safeX, safeY) {
         let attempts = 0;
-        const maxAttempts = 500;
+        const maxAttempts = 2000;
+        // In No Guess mode, use a larger safe zone (radius 2 aka 5x5) to increase probability of a good opening
+        const safeRadius = this.noGuessMode ? 2 : 1;
 
         do {
             this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
             this.grid = Array(this.width).fill().map(() => Array(this.height).fill(0));
 
             let minesPlaced = 0;
-            while (minesPlaced < this.bombCount) {
+            // Safety break to prevent infinite loops if board is too small for mines + safezone
+            let placementAttempts = 0;
+
+            while (minesPlaced < this.bombCount && placementAttempts < 100000) {
+                placementAttempts++;
                 const x = Math.floor(Math.random() * this.width);
                 const y = Math.floor(Math.random() * this.height);
 
-                // Éviter la case cliquée et son voisinage immédiat (3x3)
-                if (!this.mines[x][y] && (Math.abs(x - safeX) > 1 || Math.abs(y - safeY) > 1)) {
+                // Check exclusion zone
+                if (Math.abs(x - safeX) <= safeRadius && Math.abs(y - safeY) <= safeRadius) {
+                    continue;
+                }
+
+                if (!this.mines[x][y]) {
                     this.mines[x][y] = true;
                     this.grid[x][y] = 1;
                     minesPlaced++;
@@ -99,6 +109,7 @@ export class MinesweeperGame {
 
         if (this.noGuessMode && attempts >= maxAttempts) {
             console.warn(`Impossible de générer une grille 100% logique après ${maxAttempts} tentatives.`);
+            alert("Note : Le générateur n'a pas pu garantir une grille 100% logique avec ces paramètres. Il est possible que vous deviez deviner.");
         }
     }
 
