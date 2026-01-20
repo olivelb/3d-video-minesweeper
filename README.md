@@ -16,7 +16,7 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 - **Moteur 3D Performant** : `InstancedMesh` pour rendre jusqu'à 30 000 cubes avec un seul draw call
 - **Texture Vidéo** : Vidéo par défaut, upload local, ou flux webcam mappé sur toute la grille via shader custom
 - **Particules** : Drapeaux animés (émetteurs continus) et feux d'artifice sur victoire (bursts)
-- **Texte 3D Billboard** : Messages "YOU WIN"/"YOU LOST" toujours face caméra
+- **Texte 3D Billboard** : Messages "BRAVO !"/"PERDU !" toujours face caméra
 - **Explosion Dynamique** : Cubes qui volent en éclats avec rotation et trajectoires aléatoires
 
 ### Technique

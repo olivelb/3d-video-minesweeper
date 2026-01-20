@@ -419,7 +419,7 @@ export class MinesweeperRenderer {
 
     triggerExplosion() {
         this.isExploding = true;
-        this.showText("YOU LOST", 0xff0000);
+        this.showText("PERDU !", 0xff0000);
         this.numberMeshes.forEach(mesh => mesh.visible = false);
         this.particleSystem.stopAll();
 
@@ -452,7 +452,7 @@ export class MinesweeperRenderer {
             });
         }
 
-        this.showText("YOU WIN", 0x00ff00);
+        this.showText("BRAVO !", 0x00ff00);
         this.gridMesh.visible = false;
         this.numberMeshes.forEach(mesh => mesh.visible = false);
         this.particleSystem.stopAll();
