@@ -462,6 +462,24 @@ body::before {
     display: block;
 }
 
+/* Hint Display - Now inside ui-container */
+#hint-display {
+    display: none;
+    margin-top: 10px;
+    color: #00ffff;
+    font-weight: 700;
+    font-size: 0.9em;
+    padding: 8px 12px;
+    background: rgba(0, 255, 255, 0.05);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 8px;
+    width: fit-content;
+}
+
+#hint-display.active {
+    display: block;
+}
+
 @keyframes timerPulse {
 
     0%,

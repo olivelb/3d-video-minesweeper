@@ -30,8 +30,8 @@ export class ScoreManager {
         // Pénalité Mode No Guess (-25%) car la chance est éliminée
         if (noGuessMode) finalScore *= 0.75;
 
-        // Pénalité par indice utilisé (-500 pts)
-        finalScore -= hintCount * 500;
+        // Pénalité par indice utilisé (-2500 pts)
+        finalScore -= hintCount * 2500;
 
         return Math.floor(Math.max(0, finalScore));
     }
