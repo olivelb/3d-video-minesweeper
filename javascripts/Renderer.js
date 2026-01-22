@@ -427,6 +427,48 @@ export class MinesweeperRenderer {
         this.updateUIOverlay(false);
     }
 
+    /**
+     * Réinitialise l'état visuel après un retry
+     */
+    resetExplosion() {
+        this.isExploding = false;
+        this.explosionTime = 0;
+        this.endGameTime = 0; // Fix: reset the auto-return timer
+
+        if (this.endTextMesh) {
+            this.scene.remove(this.endTextMesh);
+            this.endTextMesh.geometry.dispose();
+            this.endTextMesh.material.dispose();
+            this.endTextMesh = null;
+        }
+
+        // Show number planes again
+        this.numberMeshes.forEach(mesh => {
+            mesh.visible = true;
+        });
+
+        // Re-create flags
+        this.flagEmitters.forEach(emitter => {
+            emitter.alive = false;
+        });
+        this.flagEmitters.clear();
+
+        for (let x = 0; x < this.game.width; x++) {
+            for (let y = 0; y < this.game.height; y++) {
+                if (this.game.flags[x][y]) {
+                    this.updateFlagVisual(x, y, true);
+                }
+            }
+        }
+
+        this.updateUIOverlay(true);
+
+        // Reset all grid instances to their correct state
+        for (let i = 0; i < this.game.width * this.game.height; i++) {
+            this.resetInstance(i);
+        }
+    }
+
     triggerWin() {
         this.game.victory = true;
         this.soundManager.play('win');

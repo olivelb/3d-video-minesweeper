@@ -34,6 +34,9 @@
         <button id="mute-btn"
             style="position: absolute; top: 20px; right: 20px; background: none; border: 1px solid white; color: white; padding: 5px 10px; cursor: pointer;">🔇
             OFF</button>
+        <button id="retry-btn"
+            style="display:none; margin-top: 10px; background: rgba(255,100,0,0.4); border: 2px solid #ff6400; color: white; padding: 10px 20px; cursor: pointer; border-radius: 5px; font-weight: bold; font-size: 1.2em;">🔁
+            REESSAYER</button>
     </div>
 
     <div id="timer-display">⏱️ 00:00</div>
@@ -130,7 +133,8 @@
                         // Score prediction
                         const score = scoreManager.calculateScore(game.width, game.height, game.bombCount, time, {
                             noGuessMode: game.noGuessMode,
-                            hintCount: game.hintCount
+                            hintCount: game.hintCount,
+                            retryCount: game.retryCount
                         });
                         scoreDisplay.textContent = `🏆 Score: ${score.toLocaleString()}`;
                         scoreDisplay.classList.add('active');
@@ -138,6 +142,14 @@
                         // Hint count display
                         hintDisplay.textContent = `🧩 Indices: ${game.hintCount}`;
                         hintDisplay.classList.toggle('active', game.hintCount > 0);
+
+                        // Retry button visibility
+                        const retryBtn = document.getElementById('retry-btn');
+                        if (game.gameOver && game.lastMove) {
+                            retryBtn.style.display = 'block';
+                        } else {
+                            retryBtn.style.display = 'none';
+                        }
                     } else {
                         timerDisplay.classList.remove('active');
                         scoreDisplay.classList.remove('active');
@@ -173,6 +185,16 @@
                 }
             };
 
+            // Retry handling
+            const retryBtn = document.getElementById('retry-btn');
+            retryBtn.onclick = () => {
+                if (game.retryLastMove()) {
+                    renderer.resetExplosion();
+                    retryBtn.style.display = 'none';
+                    document.getElementById('hint-btn').style.display = 'block';
+                }
+            };
+
             // Link UI manager to renderer for mute sync
             uiManager.setRenderer(renderer);
 
@@ -187,6 +209,7 @@
             // Game End Callback
             renderer.onGameEnd = () => {
                 document.getElementById('hint-btn').style.display = 'none';
+                document.getElementById('retry-btn').style.display = 'none';
                 renderer.dispose();
                 renderer = null;
                 game = null;

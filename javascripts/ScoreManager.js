@@ -16,7 +16,7 @@ export class ScoreManager {
      * @returns {number} Score calculé
      */
     calculateScore(width, height, bombs, timeSeconds, options = {}) {
-        const { noGuessMode = false, hintCount = 0 } = options;
+        const { noGuessMode = false, hintCount = 0, retryCount = 0 } = options;
 
         const gridSize = width * height;
         const bombDensity = bombs / gridSize;
@@ -32,6 +32,12 @@ export class ScoreManager {
 
         // Pénalité par indice utilisé (-2500 pts)
         finalScore -= hintCount * 2500;
+
+        // Pénalité par retry (-5000 pts + -25% score total par retry)
+        for (let i = 0; i < retryCount; i++) {
+            finalScore -= 5000;
+            finalScore *= 0.75;
+        }
 
         return Math.floor(Math.max(0, finalScore));
     }

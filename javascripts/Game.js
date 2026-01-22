@@ -24,6 +24,8 @@ export class MinesweeperGame {
         this.gameStartTime = null; // Timestamp when game starts
         this.finalScore = 0; // Score final à la victoire
         this.hintCount = 0; // Nombre d'indices utilisés
+        this.lastMove = null; // Stocke {x, y} du dernier coup (pour retry)
+        this.retryCount = 0; // Nombre de retries effectués
     }
 
     /**
@@ -41,6 +43,8 @@ export class MinesweeperGame {
         this.elapsedTime = 0;
         this.finalScore = 0;
         this.hintCount = 0;
+        this.lastMove = null;
+        this.retryCount = 0;
         this.gameStartTime = null;
 
         // Note: On place les mines au premier clic pour éviter de perdre tout de suite
@@ -173,6 +177,7 @@ export class MinesweeperGame {
 
         if (this.mines[x][y]) {
             this.gameOver = true;
+            this.lastMove = { x, y };
             this.visibleGrid[x][y] = 9; // 9 = Explosion
             return { type: 'explode', x, y };
         }
@@ -254,5 +259,19 @@ export class MinesweeperGame {
             this.hintCount++;
         }
         return hint;
+    }
+
+    /**
+     * Annule le dernier coup (qui a fait perdre)
+     */
+    retryLastMove() {
+        if (!this.gameOver || !this.lastMove) return false;
+
+        const { x, y } = this.lastMove;
+        this.visibleGrid[x][y] = -1;
+        this.gameOver = false;
+        this.retryCount++;
+        this.lastMove = null;
+        return true;
     }
 }
