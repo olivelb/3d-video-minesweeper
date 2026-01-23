@@ -20,6 +20,7 @@ export class UIManager {
         this.hoverHelperCheckbox = document.getElementById('hover-helper');
         this.noGuessCheckbox = document.getElementById('no-guess-mode');
         this.hintBtn = document.getElementById('hint-btn');
+        this.flagStyleBtn = document.getElementById('flag-style-btn');
 
         // Difficulty Presets
         this.createDifficultyButtons();
@@ -90,6 +91,20 @@ export class UIManager {
         this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
 
         this.muteBtn.addEventListener('click', () => this.toggleMute());
+        
+        // Flag style toggle (particle ↔ 3D)
+        if (this.flagStyleBtn) {
+            this.flagStyleBtn.addEventListener('click', () => this.toggleFlagStyle());
+        }
+    }
+
+    toggleFlagStyle() {
+        if (this.renderer) {
+            const newStyle = this.renderer.toggleFlagStyle();
+            // Update button to show current style
+            this.flagStyleBtn.textContent = newStyle === 'particle' ? '🚩✨' : '🚩🎯';
+            this.flagStyleBtn.title = newStyle === 'particle' ? 'Switch to calm 3D flags' : 'Switch to particle flags';
+        }
     }
 
     async handleStart() {

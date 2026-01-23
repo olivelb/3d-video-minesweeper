@@ -29,7 +29,11 @@ export class MinesweeperRenderer {
 
         this.textures = {};
         this.flagEmitters = new Map();
+        this.flag3DMeshes = new Map(); // For 3D flag models
         this.numberMeshes = [];
+        
+        // Flag style: 'particle' (bright/blinking) or '3d' (calm 3D model)
+        this.flagStyle = 'particle';
 
         this.isExploding = false;
         this.explosionTime = 0;
@@ -78,6 +82,9 @@ export class MinesweeperRenderer {
         await this.loadResources();
 
         this.particleSystem = new ParticleSystem(this.scene, this.textures);
+        
+        // Create reusable 3D flag geometry and material
+        this.create3DFlagAssets();
 
         this.createGrid();
 
@@ -429,23 +436,158 @@ export class MinesweeperRenderer {
         }
     }
 
+    /**
+     * Create reusable 2D flag geometry and material (same size as numbers: 16x16)
+     */
+    create3DFlagAssets() {
+        // 2D horizontal plane, same size as number textures
+        this.flag2DGeometry = new THREE.PlaneGeometry(16, 16);
+        
+        // Create a canvas texture for the flag icon - bold stylized design
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        
+        // Clear with full transparency
+        ctx.clearRect(0, 0, 128, 128);
+        
+        // Outer glow effect (makes it visible on any background)
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        
+        // Bold triangular flag - large and visible
+        ctx.fillStyle = '#ff2222';
+        ctx.beginPath();
+        ctx.moveTo(20, 15);      // Top-left of flag
+        ctx.lineTo(108, 45);     // Right point
+        ctx.lineTo(20, 75);      // Bottom-left of flag
+        ctx.closePath();
+        ctx.fill();
+        
+        // Inner highlight
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ff6666';
+        ctx.beginPath();
+        ctx.moveTo(25, 25);
+        ctx.lineTo(75, 42);
+        ctx.lineTo(25, 55);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Bold white border for visibility
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(20, 15);
+        ctx.lineTo(108, 45);
+        ctx.lineTo(20, 75);
+        ctx.closePath();
+        ctx.stroke();
+        
+        // Pole - thick and visible
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(12, 10, 8, 108);
+        ctx.fillStyle = '#cccccc';
+        ctx.fillRect(12, 10, 4, 108);
+        
+        this.flag2DTexture = new THREE.CanvasTexture(canvas);
+        this.flag2DTexture.minFilter = THREE.LinearFilter;
+        this.flag2DTexture.magFilter = THREE.LinearFilter;
+        this.flag2DMaterial = new THREE.MeshBasicMaterial({
+            map: this.flag2DTexture,
+            transparent: true,
+            opacity: 1.0,
+            depthTest: true,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+    }
+
+    /**
+     * Create a single 2D flag mesh at a given position
+     */
+    create3DFlag(position, x, y) {
+        const mesh = new THREE.Mesh(this.flag2DGeometry, this.flag2DMaterial);
+        mesh.position.copy(position);
+        mesh.position.y = 12; // Slightly above cube surface
+        mesh.rotation.x = -Math.PI / 2; // Horizontal like numbers
+        mesh.userData.gridX = x;
+        mesh.userData.gridY = y;
+        mesh.userData.baseY = 12;
+        mesh.renderOrder = 1; // Render after cubes
+        return mesh;
+    }
+
     updateFlagVisual(x, y, active) {
         const key = `${x},${y}`;
+        const pos = new THREE.Vector3(
+            -(this.game.width * 10) + x * 22,
+            0,
+            (this.game.height * 10) - y * 22
+        );
+        
         if (active) {
-            const pos = new THREE.Vector3(
-                -(this.game.width * 10) + x * 22,
-                20,
-                (this.game.height * 10) - y * 22
-            );
-            const emitter = this.particleSystem.createEmitter(pos, 'flag');
-            this.flagEmitters.set(key, emitter);
+            if (this.flagStyle === 'particle') {
+                // Original particle effect
+                pos.y = 20;
+                const emitter = this.particleSystem.createEmitter(pos, 'flag');
+                this.flagEmitters.set(key, emitter);
+            } else {
+                // 2D flag model
+                const flag = this.create3DFlag(pos, x, y);
+                this.scene.add(flag);
+                this.flag3DMeshes.set(key, flag);
+            }
         } else {
+            // Remove particle emitter if exists
             if (this.flagEmitters.has(key)) {
                 const emitter = this.flagEmitters.get(key);
                 emitter.alive = false;
                 this.flagEmitters.delete(key);
             }
+            // Remove 3D flag if exists
+            if (this.flag3DMeshes.has(key)) {
+                const flag = this.flag3DMeshes.get(key);
+                this.scene.remove(flag);
+                this.flag3DMeshes.delete(key);
+            }
         }
+    }
+
+    /**
+     * Toggle flag visual style between particle and 3D
+     * Can be called during gameplay
+     */
+    toggleFlagStyle() {
+        // Switch style
+        this.flagStyle = this.flagStyle === 'particle' ? '3d' : 'particle';
+        
+        // Collect current flag positions from game state
+        const activeFlags = [];
+        for (let x = 0; x < this.game.width; x++) {
+            for (let y = 0; y < this.game.height; y++) {
+                if (this.game.flags[x][y]) {
+                    activeFlags.push({ x, y });
+                }
+            }
+        }
+        
+        // Clear all current visuals
+        this.flagEmitters.forEach(emitter => emitter.alive = false);
+        this.flagEmitters.clear();
+        
+        this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
+        this.flag3DMeshes.clear();
+        
+        // Recreate with new style
+        for (const { x, y } of activeFlags) {
+            this.updateFlagVisual(x, y, true);
+        }
+        
+        return this.flagStyle;
     }
 
     triggerExplosion() {
@@ -453,6 +595,12 @@ export class MinesweeperRenderer {
         this.showText("PERDU", 0xff0000);
         this.numberMeshes.forEach(mesh => mesh.visible = false);
         this.particleSystem.stopAll();
+        
+        // Clear all flags (particle and 2D)
+        this.flagEmitters.forEach(emitter => emitter.alive = false);
+        this.flagEmitters.clear();
+        this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
+        this.flag3DMeshes.clear();
 
         // Hide UIs
         this.updateUIOverlay(false);
@@ -483,6 +631,9 @@ export class MinesweeperRenderer {
             emitter.alive = false;
         });
         this.flagEmitters.clear();
+        
+        this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
+        this.flag3DMeshes.clear();
 
         for (let x = 0; x < this.game.width; x++) {
             for (let y = 0; y < this.game.height; y++) {
@@ -529,6 +680,13 @@ export class MinesweeperRenderer {
         this.gridMesh.visible = false;
         this.numberMeshes.forEach(mesh => mesh.visible = false);
         this.particleSystem.stopAll();
+        
+        // Clear all flags (particle and 2D)
+        this.flagEmitters.forEach(emitter => emitter.alive = false);
+        this.flagEmitters.clear();
+        this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
+        this.flag3DMeshes.clear();
+        
         this.updateUIOverlay(false);
 
         // Fireworks
@@ -589,6 +747,32 @@ export class MinesweeperRenderer {
 
         // Particle System
         this.particleSystem.update(dt);
+
+        // Animate 2D flags when cube is hovered
+        if (this.hoveredInstanceId !== -1 && this.flagStyle !== 'particle') {
+            const hoveredY = this.hoveredInstanceId % this.game.height;
+            const hoveredX = Math.floor(this.hoveredInstanceId / this.game.height);
+            const pulse = Math.sin(Date.now() * 0.01);
+            
+            this.flag3DMeshes.forEach(flag => {
+                if (flag.userData.gridX === hoveredX && flag.userData.gridY === hoveredY) {
+                    // Pulse the flag on hovered cube
+                    const scale = 1.0 + pulse * 0.15;
+                    flag.scale.set(scale, scale, 1);
+                    flag.position.y = flag.userData.baseY + pulse * 2;
+                } else {
+                    // Reset other flags
+                    flag.scale.set(1, 1, 1);
+                    flag.position.y = flag.userData.baseY;
+                }
+            });
+        } else if (this.flagStyle !== 'particle') {
+            // Reset all flags when nothing hovered
+            this.flag3DMeshes.forEach(flag => {
+                flag.scale.set(1, 1, 1);
+                flag.position.y = flag.userData.baseY;
+            });
+        }
 
         // Hover Effect
         this.updateSelectionBox(this.hoveredInstanceId);
