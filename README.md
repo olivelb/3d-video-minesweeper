@@ -15,6 +15,7 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 ### Visuels
 - **Moteur 3D Performant** : `InstancedMesh` pour rendre jusqu'à 30 000 cubes avec un seul draw call
 - **Texture Vidéo** : Vidéo par défaut, upload local, ou flux webcam mappé sur toute la grille via shader custom
+- **Drapeaux Configurables** : Basculez en jeu entre particules scintillantes (par défaut) et drapeaux 2D stylisés plus reposants pour les yeux
 - **Particules** : Drapeaux animés (émetteurs continus) et feux d'artifice sur victoire (bursts)
 - **Texte 3D Billboard** : Messages "BRAVO !"/"PERDU !" toujours face caméra
 - **Explosion Dynamique** : Cubes qui volent en éclats avec rotation et trajectoires aléatoires
@@ -40,6 +41,7 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 - **Clic Droit** : Placer/Retirer un drapeau
 - **Molette / Glisser** : Zoomer et orbiter autour de la grille
 - **🧩 BESOIN D'AIDE** : Suggère le prochain meilleur coup (point vert = sûr, animation pulsée).
+- **🚩✨ / 🚩🎯** : Bascule entre drapeaux particules (brillants) et drapeaux 2D (calmes pour les yeux).
 - **Après Victoire/Défaite** : Caméra libre pendant 5s puis retour auto au menu.
 
 ## Configuration Menu
@@ -81,3 +83,13 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 - **Accessibilité** : Thèmes daltoniens, contrôles clavier.
 - **Optimisations** : LOD adaptatif pour grilles > 100k.
 - **Social** : Seeds de grilles partageables pour défier des amis.
+
+---
+
+## Changelog Récent
+
+### v1.1 – Style de Drapeaux Configurable
+- Ajout d'un bouton en jeu pour basculer entre drapeaux particules et drapeaux 2D
+- Les drapeaux 2D sont stylisés (fanion rouge avec bordure blanche) et moins agressifs visuellement
+- Animation des drapeaux lors du survol de leur cube
+- Correction : les drapeaux disparaissent correctement lors de la victoire/défaite

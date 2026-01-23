@@ -163,7 +163,7 @@ Remplacement de l'ancienne lib `SPE` par `THREE.Points` natif avec logique manue
 }
 ```
 
-#### Émission Continue (Drapeaux)
+#### Émission Continue (Drapeaux Particules)
 ```javascript
 if (sys.alive && sys.config.rate > 0) {
   for (k=0; k<count && spawned<rate; k++) {
@@ -191,7 +191,74 @@ positions[j*3] += velocities[j*3] * dt;  // Mouvement
 
 **Fix Bright Point** : Initialiser les positions à `y=-10000` et colors à `0` évite le point lumineux au centre.
 
-### 2.4 Texte 3D Billboard
+### 2.4 Système de Drapeaux Dual-Mode
+
+Le système de drapeaux supporte deux modes visuels, commutables en jeu via un bouton.
+
+#### Mode Particules (par défaut)
+- Utilise le système de particules avec `AdditiveBlending`
+- Particules jaune-rouge scintillantes
+- Visuellement impressionnant mais peut fatiguer les yeux sur de longues sessions
+
+#### Mode 2D (calme)
+```javascript
+// Géométrie plane identique aux numéros
+this.flag2DGeometry = new THREE.PlaneGeometry(16, 16);
+
+// Texture canvas avec design stylisé
+const canvas = document.createElement('canvas');
+ctx.fillStyle = '#ff2222';        // Fanion rouge
+ctx.strokeStyle = '#ffffff';       // Bordure blanche
+ctx.shadowColor = '#ff0000';       // Lueur rouge
+ctx.shadowBlur = 15;
+// ... dessin du fanion triangulaire et du mât
+
+this.flag2DMaterial = new THREE.MeshBasicMaterial({
+  map: new THREE.CanvasTexture(canvas),
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide
+});
+```
+
+#### Animation au Survol
+Les drapeaux 2D réagissent au survol de leur cube parent :
+```javascript
+if (flag.userData.gridX === hoveredX && flag.userData.gridY === hoveredY) {
+  const pulse = Math.sin(Date.now() * 0.01);
+  const scale = 1.0 + pulse * 0.15;
+  flag.scale.set(scale, scale, 1);
+  flag.position.y = flag.userData.baseY + pulse * 2;
+}
+```
+
+#### Basculement Runtime
+```javascript
+toggleFlagStyle() {
+  this.flagStyle = this.flagStyle === 'particle' ? '3d' : 'particle';
+  
+  // Collecter les drapeaux actifs depuis l'état du jeu
+  const activeFlags = [];
+  for (let x = 0; x < this.game.width; x++) {
+    for (let y = 0; y < this.game.height; y++) {
+      if (this.game.flags[x][y]) activeFlags.push({ x, y });
+    }
+  }
+  
+  // Nettoyer les deux types de visuels
+  this.flagEmitters.forEach(e => e.alive = false);
+  this.flagEmitters.clear();
+  this.flag3DMeshes.forEach(f => this.scene.remove(f));
+  this.flag3DMeshes.clear();
+  
+  // Recréer avec le nouveau style
+  for (const { x, y } of activeFlags) {
+    this.updateFlagVisual(x, y, true);
+  }
+}
+```
+
+### 2.5 Texte 3D Billboard
 
 **Problème Initial** : Texte tournait sur lui-même (`textGroup.rotation.y += 0.01`), illisible.
 
@@ -209,7 +276,7 @@ if (endTextMesh) {
 }
 ```
 
-### 2.5 Raycasting & Interaction
+### 2.6 Raycasting & Interaction
 
 Le `Raycaster` de Three.js supporte nativement `InstancedMesh` :
 
