@@ -26,6 +26,7 @@ export class MinesweeperGame {
         this.hintCount = 0; // Nombre d'indices utilisés
         this.lastMove = null; // Stocke {x, y} du dernier coup (pour retry)
         this.retryCount = 0; // Nombre de retries effectués
+        this.cancelGeneration = false; // Flag pour annuler la génération
     }
 
     /**
@@ -45,6 +46,7 @@ export class MinesweeperGame {
         this.hintCount = 0;
         this.lastMove = null;
         this.retryCount = 0;
+        this.cancelGeneration = false;
         this.gameStartTime = null;
 
         // Note: On place les mines au premier clic pour éviter de perdre tout de suite
@@ -74,13 +76,31 @@ export class MinesweeperGame {
      * @param {number} safeX - Coordonnée X du premier clic
      * @param {number} safeY - Coordonnée Y du premier clic
      */
-    placeMines(safeX, safeY) {
+    /**
+     * Place les mines aléatoirement en respectant les contraintes de sécurité et de résolvabilité.
+     * @param {number} safeX - Coordonnée X du premier clic
+     * @param {number} safeY - Coordonnée Y du premier clic
+     * @param {Function} onProgress - Callback pour informer de la progression (attempts, maxAttempts)
+     */
+    async placeMines(safeX, safeY, onProgress) {
         let attempts = 0;
-        const maxAttempts = 2000;
+        const maxAttempts = 10000;
         // In No Guess mode, use a larger safe zone (radius 2 aka 5x5) to increase probability of a good opening
         const safeRadius = this.noGuessMode ? 2 : 1;
+        this.cancelGeneration = false;
 
         do {
+            if (this.cancelGeneration) {
+                console.log("Génération interrompue par l'utilisateur. Utilisation de la dernière grille générée.");
+                return { cancelled: true };
+            }
+
+            // Yield to event loop every few attempts to keep UI responsive
+            if (attempts > 0 && attempts % 5 === 0) {
+                if (onProgress) onProgress(attempts, maxAttempts);
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+
             this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
             this.grid = Array(this.width).fill().map(() => Array(this.height).fill(0));
 
@@ -113,8 +133,10 @@ export class MinesweeperGame {
 
         if (this.noGuessMode && attempts >= maxAttempts) {
             console.warn(`Impossible de générer une grille 100% logique après ${maxAttempts} tentatives.`);
-            alert("Note : Le générateur n'a pas pu garantir une grille 100% logique avec ces paramètres. Il est possible que vous deviez deviner.");
+            return { warning: true };
         }
+
+        return true;
     }
 
     /**
@@ -146,13 +168,27 @@ export class MinesweeperGame {
      * @param {number} y 
      * @returns {Object} Résultat de l'action { type: 'reveal'|'explode'|'none', changes: [] }
      */
-    reveal(x, y) {
+    /**
+     * Gère un clic gauche sur une case
+     * @param {number} x 
+     * @param {number} y 
+     * @param {Function} onProgress - Callback pour la progression de la génération
+     * @returns {Object} Résultat de l'action { type: 'reveal'|'explode'|'none'|'cancelled', changes: [] }
+     */
+    async reveal(x, y, onProgress) {
         if (this.gameOver || this.victory || this.flags[x][y] || this.visibleGrid[x][y] !== -1) {
             return { type: 'none', changes: [] };
         }
 
         if (this.firstClick) {
-            this.placeMines(x, y);
+            const success = await this.placeMines(x, y, onProgress);
+
+            // If user stopped or limit reached, we still play but with a warning
+            if (success.cancelled || success.warning) {
+                const reason = success.cancelled ? "interrompue" : "limitée à 10000 essais";
+                alert(`Note : La génération a été ${reason}. La grille n'est pas garantie 100% logique.`);
+            }
+
             this.firstClick = false;
             this.startChronometer();
 

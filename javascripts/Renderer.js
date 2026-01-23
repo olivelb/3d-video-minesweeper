@@ -283,7 +283,7 @@ export class MinesweeperRenderer {
         }
     }
 
-    onMouseClick(event) {
+    async onMouseClick(event) {
         if (this.game.gameOver || this.game.victory) return;
 
         // Use cached hover if available, otherwise arraycast
@@ -302,8 +302,39 @@ export class MinesweeperRenderer {
             const x = Math.floor(instanceId / this.game.height);
 
             if (event.button === 0) {
-                const result = this.game.reveal(x, y);
-                this.handleGameUpdate(result);
+                // Handling Async Reveal with UI
+                if (this.game.firstClick && this.game.noGuessMode) {
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    const loadingDetails = document.getElementById('loading-details');
+                    const cancelBtn = document.getElementById('cancel-gen-btn');
+
+                    loadingOverlay.style.display = 'flex';
+                    loadingDetails.textContent = "Initialisation...";
+
+                    const onProgress = (attempt, max) => {
+                        loadingDetails.textContent = `Tentative ${attempt} / ${max}`;
+                    };
+
+                    // Wire up cancel button
+                    const cancelHandler = () => {
+                        this.game.cancelGeneration = true;
+                    };
+                    cancelBtn.onclick = cancelHandler;
+
+                    try {
+                        const result = await this.game.reveal(x, y, onProgress);
+                        this.handleGameUpdate(result);
+                    } catch (e) {
+                        console.error("Error during generation", e);
+                    } finally {
+                        loadingOverlay.style.display = 'none';
+                        cancelBtn.onclick = null; // cleanup
+                    }
+                } else {
+                    // Standard click (fast)
+                    const result = await this.game.reveal(x, y);
+                    this.handleGameUpdate(result);
+                }
             } else if (event.button === 2) {
                 const result = this.game.toggleFlag(x, y);
                 this.handleGameUpdate(result);
