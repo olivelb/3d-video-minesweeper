@@ -34,10 +34,39 @@ export class UIManager {
 
         this.bindEvents();
         this.updateLeaderboard();
-        this.currentFlagStyle = 'particle'; // Default
+        this.currentFlagStyle = 'particle';
         this.selectedPresetValue = 'video:images/storm_render.mp4';
         this.updateFlagStyleButton();
         this.detectGpuTier();
+        this.displayPlayerInfo();
+    }
+
+    displayPlayerInfo() {
+        const playerInfo = this.scoreManager.getPlayerInfo();
+        const container = document.getElementById('ui-container');
+        if (container) {
+            let playerBadge = document.getElementById('player-badge');
+            if (!playerBadge) {
+                playerBadge = document.createElement('div');
+                playerBadge.id = 'player-badge';
+                playerBadge.style.fontSize = '0.8em';
+                playerBadge.style.opacity = '0.7';
+                playerBadge.style.marginTop = '5px';
+                container.appendChild(playerBadge);
+            }
+            playerBadge.textContent = `👤 Joueur: ${playerInfo.codename}`;
+        }
+    }
+
+    getBackgroundName() {
+        if (this.useWebcamCheckbox.checked) return 'Webcam';
+        if (this.customVideoUrl) {
+            const fileName = this.videoFilename.textContent;
+            return `Custom: ${fileName}`;
+        }
+        // Extract name from preset value (e.g., "video:images/storm_render.mp4")
+        const activePreset = document.querySelector('.preset-item.active');
+        return activePreset ? activePreset.querySelector('span').textContent : 'Default';
     }
 
     createDifficultyButtons() {
@@ -216,10 +245,20 @@ export class UIManager {
 
         this.menuOverlay.style.display = 'none';
 
+        // Track game start analytics
+        const bgName = this.getBackgroundName();
+        this.scoreManager.trackGameEvent({
+            type: 'start',
+            background: bgName,
+            width: width,
+            height: height,
+            bombs: bombs
+        });
+
         if (this.onStartGame) {
             const useHoverHelper = this.hoverHelperCheckbox ? this.hoverHelperCheckbox.checked : true;
             const noGuessMode = this.noGuessCheckbox ? this.noGuessCheckbox.checked : false;
-            this.onStartGame(width, height, bombs, useHoverHelper, noGuessMode);
+            this.onStartGame(width, height, bombs, useHoverHelper, noGuessMode, bgName);
         }
     }
 
@@ -410,7 +449,12 @@ export class UIManager {
                             ${noGuessBadge}
                             ${hintsBadge}
                         </div>
-                        <div class="score-details">${score.width}x${score.height} | ${score.bombs} 💣 | ${this.scoreManager.formatTime(score.time)}</div>
+                        <div class="score-details">
+                            ${score.width}x${score.height} | ${score.bombs} 💣 | ${this.scoreManager.formatTime(score.time)}
+                            <br>
+                            <span class="score-bg-info">🖼️ ${score.background || 'Défaut'}</span>
+                            <span class="score-player-info">👤 ${score.codename || 'Anonyme'}</span>
+                        </div>
                     </div>
                 </div>
             `;

@@ -5,6 +5,43 @@
 export class ScoreManager {
     constructor() {
         this.storageKey = 'minesweeper3d_scores';
+        this.analyticsKey = 'minesweeper3d_analytics';
+        this.playerIdKey = 'minesweeper3d_player_id';
+        this.initPlayer();
+    }
+
+    initPlayer() {
+        let id = localStorage.getItem(this.playerIdKey);
+        if (!id) {
+            id = 'p_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+            localStorage.setItem(this.playerIdKey, id);
+        }
+        this.playerId = id;
+        this.playerCodename = this.generateCodename(id);
+    }
+
+    generateCodename(id) {
+        const adjectives = ["Neon", "Cyber", "Mega", "Shadow", "Delta", "Star", "Turbo", "Ghost", "Alpha", "Omega"];
+        const nouns = ["Tiger", "Droid", "Fox", "Falcon", "Ghost", "Runner", "Pixel", "Wizard", "Titan", "Core"];
+
+        // Use hash of ID to pick indices consistently
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) {
+            hash = ((hash << 5) - hash) + id.charCodeAt(i);
+            hash |= 0;
+        }
+        const adjIdx = Math.abs(hash) % adjectives.length;
+        const nounIdx = Math.abs(hash * 31) % nouns.length;
+        const suffix = Math.abs(hash) % 1000;
+
+        return `${adjectives[adjIdx]} ${nouns[nounIdx]} #${suffix}`;
+    }
+
+    getPlayerInfo() {
+        return {
+            id: this.playerId,
+            codename: this.playerCodename
+        };
     }
 
     /**
@@ -49,6 +86,8 @@ export class ScoreManager {
     saveScore(scoreData) {
         const scores = this.getAllScores();
         scores.push({
+            playerId: this.playerId,
+            codename: this.playerCodename,
             width: scoreData.width,
             height: scoreData.height,
             bombs: scoreData.bombs,
@@ -56,6 +95,7 @@ export class ScoreManager {
             score: scoreData.score,
             noGuessMode: scoreData.noGuessMode || false,
             hintCount: scoreData.hintCount || 0,
+            background: scoreData.background || 'Unknown',
             date: scoreData.date || new Date().toISOString()
         });
 
@@ -110,6 +150,37 @@ export class ScoreManager {
      */
     clearAllScores() {
         localStorage.removeItem(this.storageKey);
+        localStorage.removeItem(this.analyticsKey);
+    }
+
+    /**
+     * Enregistre le début d'une partie ou une défaite pour les statistiques
+     */
+    trackGameEvent(eventData) {
+        try {
+            const history = this.getAnalytics();
+            history.push({
+                playerId: this.playerId,
+                codename: this.playerCodename,
+                type: eventData.type, // 'start', 'loss', 'win'
+                background: eventData.background || 'Unknown',
+                difficulty: `${eventData.width}x${eventData.height}`,
+                bombs: eventData.bombs,
+                time: eventData.time || 0,
+                date: new Date().toISOString()
+            });
+            // On garde les 200 derniers événements pour ne pas saturer le storage
+            localStorage.setItem(this.analyticsKey, JSON.stringify(history.slice(-200)));
+        } catch (e) {
+            console.warn("Erreur d'analytics:", e);
+        }
+    }
+
+    getAnalytics() {
+        try {
+            const data = localStorage.getItem(this.analyticsKey);
+            return data ? JSON.parse(data) : [];
+        } catch (e) { return []; }
     }
 
     /**

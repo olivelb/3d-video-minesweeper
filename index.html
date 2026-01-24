@@ -173,8 +173,8 @@
             // Initialize UI
             uiManager = new UIManager(null, null, scoreManager);
 
-            uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode) => {
-                startGame(width, height, bombs, useHoverHelper, noGuessMode);
+            uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName) => {
+                startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName);
             };
 
             // Main Loop integration for Timer/Score updates
@@ -218,7 +218,7 @@
             }, 100);
         });
 
-        function startGame(width, height, bombs, useHoverHelper, noGuessMode) {
+        function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName) {
             if (renderer) {
                 renderer.dispose();
                 renderer = null;
@@ -228,7 +228,7 @@
             game.noGuessMode = noGuessMode;
             game.init();
 
-            renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper);
+            renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper, bgName);
 
             // Hint handling
             const hintBtn = document.getElementById('hint-btn');

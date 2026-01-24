@@ -679,6 +679,21 @@ body::before {
     color: #fff;
 }
 
+.score-bg-info {
+    display: inline-block;
+    margin-top: 5px;
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-right: 10px;
+}
+
+.score-player-info {
+    display: inline-block;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: #f093fb;
+}
+
 .no-scores {
     opacity: 0.6;
     font-style: italic;

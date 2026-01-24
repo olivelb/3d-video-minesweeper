@@ -6,11 +6,12 @@ import { SoundManager } from './SoundManager.js';
 import { ParticleSystem } from './ParticleSystem.js';
 
 export class MinesweeperRenderer {
-    constructor(game, containerId, scoreManager = null, useHoverHelper = true) {
+    constructor(game, containerId, scoreManager = null, useHoverHelper = true, bgName = 'Unknown') {
         this.game = game;
         this.container = document.getElementById(containerId);
         this.scoreManager = scoreManager;
         this.useHoverHelper = useHoverHelper;
+        this.bgName = bgName;
 
         this.scene = null;
         this.camera = null;
@@ -31,7 +32,7 @@ export class MinesweeperRenderer {
         this.flagEmitters = new Map();
         this.flag3DMeshes = new Map(); // For 3D flag models
         this.numberMeshes = [];
-        
+
         // Flag style: 'particle' (bright/blinking) or '3d' (calm 3D model)
         this.flagStyle = 'particle';
 
@@ -82,7 +83,7 @@ export class MinesweeperRenderer {
         await this.loadResources();
 
         this.particleSystem = new ParticleSystem(this.scene, this.textures);
-        
+
         // Create reusable 3D flag geometry and material
         this.create3DFlagAssets();
 
@@ -107,7 +108,7 @@ export class MinesweeperRenderer {
         // Initialize media texture - check for custom uploaded image first, then fall back to video
         const customImage = document.getElementById('custom-image-source');
         const video = document.getElementById('image');
-        
+
         if (customImage && customImage.src && customImage.src !== '' && customImage.src !== window.location.href) {
             // User uploaded an image before starting the game
             this.mediaType = 'image';
@@ -127,7 +128,7 @@ export class MinesweeperRenderer {
             this.mediaType = 'video';
             this.mediaTexture = new THREE.VideoTexture(video);
         }
-        
+
         if (this.mediaTexture) {
             this.mediaTexture.minFilter = THREE.LinearFilter;
             this.mediaTexture.magFilter = THREE.LinearFilter;
@@ -506,22 +507,22 @@ export class MinesweeperRenderer {
     create3DFlagAssets() {
         // 2D horizontal plane, same size as number textures
         this.flag2DGeometry = new THREE.PlaneGeometry(16, 16);
-        
+
         // Create a canvas texture for the flag icon - bold stylized design
         const canvas = document.createElement('canvas');
         canvas.width = 128;
         canvas.height = 128;
         const ctx = canvas.getContext('2d');
-        
+
         // Clear with full transparency
         ctx.clearRect(0, 0, 128, 128);
-        
+
         // Outer glow effect (makes it visible on any background)
         ctx.shadowColor = '#ff0000';
         ctx.shadowBlur = 15;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
-        
+
         // Bold triangular flag - large and visible
         ctx.fillStyle = '#ff2222';
         ctx.beginPath();
@@ -530,7 +531,7 @@ export class MinesweeperRenderer {
         ctx.lineTo(20, 75);      // Bottom-left of flag
         ctx.closePath();
         ctx.fill();
-        
+
         // Inner highlight
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#ff6666';
@@ -540,7 +541,7 @@ export class MinesweeperRenderer {
         ctx.lineTo(25, 55);
         ctx.closePath();
         ctx.fill();
-        
+
         // Bold white border for visibility
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 4;
@@ -550,13 +551,13 @@ export class MinesweeperRenderer {
         ctx.lineTo(20, 75);
         ctx.closePath();
         ctx.stroke();
-        
+
         // Pole - thick and visible
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(12, 10, 8, 108);
         ctx.fillStyle = '#cccccc';
         ctx.fillRect(12, 10, 4, 108);
-        
+
         this.flag2DTexture = new THREE.CanvasTexture(canvas);
         this.flag2DTexture.minFilter = THREE.LinearFilter;
         this.flag2DTexture.magFilter = THREE.LinearFilter;
@@ -592,7 +593,7 @@ export class MinesweeperRenderer {
             0,
             (this.game.height * 10) - y * 22
         );
-        
+
         if (active) {
             if (this.flagStyle === 'particle') {
                 // Original particle effect
@@ -628,7 +629,7 @@ export class MinesweeperRenderer {
     toggleFlagStyle() {
         // Switch style
         this.flagStyle = this.flagStyle === 'particle' ? '3d' : 'particle';
-        
+
         // Collect current flag positions from game state
         const activeFlags = [];
         for (let x = 0; x < this.game.width; x++) {
@@ -638,19 +639,19 @@ export class MinesweeperRenderer {
                 }
             }
         }
-        
+
         // Clear all current visuals
         this.flagEmitters.forEach(emitter => emitter.alive = false);
         this.flagEmitters.clear();
-        
+
         this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
         this.flag3DMeshes.clear();
-        
+
         // Recreate with new style
         for (const { x, y } of activeFlags) {
             this.updateFlagVisual(x, y, true);
         }
-        
+
         return this.flagStyle;
     }
 
@@ -659,7 +660,7 @@ export class MinesweeperRenderer {
         this.showText("PERDU", 0xff0000);
         this.numberMeshes.forEach(mesh => mesh.visible = false);
         this.particleSystem.stopAll();
-        
+
         // Clear all flags (particle and 2D)
         this.flagEmitters.forEach(emitter => emitter.alive = false);
         this.flagEmitters.clear();
@@ -668,6 +669,18 @@ export class MinesweeperRenderer {
 
         // Hide UIs
         this.updateUIOverlay(false);
+
+        // Track loss analytics
+        if (this.scoreManager) {
+            this.scoreManager.trackGameEvent({
+                type: 'loss',
+                background: this.bgName,
+                width: this.game.width,
+                height: this.game.height,
+                bombs: this.game.bombCount,
+                time: this.game.getElapsedTime()
+            });
+        }
     }
 
     /**
@@ -695,7 +708,7 @@ export class MinesweeperRenderer {
             emitter.alive = false;
         });
         this.flagEmitters.clear();
-        
+
         this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
         this.flag3DMeshes.clear();
 
@@ -736,7 +749,18 @@ export class MinesweeperRenderer {
                 time: finalTime,
                 score: finalScore,
                 noGuessMode: this.game.noGuessMode,
-                hintCount: this.game.hintCount
+                hintCount: this.game.hintCount,
+                background: this.bgName
+            });
+
+            // Track win analytics
+            this.scoreManager.trackGameEvent({
+                type: 'win',
+                background: this.bgName,
+                width: this.game.width,
+                height: this.game.height,
+                bombs: this.game.bombCount,
+                time: finalTime
             });
         }
 
@@ -744,13 +768,13 @@ export class MinesweeperRenderer {
         this.gridMesh.visible = false;
         this.numberMeshes.forEach(mesh => mesh.visible = false);
         this.particleSystem.stopAll();
-        
+
         // Clear all flags (particle and 2D)
         this.flagEmitters.forEach(emitter => emitter.alive = false);
         this.flagEmitters.clear();
         this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
         this.flag3DMeshes.clear();
-        
+
         this.updateUIOverlay(false);
 
         // Fireworks
@@ -817,7 +841,7 @@ export class MinesweeperRenderer {
             const hoveredY = this.hoveredInstanceId % this.game.height;
             const hoveredX = Math.floor(this.hoveredInstanceId / this.game.height);
             const pulse = Math.sin(Date.now() * 0.01);
-            
+
             this.flag3DMeshes.forEach(flag => {
                 if (flag.userData.gridX === hoveredX && flag.userData.gridY === hoveredY) {
                     // Pulse the flag on hovered cube
