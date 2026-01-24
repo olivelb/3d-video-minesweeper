@@ -29,6 +29,8 @@ export class UIManager {
         this.customVideoUrl = null;
         this.webcamStream = null;
         this.isMuted = true;
+        this.mediaType = 'video'; // 'video' | 'image' | 'webcam'
+        this.imageElement = null; // For storing loaded image
 
         this.bindEvents();
         this.updateLeaderboard();
@@ -58,7 +60,7 @@ export class UIManager {
             const btn = document.createElement('button');
             btn.textContent = p.name;
             btn.className = 'preset-btn';
-            btn.style.padding = '8px 16px';
+            btn.style.padding = '6px 12px';
             btn.style.borderRadius = '8px';
             btn.style.border = '1px solid rgba(255,255,255,0.3)';
             btn.style.background = 'rgba(255,255,255,0.1)';
@@ -81,8 +83,12 @@ export class UIManager {
         });
 
         // Insert before inputs
-        const firstInput = container.querySelector('.input-group');
-        container.insertBefore(presetContainer, firstInput);
+        const firstDirectChild = container.querySelector('.input-row, .input-group');
+        if (firstDirectChild) {
+            container.insertBefore(presetContainer, firstDirectChild);
+        } else {
+            container.appendChild(presetContainer);
+        }
     }
 
     bindEvents() {
@@ -91,6 +97,16 @@ export class UIManager {
 
         this.videoUpload.addEventListener('change', (e) => this.handleVideoUpload(e));
         this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
+
+        // Preset selector logic
+        const presetSelect = document.getElementById('background-preset');
+        if (presetSelect) {
+            presetSelect.addEventListener('change', () => {
+                if (!this.customVideoUrl && !this.useWebcamCheckbox.checked) {
+                    this.resetToDefaultVideo();
+                }
+            });
+        }
 
         this.muteBtn.addEventListener('click', () => this.toggleMute());
 
@@ -142,6 +158,8 @@ export class UIManager {
         }
     }
 
+    // ... (rest of methods until resetToDefaultVideo)
+
     async handleStart() {
         const MIN_DIM = 10;
         const MAX_W = parseInt(this.widthInput.max, 10) || 60;
@@ -169,10 +187,18 @@ export class UIManager {
             }
         } else {
             this.stopWebcam();
-            this.resetToDefaultVideo();
+            // Don't force reset here if we already have a valid custom URL or preset loaded
+            // But we do want to ensure sound is on if it's a video
+            if (this.mediaType === 'video') {
+                this.videoElement.muted = false;
+            }
         }
 
-        this.videoElement.play().catch(e => console.warn("Auto-lecture bloquée:", e));
+        // Only try to play if it is a video (webcam or file)
+        if (this.mediaType !== 'image') {
+            this.videoElement.play().catch(e => console.warn("Auto-lecture bloquée:", e));
+        }
+
         this.menuOverlay.style.display = 'none';
 
         if (this.onStartGame) {
@@ -182,54 +208,118 @@ export class UIManager {
         }
     }
 
+    // ... (rest of methods until resetToDefaultVideo)
+
     resetToDefaultVideo() {
         if (this.customVideoUrl) {
             URL.revokeObjectURL(this.customVideoUrl);
             this.customVideoUrl = null;
         }
-        this.videoElement.crossOrigin = '';
-        this.videoElement.src = 'images/storm_render.mp4';
-        this.videoElement.load();
-        this.videoFilename.textContent = 'Default: storm_render.mp4';
+
+        const presetSelect = document.getElementById('background-preset');
+        const selection = presetSelect ? presetSelect.value : 'video:images/storm_render.mp4';
+        const [type, path] = selection.split(':');
+
+        this.videoFilename.textContent = 'Utilise le préréglage sélectionné';
         this.videoFilename.classList.remove('custom-video');
-        this.videoElement.muted = false;
-        this.videoElement.removeAttribute('muted');
+
+        if (type === 'video') {
+            this.mediaType = 'video';
+            this.imageElement = null; // Clear any image
+            const customImageElement = document.getElementById('custom-image-source');
+            if (customImageElement) customImageElement.src = '';
+
+            this.videoElement.crossOrigin = '';
+            this.videoElement.src = path;
+            this.videoElement.load();
+            this.videoElement.muted = false;
+            this.videoElement.removeAttribute('muted');
+
+            // Notify renderer
+            if (this.renderer && this.renderer.updateMediaTexture) {
+                this.renderer.updateMediaTexture('video', this.videoElement);
+            }
+        } else {
+            this.mediaType = 'image';
+            this.videoElement.pause();
+
+            // Update hidden img source
+            const customImageElement = document.getElementById('custom-image-source');
+            if (customImageElement) customImageElement.src = path;
+
+            // Load new image
+            const img = new Image();
+            img.onload = () => {
+                this.imageElement = img;
+                if (this.renderer && this.renderer.updateMediaTexture) {
+                    this.renderer.updateMediaTexture('image', img);
+                }
+            };
+            img.src = path;
+        }
     }
 
     handleVideoUpload(e) {
         const file = e.target.files[0];
-        if (file) {
-            this.stopWebcam();
-            this.useWebcamCheckbox.checked = false;
-            if (this.customVideoUrl) {
-                URL.revokeObjectURL(this.customVideoUrl);
-            }
-            this.customVideoUrl = URL.createObjectURL(file);
-            this.videoElement.src = this.customVideoUrl;
-            this.videoElement.load();
-            this.videoFilename.textContent = file.name;
-            this.videoFilename.classList.add('custom-video');
-            this.videoElement.muted = false;
-            this.videoElement.removeAttribute('muted');
+        if (!file) return;
+
+        this.stopWebcam();
+        this.useWebcamCheckbox.checked = false;
+        if (this.customVideoUrl) {
+            URL.revokeObjectURL(this.customVideoUrl);
+        }
+        this.customVideoUrl = URL.createObjectURL(file);
+
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+
+        if (isImage) {
+            this.handleImageFile(file);
+        } else if (isVideo) {
+            this.handleVideoFile(file);
         }
     }
 
-    async startWebcam() {
-        try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
-            this.webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            this.videoElement.srcObject = this.webcamStream;
-            this.videoElement.muted = false;
-            this.videoElement.removeAttribute('muted');
-            this.videoFilename.textContent = 'Webcam active';
-            this.videoFilename.classList.add('custom-video');
-            return true;
-        } catch (err) {
-            console.warn('Webcam unavailable:', err);
-            this.stopWebcam();
-            return false;
+    // ... handleImageFile and handleVideoFile remain mostly same but handleVideoFile needs check
+
+    handleImageFile(file) {
+        this.mediaType = 'image';
+        const customImageElement = document.getElementById('custom-image-source');
+        if (customImageElement) {
+            customImageElement.src = this.customVideoUrl;
+        }
+        const img = new Image();
+        img.onload = () => {
+            this.imageElement = img;
+            if (this.renderer && this.renderer.updateMediaTexture) {
+                this.renderer.updateMediaTexture('image', img);
+            }
+        };
+        img.src = this.customVideoUrl;
+        this.videoFilename.textContent = file.name;
+        this.videoFilename.classList.add('custom-video');
+        this.videoElement.pause();
+    }
+
+    handleVideoFile(file) {
+        this.mediaType = 'video';
+        this.imageElement = null;
+        const customImageElement = document.getElementById('custom-image-source');
+        if (customImageElement) {
+            customImageElement.src = '';
+        }
+        this.videoElement.src = this.customVideoUrl;
+        this.videoElement.load();
+        this.videoFilename.textContent = file.name;
+        this.videoFilename.classList.add('custom-video');
+        this.videoElement.muted = false;
+        this.videoElement.removeAttribute('muted');
+        if (this.renderer && this.renderer.updateMediaTexture) {
+            this.renderer.updateMediaTexture('video', this.videoElement);
         }
     }
+
+    // ... rest of class logic ...
 
     stopWebcam() {
         if (this.webcamStream) {
@@ -253,8 +343,7 @@ export class UIManager {
             });
         } else {
             this.stopWebcam();
-            this.videoFilename.textContent = 'Default: storm_render.mp4';
-            this.videoFilename.classList.remove('custom-video');
+            this.resetToDefaultVideo(); // Revert to selected preset
         }
     }
 

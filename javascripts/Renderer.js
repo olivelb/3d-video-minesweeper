@@ -104,13 +104,37 @@ export class MinesweeperRenderer {
         this.textures['flag'] = textureLoader.load('images/star.png');
         this.textures['particle'] = textureLoader.load('images/flare.png');
 
+        // Initialize media texture - check for custom uploaded image first, then fall back to video
+        const customImage = document.getElementById('custom-image-source');
         const video = document.getElementById('image');
-        if (video) {
-            this.videoTexture = new THREE.VideoTexture(video);
-            this.videoTexture.minFilter = THREE.LinearFilter;
-            this.videoTexture.magFilter = THREE.LinearFilter;
-            this.videoTexture.colorSpace = THREE.SRGBColorSpace;
+        
+        if (customImage && customImage.src && customImage.src !== '' && customImage.src !== window.location.href) {
+            // User uploaded an image before starting the game
+            this.mediaType = 'image';
+            // Wait for image to load if needed
+            if (customImage.complete && customImage.naturalWidth > 0) {
+                this.mediaTexture = new THREE.Texture(customImage);
+                this.mediaTexture.needsUpdate = true;
+            } else {
+                // Image not loaded yet, create texture and update when loaded
+                this.mediaTexture = new THREE.Texture(customImage);
+                customImage.onload = () => {
+                    this.mediaTexture.needsUpdate = true;
+                };
+            }
+        } else if (video) {
+            // Default to video texture
+            this.mediaType = 'video';
+            this.mediaTexture = new THREE.VideoTexture(video);
         }
+        
+        if (this.mediaTexture) {
+            this.mediaTexture.minFilter = THREE.LinearFilter;
+            this.mediaTexture.magFilter = THREE.LinearFilter;
+            this.mediaTexture.colorSpace = THREE.SRGBColorSpace;
+        }
+        // Keep reference for backwards compatibility
+        this.videoTexture = this.mediaTexture;
 
         return new Promise((resolve) => {
             fontLoader.load('https://unpkg.com/three@0.160.0/examples/fonts/optimer_bold.typeface.json', (font) => {
@@ -120,9 +144,49 @@ export class MinesweeperRenderer {
         });
     }
 
+    /**
+     * Update the media texture dynamically (for switching between video and image)
+     * @param {string} type - 'video' or 'image'
+     * @param {HTMLVideoElement|HTMLImageElement} source - The media source element
+     */
+    updateMediaTexture(type, source) {
+        if (!source) return;
+
+        // Dispose old texture to free memory
+        if (this.mediaTexture) {
+            this.mediaTexture.dispose();
+        }
+
+        this.mediaType = type;
+
+        if (type === 'image') {
+            // Create a standard texture from the image
+            this.mediaTexture = new THREE.Texture(source);
+            this.mediaTexture.needsUpdate = true;
+        } else {
+            // Create a video texture
+            this.mediaTexture = new THREE.VideoTexture(source);
+        }
+
+        // Apply common settings
+        this.mediaTexture.minFilter = THREE.LinearFilter;
+        this.mediaTexture.magFilter = THREE.LinearFilter;
+        this.mediaTexture.colorSpace = THREE.SRGBColorSpace;
+
+        // Update the material on the grid mesh (face index 4 is the front face with the video material)
+        if (this.gridMesh && this.gridMesh.material && Array.isArray(this.gridMesh.material)) {
+            const videoMaterialIndex = 4; // Front face
+            this.gridMesh.material[videoMaterialIndex].map = this.mediaTexture;
+            this.gridMesh.material[videoMaterialIndex].needsUpdate = true;
+        }
+
+        // Keep backwards compatibility reference
+        this.videoTexture = this.mediaTexture;
+    }
+
     createGrid() {
         const geometry = new THREE.BoxGeometry(20, 20, 20);
-        const videoMaterial = new THREE.MeshBasicMaterial({ map: this.videoTexture });
+        const videoMaterial = new THREE.MeshBasicMaterial({ map: this.mediaTexture });
 
         videoMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.uGridSize = { value: new THREE.Vector2(this.game.width, this.game.height) };

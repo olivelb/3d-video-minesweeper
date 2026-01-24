@@ -23,6 +23,8 @@
     <video id="image" preload="auto" loop muted autoplay style="display:none;" playsinline>
         <source src="images/storm_render.mp4" type="video/mp4">
     </video>
+    <!-- Image utilisée comme texture (quand l'utilisateur uploade une image) -->
+    <img id="custom-image-source" style="display:none;" />
 
     <div id="ui-container">
         <h1>Démineur 3D</h1>
@@ -44,42 +46,54 @@
         <div class="menu-box">
             <h2>Configuration</h2>
             <!-- Note: Presets are inserted via UIManager -->
-            <div class="input-group">
-                <label>Largeur (Width)</label>
-                <input type="number" id="grid-width" value="30" min="10" max="200">
+            <div class="input-row">
+                <div class="input-group">
+                    <label>Largeur</label>
+                    <input type="number" id="grid-width" value="30" min="10" max="200">
+                </div>
+                <div class="input-group">
+                    <label>Hauteur</label>
+                    <input type="number" id="grid-height" value="20" min="10" max="150">
+                </div>
+                <div class="input-group">
+                    <label>Bombes</label>
+                    <input type="number" id="bomb-count" value="50" min="1">
+                </div>
             </div>
             <div class="input-group">
-                <label>Hauteur (Height)</label>
-                <input type="number" id="grid-height" value="20" min="10" max="150">
-            </div>
-            <div class="input-group">
-                <label>Bombes</label>
-                <input type="number" id="bomb-count" value="50" min="1">
-            </div>
-            <div class="input-group">
-                <label>Vidéo de fond (optionnel)</label>
+                <label>Média de fond (optionnel)</label>
+                <!-- Default Preset Selector -->
+                <select id="background-preset"
+                    style="width: 100%; padding: 12px; margin-bottom: 10px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer;">
+                    <option value="video:images/storm_render.mp4">🌪️ Orage (Vidéo par défaut)</option>
+                    <option value="image:images/default_texture_1.png">🌌 Nébuleuse (Image)</option>
+                    <option value="image:images/default_texture_2.png">💎 Cristal (Image)</option>
+                    <option value="image:images/default_texture_3.png">🌆 Néon Cyberpunk (Image)</option>
+                    <option value="image:images/default_texture_4.png">🌊 Or Liquide (Image)</option>
+                </select>
+
                 <div class="video-upload-container">
-                    <input type="file" id="video-upload" accept="video/mp4,video/webm,video/ogg">
+                    <input type="file" id="video-upload" accept="video/mp4,video/webm,video/ogg,image/*">
                     <label for="video-upload" class="video-upload-btn">
                         <span class="upload-icon">📁</span>
-                        <span class="upload-text">Choisir une vidéo locale</span>
+                        <span class="upload-text">Ou importer un fichier...</span>
                     </label>
-                    <span id="video-filename" class="video-filename">Par défaut: storm_render.mp4</span>
+                    <span id="video-filename" class="video-filename">Utilise le préréglage ci-dessus</span>
                 </div>
                 <div class="video-webcam">
                     <label class="webcam-label"><input type="checkbox" id="use-webcam"> Utiliser la webcam si
                         disponible</label>
                     <small class="hint">Si la webcam est refusée ou absente, on revient à la vidéo par défaut.</small>
                 </div>
-                <div class="hover-helper-toggle" style="margin-top: 14px;">
-                    <label class="checkbox-label"><input type="checkbox" id="hover-helper" checked> Activer l'aide au
-                        survol (Helper)</label>
-                    <small class="hint">Affiche un cadre jaune sur la case survolée.</small>
-                </div>
-                <div class="no-guess-toggle" style="margin-top: 14px;">
-                    <label class="checkbox-label"><input type="checkbox" id="no-guess-mode"> Mode sans hasard (No
-                        Guess)</label>
-                    <small class="hint">Génère une grille toujours résolvable par la logique (-25% score).</small>
+                <div class="input-row" style="margin-top: 10px;">
+                    <div class="input-group">
+                        <label class="checkbox-label"><input type="checkbox" id="hover-helper" checked> Aide au
+                            survol</label>
+                    </div>
+                    <div class="input-group">
+                        <label class="checkbox-label"><input type="checkbox" id="no-guess-mode"> Sans hasard (No
+                            Guess)</label>
+                    </div>
                 </div>
             </div>
             <button id="start-btn">JOUER</button>
