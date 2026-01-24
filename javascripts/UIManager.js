@@ -114,10 +114,13 @@ export class UIManager {
                 // Update selected value
                 this.selectedPresetValue = item.dataset.value;
 
-                // Only auto-preview if not using webcam/upload
-                if (!this.customVideoUrl && !this.useWebcamCheckbox.checked) {
-                    this.resetToDefaultVideo();
-                }
+                // When clicking a preset, we want to clear any custom upload/webcam
+                this.stopWebcam();
+                this.useWebcamCheckbox.checked = false;
+                this.videoUpload.value = ''; // Important: clear the file input
+
+                // Always reset to the selected preset (clearing custom URLs)
+                this.resetToDefaultVideo();
             });
         });
 
@@ -231,6 +234,7 @@ export class UIManager {
 
         this.videoFilename.textContent = 'Utilise le préréglage sélectionné';
         this.videoFilename.classList.remove('custom-video');
+        this.videoUpload.value = ''; // Ensure file input is cleared
 
         if (type === 'video') {
             this.mediaType = 'video';
@@ -274,6 +278,7 @@ export class UIManager {
 
         this.stopWebcam();
         this.useWebcamCheckbox.checked = false;
+        this.clearPresetHighlights();
         if (this.customVideoUrl) {
             URL.revokeObjectURL(this.customVideoUrl);
         }
@@ -363,6 +368,7 @@ export class UIManager {
     handleWebcamToggle(e) {
         if (e.target.checked) {
             this.videoUpload.value = '';
+            this.clearPresetHighlights();
             if (this.customVideoUrl) {
                 URL.revokeObjectURL(this.customVideoUrl);
                 this.customVideoUrl = null;
@@ -423,6 +429,7 @@ export class UIManager {
     showMenu() {
         this.menuOverlay.style.display = 'flex';
         this.hintBtn.style.display = 'none';
+        this.renderer = null; // Clear disposed renderer
         this.updateLeaderboard();
     }
 
@@ -462,5 +469,9 @@ export class UIManager {
                 this.renderer.soundManager.setMute(this.isMuted);
             }
         }
+    }
+
+    clearPresetHighlights() {
+        document.querySelectorAll('.preset-item').forEach(i => i.classList.remove('active'));
     }
 }
