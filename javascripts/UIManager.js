@@ -171,7 +171,6 @@ export class UIManager {
         }
     }
 
-    // ... (rest of methods until resetToDefaultVideo)
 
     async handleStart() {
         const MIN_DIM = 10;
@@ -221,7 +220,6 @@ export class UIManager {
         }
     }
 
-    // ... (rest of methods until resetToDefaultVideo)
 
     resetToDefaultVideo() {
         if (this.customVideoUrl) {
@@ -291,7 +289,6 @@ export class UIManager {
         }
     }
 
-    // ... handleImageFile and handleVideoFile remain mostly same but handleVideoFile needs check
 
     handleImageFile(file) {
         this.mediaType = 'image';
@@ -330,7 +327,28 @@ export class UIManager {
         }
     }
 
-    // ... rest of class logic ...
+    async startWebcam() {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+            this.webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            this.videoElement.srcObject = this.webcamStream;
+            this.videoElement.muted = false;
+            this.videoElement.removeAttribute('muted');
+            this.mediaType = 'webcam';
+            this.imageElement = null;
+            this.videoFilename.textContent = 'Webcam active';
+            this.videoFilename.classList.add('custom-video');
+            // Notify renderer if it exists
+            if (this.renderer && this.renderer.updateMediaTexture) {
+                this.renderer.updateMediaTexture('video', this.videoElement);
+            }
+            return true;
+        } catch (err) {
+            console.warn('Webcam unavailable:', err);
+            this.stopWebcam();
+            return false;
+        }
+    }
 
     stopWebcam() {
         if (this.webcamStream) {
