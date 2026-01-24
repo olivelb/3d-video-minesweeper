@@ -27,18 +27,13 @@
     <div id="ui-container">
         <h1>Démineur 3D</h1>
         <p>Clic Gauche: Révéler | Clic Droit: Drapeau</p>
-        <button id="hint-btn"
-            style="display:none; margin-top: 10px; background: rgba(255,255,255,0.1); border: 1px solid white; color: white; padding: 5px 10px; cursor: pointer; border-radius: 5px;">🧩
-            BESOIN D'AIDE</button>
-        <button id="flag-style-btn" style="margin-top: 10px; margin-left: 10px;" title="Basculer vers les drapeaux 3D">⭐
+        <button id="hint-btn" class="control-btn" title="Obtenir un indice logique">🧩 BESOIN D'AIDE</button>
+        <button id="flag-style-btn" class="control-btn" style="margin-left: 10px;"
+            title="Basculer vers les drapeaux 3D">⭐
             ÉTOILES</button>
         <div id="hint-display">🧩 Indices: 0</div>
-        <button id="mute-btn"
-            style="position: absolute; top: 20px; right: 20px; background: none; border: 1px solid white; color: white; padding: 5px 10px; cursor: pointer;">🔇
-            OFF</button>
-        <button id="retry-btn"
-            style="display:none; margin-top: 10px; background: rgba(255,100,0,0.4); border: 2px solid #ff6400; color: white; padding: 10px 20px; cursor: pointer; border-radius: 5px; font-weight: bold; font-size: 1.2em;">🔁
-            REESSAYER</button>
+        <button id="mute-btn" class="control-btn" title="Activer/Désactiver le son">🔇 OFF</button>
+        <button id="retry-btn" title="Recommencer au dernier coup sûr">🔁 REESSAYER</button>
     </div>
 
     <div id="timer-display">⏱️ 00:00</div>
@@ -185,7 +180,7 @@
 
             // Hint handling
             const hintBtn = document.getElementById('hint-btn');
-            hintBtn.style.display = 'block';
+            hintBtn.style.display = 'inline-flex';
             hintBtn.onclick = () => {
                 const hint = game.getHint();
                 if (hint) {

@@ -296,6 +296,7 @@ export class UIManager {
     toggleMute() {
         this.isMuted = !this.isMuted;
         this.muteBtn.textContent = this.isMuted ? '🔇 OFF' : '🔊 ON';
+        this.muteBtn.title = this.isMuted ? 'Activer le son' : 'Désactiver le son';
         if (this.renderer && this.renderer.soundManager) {
             this.renderer.soundManager.setMute(this.isMuted);
         }
