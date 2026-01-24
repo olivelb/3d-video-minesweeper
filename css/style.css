@@ -154,6 +154,7 @@ body::before {
     grid-template-columns: repeat(5, 1fr);
     gap: 10px;
     margin-bottom: 20px;
+    width: 100%;
 }
 
 .preset-item {
