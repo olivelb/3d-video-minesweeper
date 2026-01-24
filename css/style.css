@@ -725,3 +725,34 @@ body::before {
     background: rgba(255, 0, 0, 0.4);
     transform: scale(1.05);
 }
+#flag-style-btn {
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+#flag-style-btn:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+#flag-style-btn:active {
+    transform: translateY(0);
+}
+
+#flag-style-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid white;
+    color: white;
+    padding: 5px 12px;
+    cursor: pointer;
+    border-radius: 8px;
+}

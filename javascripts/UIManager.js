@@ -32,6 +32,8 @@ export class UIManager {
 
         this.bindEvents();
         this.updateLeaderboard();
+        this.currentFlagStyle = 'particle'; // Default
+        this.updateFlagStyleButton();
         this.detectGpuTier();
     }
 
@@ -91,7 +93,7 @@ export class UIManager {
         this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
 
         this.muteBtn.addEventListener('click', () => this.toggleMute());
-        
+
         // Flag style toggle (particle ↔ 3D)
         if (this.flagStyleBtn) {
             this.flagStyleBtn.addEventListener('click', () => this.toggleFlagStyle());
@@ -99,11 +101,44 @@ export class UIManager {
     }
 
     toggleFlagStyle() {
+        this.currentFlagStyle = this.currentFlagStyle === 'particle' ? '3d' : 'particle';
         if (this.renderer) {
-            const newStyle = this.renderer.toggleFlagStyle();
-            // Update button to show current style
-            this.flagStyleBtn.textContent = newStyle === 'particle' ? '🚩✨' : '🚩🎯';
-            this.flagStyleBtn.title = newStyle === 'particle' ? 'Switch to calm 3D flags' : 'Switch to particle flags';
+            this.renderer.flagStyle = this.currentFlagStyle;
+            // Force refresh of existing flags
+            this.refreshFlags();
+        }
+        this.updateFlagStyleButton();
+    }
+
+    updateFlagStyleButton() {
+        if (!this.flagStyleBtn) return;
+        this.flagStyleBtn.textContent = this.currentFlagStyle === 'particle' ? '⭐ ÉTOILES' : '🚩 DRAPEAUX';
+        this.flagStyleBtn.title = this.currentFlagStyle === 'particle' ? 'Basculer vers les drapeaux 3D' : 'Basculer vers les étoiles scintillantes';
+    }
+
+    refreshFlags() {
+        if (!this.renderer) return;
+
+        // Collect current flag positions
+        const activeFlags = [];
+        for (let x = 0; x < this.renderer.game.width; x++) {
+            for (let y = 0; y < this.renderer.game.height; y++) {
+                if (this.renderer.game.flags[x][y]) {
+                    activeFlags.push({ x, y });
+                }
+            }
+        }
+
+        // Clear all current visuals
+        this.renderer.flagEmitters.forEach(emitter => emitter.alive = false);
+        this.renderer.flagEmitters.clear();
+
+        this.renderer.flag3DMeshes.forEach(flag => this.renderer.scene.remove(flag));
+        this.renderer.flag3DMeshes.clear();
+
+        // Recreate with new style
+        for (const { x, y } of activeFlags) {
+            this.renderer.updateFlagVisual(x, y, true);
         }
     }
 
@@ -301,9 +336,12 @@ export class UIManager {
 
     setRenderer(renderer) {
         this.renderer = renderer;
-        // Sync mute state
-        if (this.renderer && this.renderer.soundManager) {
-            this.renderer.soundManager.setMute(this.isMuted);
+        if (this.renderer) {
+            // Apply current style to new renderer
+            this.renderer.flagStyle = this.currentFlagStyle;
+            if (this.renderer.soundManager) {
+                this.renderer.soundManager.setMute(this.isMuted);
+            }
         }
     }
 }
