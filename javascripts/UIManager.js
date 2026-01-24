@@ -35,6 +35,7 @@ export class UIManager {
         this.bindEvents();
         this.updateLeaderboard();
         this.currentFlagStyle = 'particle'; // Default
+        this.selectedPresetValue = 'video:images/storm_render.mp4';
         this.updateFlagStyleButton();
         this.detectGpuTier();
     }
@@ -98,15 +99,27 @@ export class UIManager {
         this.videoUpload.addEventListener('change', (e) => this.handleVideoUpload(e));
         this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
 
-        // Preset selector logic
-        const presetSelect = document.getElementById('background-preset');
-        if (presetSelect) {
-            presetSelect.addEventListener('change', () => {
+        // Visual Preset Selector Logic
+        const presetItems = document.querySelectorAll('.preset-item');
+        presetItems.forEach(item => {
+            // Ensure videos are playing
+            const v = item.querySelector('video');
+            if (v) v.play().catch(() => { });
+
+            item.addEventListener('click', () => {
+                // Update UI: Remove active from others, add to this
+                presetItems.forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+
+                // Update selected value
+                this.selectedPresetValue = item.dataset.value;
+
+                // Only auto-preview if not using webcam/upload
                 if (!this.customVideoUrl && !this.useWebcamCheckbox.checked) {
                     this.resetToDefaultVideo();
                 }
             });
-        }
+        });
 
         this.muteBtn.addEventListener('click', () => this.toggleMute());
 
@@ -216,9 +229,7 @@ export class UIManager {
             this.customVideoUrl = null;
         }
 
-        const presetSelect = document.getElementById('background-preset');
-        const selection = presetSelect ? presetSelect.value : 'video:images/storm_render.mp4';
-        const [type, path] = selection.split(':');
+        const [type, path] = this.selectedPresetValue.split(':');
 
         this.videoFilename.textContent = 'Utilise le préréglage sélectionné';
         this.videoFilename.classList.remove('custom-video');

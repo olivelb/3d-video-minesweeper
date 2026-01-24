@@ -62,15 +62,28 @@
             </div>
             <div class="input-group">
                 <label>Média de fond (optionnel)</label>
-                <!-- Default Preset Selector -->
-                <select id="background-preset"
-                    style="width: 100%; padding: 12px; margin-bottom: 10px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer;">
-                    <option value="video:images/storm_render.mp4">🌪️ Orage (Vidéo par défaut)</option>
-                    <option value="image:images/default_texture_1.png">🌌 Nébuleuse (Image)</option>
-                    <option value="image:images/default_texture_2.png">💎 Cristal (Image)</option>
-                    <option value="image:images/default_texture_3.png">🌆 Néon Cyberpunk (Image)</option>
-                    <option value="image:images/default_texture_4.png">🌊 Or Liquide (Image)</option>
-                </select>
+                <div id="background-presets-container" class="preset-grid">
+                    <div class="preset-item active" data-value="video:images/storm_render.mp4" title="Orage (Vidéo)">
+                        <video src="images/storm_render.mp4" muted loop playsinline autoplay></video>
+                        <span>Orage</span>
+                    </div>
+                    <div class="preset-item" data-value="image:images/default_texture_1.png" title="Nébuleuse">
+                        <img src="images/default_texture_1.png">
+                        <span>Espace</span>
+                    </div>
+                    <div class="preset-item" data-value="image:images/default_texture_2.png" title="Cristal">
+                        <img src="images/default_texture_2.png">
+                        <span>Cristal</span>
+                    </div>
+                    <div class="preset-item" data-value="image:images/default_texture_3.png" title="Néon Cyberpunk">
+                        <img src="images/default_texture_3.png">
+                        <span>Néon</span>
+                    </div>
+                    <div class="preset-item" data-value="image:images/default_texture_4.png" title="Or Liquide">
+                        <img src="images/default_texture_4.png">
+                        <span>Fluide</span>
+                    </div>
+                </div>
 
                 <div class="video-upload-container">
                     <input type="file" id="video-upload" accept="video/mp4,video/webm,video/ogg,image/*">
