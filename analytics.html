@@ -56,9 +56,45 @@
             transform: translateX(-5px);
         }
 
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            padding: 12px 25px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px 10px 0 0;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: transparent;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 20px;
             margin-bottom: 40px;
         }
@@ -79,14 +115,14 @@
         }
 
         .stat-value {
-            font-size: 2.5em;
+            font-size: 2.2em;
             font-weight: 800;
             color: #ffd700;
             display: block;
         }
 
         .stat-label {
-            font-size: 0.9em;
+            font-size: 0.85em;
             opacity: 0.8;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -190,6 +226,73 @@
             text-align: center;
         }
 
+        /* Sensitivity Analysis Styles */
+        .sensitivity-card {
+            background: rgba(255, 100, 100, 0.1);
+            border: 1px solid rgba(255, 100, 100, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .sensitivity-card.warning {
+            background: rgba(255, 165, 0, 0.15);
+            border-color: rgba(255, 165, 0, 0.4);
+        }
+
+        .sensitivity-card.danger {
+            background: rgba(255, 0, 0, 0.15);
+            border-color: rgba(255, 0, 0, 0.4);
+        }
+
+        .sensitivity-card h4 {
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .sensitivity-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sensitivity-metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            opacity: 0.8;
+        }
+
+        .metric-value {
+            font-weight: 700;
+        }
+
+        .anomaly-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 700;
+            margin-left: 10px;
+        }
+
+        .anomaly-badge.high {
+            background: rgba(255, 0, 0, 0.3);
+            color: #ff6666;
+        }
+
+        .anomaly-badge.medium {
+            background: rgba(255, 165, 0, 0.3);
+            color: #ffaa00;
+        }
+
+        .custom-upload-highlight {
+            background: rgba(240, 147, 251, 0.1);
+            border-left: 4px solid #f093fb;
+        }
+
         @media (max-width: 600px) {
             .charts-grid {
                 grid-template-columns: 1fr;
@@ -197,6 +300,10 @@
 
             .chart-container {
                 height: 250px;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
             }
         }
     </style>
@@ -208,35 +315,73 @@
 
         <div class="analytics-header">
             <h1>📊 Analytics Dashboard</h1>
-            <p>Analyse de l'impact des fonds d'écran sur vos performances</p>
+            <p>Analyse comportementale et détection de sensibilité aux médias</p>
         </div>
 
-        <div id="stats-grid" class="stats-grid"></div>
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('general')">📈 Vue Générale</button>
+            <button class="tab-btn" onclick="showTab('sensitivity')">🧠 Analyse de Sensibilité</button>
+            <button class="tab-btn" onclick="showTab('history')">📜 Historique</button>
+        </div>
 
-        <div class="charts-grid">
-            <div class="chart-card">
-                <h3>🎯 Taux de Victoire par Fond d'Écran</h3>
-                <div class="chart-container">
-                    <canvas id="winRateChart"></canvas>
+        <!-- General Tab -->
+        <div id="tab-general" class="tab-content active">
+            <div id="stats-grid" class="stats-grid"></div>
+
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>🎯 Taux de Victoire par Fond</h3>
+                    <div class="chart-container">
+                        <canvas id="winRateChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>⏱️ Temps de Décision Moyen</h3>
+                    <div class="chart-container">
+                        <canvas id="decisionTimeChart"></canvas>
+                    </div>
                 </div>
             </div>
 
             <div class="chart-card">
-                <h3>⏱️ Temps Moyen par Fond d'Écran</h3>
-                <div class="chart-container">
-                    <canvas id="avgTimeChart"></canvas>
+                <h3>📊 Comparaison Préréglages vs Uploads Personnalisés</h3>
+                <div id="preset-vs-custom"></div>
+            </div>
+        </div>
+
+        <!-- Sensitivity Analysis Tab -->
+        <div id="tab-sensitivity" class="tab-content">
+            <div class="chart-card">
+                <h3>🔍 Détection d'Anomalies sur Fichiers Uploadés</h3>
+                <p style="opacity: 0.7; margin-bottom: 20px;">
+                    Cette analyse détecte si un fichier uploadé (image/vidéo personnelle) affecte négativement vos
+                    performances
+                    par rapport à votre niveau habituel. Des signes de distraction, hésitation ou attachement émotionnel
+                    sont recherchés.
+                </p>
+                <div id="sensitivity-analysis"></div>
+            </div>
+
+            <div class="chart-card" style="margin-top: 30px;">
+                <h3>📉 Indicateurs Comportementaux</h3>
+                <div class="charts-grid" style="margin-bottom: 0;">
+                    <div class="chart-container">
+                        <canvas id="hesitationChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="attachmentChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="chart-card">
-            <h3>📈 Détails par Fond d'Écran</h3>
-            <div id="details-table"></div>
-        </div>
-
-        <div class="chart-card" style="margin-top: 30px;">
-            <h3>📜 Historique des Parties (20 dernières)</h3>
-            <div id="history-table"></div>
+        <!-- History Tab -->
+        <div id="tab-history" class="tab-content">
+            <div class="chart-card">
+                <h3>📜 Historique Complet des Parties</h3>
+                <div id="history-table"></div>
+            </div>
         </div>
 
         <div class="actions">
@@ -246,251 +391,370 @@
     </div>
 
     <script>
-        // Load analytics data
         const analyticsKey = 'minesweeper3d_analytics';
         const scoresKey = 'minesweeper3d_scores';
+        let charts = {};
 
         function getAnalytics() {
-            try {
-                return JSON.parse(localStorage.getItem(analyticsKey)) || [];
-            } catch { return []; }
+            try { return JSON.parse(localStorage.getItem(analyticsKey)) || []; }
+            catch { return []; }
         }
 
         function getScores() {
-            try {
-                return JSON.parse(localStorage.getItem(scoresKey)) || [];
-            } catch { return []; }
+            try { return JSON.parse(localStorage.getItem(scoresKey)) || []; }
+            catch { return []; }
         }
 
-        function processData() {
-            const events = getAnalytics();
-            const stats = {};
-
-            events.forEach(e => {
-                if (e.type === 'start') return; // Skip starts for win/loss calc
-
-                const bg = e.background || 'Unknown';
-                if (!stats[bg]) {
-                    stats[bg] = { wins: 0, losses: 0, totalTime: 0, games: 0 };
-                }
-
-                if (e.type === 'win') {
-                    stats[bg].wins++;
-                    stats[bg].totalTime += e.time || 0;
-                    stats[bg].games++;
-                } else if (e.type === 'loss') {
-                    stats[bg].losses++;
-                    stats[bg].totalTime += e.time || 0;
-                    stats[bg].games++;
-                }
-            });
-
-            return stats;
+        function isCustomUpload(bg) {
+            if (!bg) return false;
+            return bg.startsWith('Custom:') || bg === 'Webcam';
         }
 
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // ========== GENERAL TAB ==========
         function renderSummaryStats() {
-            const events = getAnalytics();
-            const scores = getScores();
-
-            const totalGames = events.filter(e => e.type !== 'start').length;
+            const events = getAnalytics().filter(e => e.type !== 'start');
             const wins = events.filter(e => e.type === 'win').length;
             const losses = events.filter(e => e.type === 'loss').length;
-            const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
-            const bestScore = scores.length > 0 ? Math.max(...scores.map(s => s.score)) : 0;
+            const total = wins + losses;
+            const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
 
-            const uniqueBackgrounds = new Set(events.map(e => e.background)).size;
+            const customEvents = events.filter(e => isCustomUpload(e.background));
+            const customWins = customEvents.filter(e => e.type === 'win').length;
+            const customTotal = customEvents.length;
+            const customWinRate = customTotal > 0 ? Math.round((customWins / customTotal) * 100) : 0;
 
-            const html = `
+            const avgDecision = events.filter(e => e.clickData?.avgDecisionTime)
+                .reduce((sum, e) => sum + e.clickData.avgDecisionTime, 0) /
+                (events.filter(e => e.clickData?.avgDecisionTime).length || 1);
+
+            document.getElementById('stats-grid').innerHTML = `
                 <div class="stat-card">
-                    <span class="stat-value">${totalGames}</span>
-                    <span class="stat-label">Parties Jouées</span>
+                    <span class="stat-value">${total}</span>
+                    <span class="stat-label">Parties Totales</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-value">${winRate}%</span>
-                    <span class="stat-label">Taux de Victoire</span>
+                    <span class="stat-label">Taux Global</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">${wins}</span>
-                    <span class="stat-label">Victoires</span>
+                    <span class="stat-value">${customTotal}</span>
+                    <span class="stat-label">Parties Custom</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">${losses}</span>
-                    <span class="stat-label">Défaites</span>
+                    <span class="stat-value ${customWinRate < winRate - 15 ? 'win-rate-low' : ''}">${customWinRate}%</span>
+                    <span class="stat-label">Taux Custom</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">${bestScore.toLocaleString()}</span>
-                    <span class="stat-label">Meilleur Score</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${uniqueBackgrounds}</span>
-                    <span class="stat-label">Fonds Testés</span>
+                    <span class="stat-value">${Math.round(avgDecision / 1000)}s</span>
+                    <span class="stat-label">Décision Moy.</span>
                 </div>
             `;
-
-            document.getElementById('stats-grid').innerHTML = html;
         }
 
         function renderWinRateChart() {
-            const stats = processData();
-            const labels = Object.keys(stats);
-            const winRates = labels.map(bg => {
-                const s = stats[bg];
-                return s.games > 0 ? Math.round((s.wins / s.games) * 100) : 0;
+            const events = getAnalytics().filter(e => e.type !== 'start');
+            const bgStats = {};
+
+            events.forEach(e => {
+                const bg = e.background || 'Unknown';
+                if (!bgStats[bg]) bgStats[bg] = { wins: 0, total: 0 };
+                bgStats[bg].total++;
+                if (e.type === 'win') bgStats[bg].wins++;
             });
 
-            const colors = winRates.map(rate => {
-                if (rate >= 70) return 'rgba(0, 255, 136, 0.8)';
-                if (rate >= 40) return 'rgba(255, 204, 0, 0.8)';
-                return 'rgba(255, 68, 68, 0.8)';
-            });
+            const labels = Object.keys(bgStats);
+            const winRates = labels.map(bg => Math.round((bgStats[bg].wins / bgStats[bg].total) * 100));
+            const colors = labels.map(bg => isCustomUpload(bg) ? 'rgba(240, 147, 251, 0.8)' : 'rgba(102, 126, 234, 0.8)');
 
-            new Chart(document.getElementById('winRateChart'), {
+            if (charts.winRate) charts.winRate.destroy();
+            charts.winRate = new Chart(document.getElementById('winRateChart'), {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels,
                     datasets: [{
                         label: 'Taux de Victoire (%)',
                         data: winRates,
                         backgroundColor: colors,
-                        borderColor: colors.map(c => c.replace('0.8', '1')),
-                        borderWidth: 2,
                         borderRadius: 8
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: { color: 'rgba(255,255,255,0.7)' },
-                            grid: { color: 'rgba(255,255,255,0.1)' }
-                        },
-                        x: {
-                            ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 },
-                            grid: { display: false }
-                        }
+                        y: { beginAtZero: true, max: 100, ticks: { color: 'rgba(255,255,255,0.7)' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 }, grid: { display: false } }
                     }
                 }
             });
         }
 
-        function renderAvgTimeChart() {
-            const stats = processData();
-            const labels = Object.keys(stats);
-            const avgTimes = labels.map(bg => {
-                const s = stats[bg];
-                return s.games > 0 ? Math.round(s.totalTime / s.games) : 0;
+        function renderDecisionTimeChart() {
+            const events = getAnalytics().filter(e => e.type !== 'start' && e.clickData?.avgDecisionTime);
+            const bgStats = {};
+
+            events.forEach(e => {
+                const bg = e.background || 'Unknown';
+                if (!bgStats[bg]) bgStats[bg] = { totalTime: 0, count: 0 };
+                bgStats[bg].totalTime += e.clickData.avgDecisionTime;
+                bgStats[bg].count++;
             });
 
-            new Chart(document.getElementById('avgTimeChart'), {
+            const labels = Object.keys(bgStats);
+            const avgTimes = labels.map(bg => Math.round(bgStats[bg].totalTime / bgStats[bg].count / 1000 * 10) / 10);
+            const colors = labels.map(bg => isCustomUpload(bg) ? 'rgba(240, 147, 251, 0.8)' : 'rgba(102, 126, 234, 0.8)');
+
+            if (charts.decisionTime) charts.decisionTime.destroy();
+            charts.decisionTime = new Chart(document.getElementById('decisionTimeChart'), {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels,
                     datasets: [{
-                        label: 'Temps Moyen (secondes)',
+                        label: 'Temps de Décision (s)',
                         data: avgTimes,
-                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                        borderColor: 'rgba(102, 126, 234, 1)',
-                        borderWidth: 2,
+                        backgroundColor: colors,
                         borderRadius: 8
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: 'rgba(255,255,255,0.7)' },
-                            grid: { color: 'rgba(255,255,255,0.1)' }
-                        },
-                        x: {
-                            ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 },
-                            grid: { display: false }
-                        }
+                        y: { beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.7)' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 }, grid: { display: false } }
                     }
                 }
             });
         }
 
-        function renderDetailsTable() {
-            const stats = processData();
-            const backgrounds = Object.keys(stats);
+        function renderPresetVsCustom() {
+            const events = getAnalytics().filter(e => e.type !== 'start');
 
-            if (backgrounds.length === 0) {
-                document.getElementById('details-table').innerHTML = '<p class="no-data">Aucune donnée disponible. Jouez quelques parties pour voir les statistiques.</p>';
-                return;
-            }
+            const presetEvents = events.filter(e => !isCustomUpload(e.background));
+            const customEvents = events.filter(e => isCustomUpload(e.background));
 
-            let html = `
+            const presetWins = presetEvents.filter(e => e.type === 'win').length;
+            const customWins = customEvents.filter(e => e.type === 'win').length;
+
+            const presetWinRate = presetEvents.length > 0 ? Math.round((presetWins / presetEvents.length) * 100) : 0;
+            const customWinRate = customEvents.length > 0 ? Math.round((customWins / customEvents.length) * 100) : 0;
+
+            const presetAvgTime = presetEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.avgDecisionTime || 0), 0) / (presetEvents.filter(e => e.clickData).length || 1);
+            const customAvgTime = customEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.avgDecisionTime || 0), 0) / (customEvents.filter(e => e.clickData).length || 1);
+
+            const presetHesitations = presetEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.hesitations || 0), 0);
+            const customHesitations = customEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.hesitations || 0), 0);
+
+            const diff = customWinRate - presetWinRate;
+            const diffClass = diff < -15 ? 'win-rate-low' : diff < -5 ? 'win-rate-medium' : 'win-rate-high';
+            const diffLabel = diff < -15 ? '⚠️ Écart significatif' : diff < -5 ? '➖ Écart modéré' : '✅ Normal';
+
+            document.getElementById('preset-vs-custom').innerHTML = `
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Fond d'Écran</th>
-                            <th>Parties</th>
-                            <th>Victoires</th>
-                            <th>Défaites</th>
-                            <th>Taux Victoire</th>
-                            <th>Temps Moyen</th>
-                            <th>Sensibilité</th>
+                            <th>Métrique</th>
+                            <th>Préréglages</th>
+                            <th>Uploads Personnalisés</th>
+                            <th>Analyse</th>
                         </tr>
                     </thead>
                     <tbody>
+                        <tr>
+                            <td>Parties jouées</td>
+                            <td>${presetEvents.length}</td>
+                            <td>${customEvents.length}</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>Taux de victoire</td>
+                            <td class="win-rate-high">${presetWinRate}%</td>
+                            <td class="${customWinRate < presetWinRate - 15 ? 'win-rate-low' : ''}">${customWinRate}%</td>
+                            <td class="${diffClass}">${diffLabel}</td>
+                        </tr>
+                        <tr>
+                            <td>Temps de décision moyen</td>
+                            <td>${(presetAvgTime / 1000).toFixed(1)}s</td>
+                            <td>${(customAvgTime / 1000).toFixed(1)}s</td>
+                            <td>${customAvgTime > presetAvgTime * 1.3 ? '⚠️ Hésitation détectée' : '✅ Normal'}</td>
+                        </tr>
+                        <tr>
+                            <td>Pauses longues (>5s)</td>
+                            <td>${presetHesitations}</td>
+                            <td>${customHesitations}</td>
+                            <td>${customHesitations > presetHesitations * 2 ? '⚠️ Distraction possible' : '✅ Normal'}</td>
+                        </tr>
+                    </tbody>
+                </table>
             `;
+        }
 
-            // Calculate baseline (average win rate across all backgrounds)
-            const allGames = Object.values(stats).reduce((sum, s) => sum + s.games, 0);
-            const allWins = Object.values(stats).reduce((sum, s) => sum + s.wins, 0);
-            const baselineWinRate = allGames > 0 ? (allWins / allGames) * 100 : 50;
+        // ========== SENSITIVITY TAB ==========
+        function renderSensitivityAnalysis() {
+            const events = getAnalytics().filter(e => e.type !== 'start');
+            const customUploads = [...new Set(events.filter(e => isCustomUpload(e.background)).map(e => e.background))];
 
-            backgrounds.forEach(bg => {
-                const s = stats[bg];
-                const winRate = s.games > 0 ? (s.wins / s.games) * 100 : 0;
-                const avgTime = s.games > 0 ? Math.round(s.totalTime / s.games) : 0;
+            if (customUploads.length === 0) {
+                document.getElementById('sensitivity-analysis').innerHTML = '<p class="no-data">Aucun fichier personnalisé détecté. Uploadez une image ou vidéo pour commencer l\'analyse.</p>';
+                return;
+            }
 
-                // Calculate sensitivity: how much does this background deviate from baseline?
-                const sensitivity = winRate - baselineWinRate;
-                let sensitivityLabel, sensitivityClass;
-                if (sensitivity > 10) {
-                    sensitivityLabel = '✅ Favorable';
-                    sensitivityClass = 'win-rate-high';
-                } else if (sensitivity < -10) {
-                    sensitivityLabel = '⚠️ Distrayant';
-                    sensitivityClass = 'win-rate-low';
+            // Calculate baseline from presets
+            const presetEvents = events.filter(e => !isCustomUpload(e.background));
+            const baselineWinRate = presetEvents.length > 0 ?
+                (presetEvents.filter(e => e.type === 'win').length / presetEvents.length) * 100 : 50;
+            const baselineDecisionTime = presetEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.avgDecisionTime || 0), 0)
+                / (presetEvents.filter(e => e.clickData).length || 1);
+
+            let html = '';
+
+            customUploads.forEach(upload => {
+                const uploadEvents = events.filter(e => e.background === upload);
+                const wins = uploadEvents.filter(e => e.type === 'win').length;
+                const total = uploadEvents.length;
+                const winRate = total > 0 ? (wins / total) * 100 : 0;
+
+                const avgDecision = uploadEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.avgDecisionTime || 0), 0)
+                    / (uploadEvents.filter(e => e.clickData).length || 1);
+                const totalHesitations = uploadEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.hesitations || 0), 0);
+                const maxPause = Math.max(...uploadEvents.filter(e => e.clickData).map(e => e.clickData.maxPause || 0));
+
+                // Calculate anomaly scores
+                const winRateDiff = baselineWinRate - winRate;
+                const decisionDiff = ((avgDecision - baselineDecisionTime) / baselineDecisionTime) * 100;
+
+                let severityClass = '';
+                let severityLabel = '';
+                if (winRateDiff > 30 || decisionDiff > 50) {
+                    severityClass = 'danger';
+                    severityLabel = '🚨 Sensibilité Élevée';
+                } else if (winRateDiff > 15 || decisionDiff > 25) {
+                    severityClass = 'warning';
+                    severityLabel = '⚠️ Sensibilité Modérée';
                 } else {
-                    sensitivityLabel = '➖ Neutre';
-                    sensitivityClass = 'win-rate-medium';
+                    severityLabel = '✅ Normal';
                 }
 
-                const winRateClass = winRate >= 70 ? 'win-rate-high' : winRate >= 40 ? 'win-rate-medium' : 'win-rate-low';
-
                 html += `
-                    <tr>
-                        <td>${bg}</td>
-                        <td>${s.games}</td>
-                        <td>${s.wins}</td>
-                        <td>${s.losses}</td>
-                        <td class="${winRateClass}">${Math.round(winRate)}%</td>
-                        <td>${formatTime(avgTime)}</td>
-                        <td class="${sensitivityClass}">${sensitivityLabel}</td>
-                    </tr>
+                    <div class="sensitivity-card ${severityClass}">
+                        <h4>📁 ${upload} ${severityLabel}</h4>
+                        <div class="sensitivity-metric">
+                            <span class="metric-label">Parties jouées</span>
+                            <span class="metric-value">${total}</span>
+                        </div>
+                        <div class="sensitivity-metric">
+                            <span class="metric-label">Taux de victoire</span>
+                            <span class="metric-value ${winRate < baselineWinRate - 15 ? 'win-rate-low' : ''}">${Math.round(winRate)}% 
+                                ${winRateDiff > 15 ? `<span class="anomaly-badge ${winRateDiff > 30 ? 'high' : 'medium'}">-${Math.round(winRateDiff)}% vs baseline</span>` : ''}
+                            </span>
+                        </div>
+                        <div class="sensitivity-metric">
+                            <span class="metric-label">Temps de décision moyen</span>
+                            <span class="metric-value">${(avgDecision / 1000).toFixed(1)}s 
+                                ${decisionDiff > 25 ? `<span class="anomaly-badge ${decisionDiff > 50 ? 'high' : 'medium'}">+${Math.round(decisionDiff)}% plus lent</span>` : ''}
+                            </span>
+                        </div>
+                        <div class="sensitivity-metric">
+                            <span class="metric-label">Pauses longues détectées</span>
+                            <span class="metric-value">${totalHesitations} ${totalHesitations > 5 ? '<span class="anomaly-badge medium">Hésitation fréquente</span>' : ''}</span>
+                        </div>
+                        <div class="sensitivity-metric">
+                            <span class="metric-label">Plus longue pause</span>
+                            <span class="metric-value">${(maxPause / 1000).toFixed(1)}s ${maxPause > 30000 ? '<span class="anomaly-badge high">Distraction majeure</span>' : ''}</span>
+                        </div>
+                        <div class="sensitivity-metric">
+                            <span class="metric-label">Utilisations répétées</span>
+                            <span class="metric-value">${total} ${total > 10 ? '<span class="anomaly-badge medium">Attachement possible</span>' : ''}</span>
+                        </div>
+                    </div>
                 `;
             });
 
-            html += '</tbody></table>';
-            document.getElementById('details-table').innerHTML = html;
+            document.getElementById('sensitivity-analysis').innerHTML = html;
         }
 
+        function renderBehavioralCharts() {
+            const events = getAnalytics().filter(e => e.type !== 'start' && e.clickData);
+
+            // Hesitation chart
+            const bgHesitations = {};
+            events.forEach(e => {
+                const bg = e.background || 'Unknown';
+                if (!bgHesitations[bg]) bgHesitations[bg] = 0;
+                bgHesitations[bg] += e.clickData.hesitations || 0;
+            });
+
+            const hesLabels = Object.keys(bgHesitations);
+            const hesValues = hesLabels.map(bg => bgHesitations[bg]);
+            const hesColors = hesLabels.map(bg => isCustomUpload(bg) ? 'rgba(255, 100, 100, 0.8)' : 'rgba(100, 200, 100, 0.8)');
+
+            if (charts.hesitation) charts.hesitation.destroy();
+            charts.hesitation = new Chart(document.getElementById('hesitationChart'), {
+                type: 'bar',
+                data: {
+                    labels: hesLabels,
+                    datasets: [{
+                        label: 'Hésitations (pauses >5s)',
+                        data: hesValues,
+                        backgroundColor: hesColors,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { title: { display: true, text: 'Hésitations par Fond', color: 'white' } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.7)' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 }, grid: { display: false } }
+                    }
+                }
+            });
+
+            // Attachment chart (usage count)
+            const bgUsage = {};
+            events.forEach(e => {
+                const bg = e.background || 'Unknown';
+                if (!bgUsage[bg]) bgUsage[bg] = 0;
+                bgUsage[bg]++;
+            });
+
+            const usageLabels = Object.keys(bgUsage).filter(bg => isCustomUpload(bg));
+            const usageValues = usageLabels.map(bg => bgUsage[bg]);
+
+            if (charts.attachment) charts.attachment.destroy();
+            charts.attachment = new Chart(document.getElementById('attachmentChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: usageLabels.length > 0 ? usageLabels : ['Aucun upload'],
+                    datasets: [{
+                        data: usageValues.length > 0 ? usageValues : [1],
+                        backgroundColor: ['rgba(240, 147, 251, 0.8)', 'rgba(102, 126, 234, 0.8)', 'rgba(255, 200, 100, 0.8)', 'rgba(100, 255, 200, 0.8)']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Répartition Uploads Personnalisés', color: 'white' },
+                        legend: { labels: { color: 'white' } }
+                    }
+                }
+            });
+        }
+
+        // ========== HISTORY TAB ==========
         function renderHistoryTable() {
-            const events = getAnalytics().filter(e => e.type !== 'start').slice(-20).reverse();
+            const events = getAnalytics().filter(e => e.type !== 'start').reverse();
 
             if (events.length === 0) {
                 document.getElementById('history-table').innerHTML = '<p class="no-data">Aucun historique disponible.</p>';
@@ -506,25 +770,28 @@
                             <th>Fond</th>
                             <th>Difficulté</th>
                             <th>Temps</th>
-                            <th>Joueur</th>
+                            <th>Décision Moy.</th>
+                            <th>Hésitations</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
 
-            events.forEach(e => {
+            events.slice(0, 50).forEach(e => {
                 const date = new Date(e.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
                 const resultClass = e.type === 'win' ? 'win-rate-high' : 'win-rate-low';
                 const resultLabel = e.type === 'win' ? '🏆 Victoire' : '💥 Défaite';
+                const isCustom = isCustomUpload(e.background);
 
                 html += `
-                    <tr>
+                    <tr class="${isCustom ? 'custom-upload-highlight' : ''}">
                         <td>${date}</td>
                         <td class="${resultClass}">${resultLabel}</td>
-                        <td>${e.background || 'Unknown'}</td>
+                        <td>${e.background || 'Unknown'} ${isCustom ? '📁' : ''}</td>
                         <td>${e.difficulty || 'N/A'}</td>
                         <td>${formatTime(e.time || 0)}</td>
-                        <td>${e.codename || 'Anonyme'}</td>
+                        <td>${e.clickData ? (e.clickData.avgDecisionTime / 1000).toFixed(1) + 's' : '-'}</td>
+                        <td>${e.clickData?.hesitations || 0}</td>
                     </tr>
                 `;
             });
@@ -541,39 +808,27 @@
 
         function exportCSV() {
             const events = getAnalytics();
-            if (events.length === 0) {
-                alert('Aucune donnée à exporter.');
-                return;
-            }
+            if (events.length === 0) { alert('Aucune donnée.'); return; }
 
-            const headers = ['date', 'type', 'background', 'difficulty', 'bombs', 'time', 'playerId', 'codename'];
+            const headers = ['date', 'type', 'background', 'isCustomUpload', 'difficulty', 'bombs', 'time', 'avgDecisionTime', 'hesitations', 'maxPause', 'playerId', 'codename'];
             const rows = events.map(e => [
-                e.date,
-                e.type,
-                e.background,
-                e.difficulty,
-                e.bombs,
-                e.time,
-                e.playerId,
-                e.codename
+                e.date, e.type, e.background, isCustomUpload(e.background), e.difficulty, e.bombs, e.time,
+                e.clickData?.avgDecisionTime || '', e.clickData?.hesitations || '', e.clickData?.maxPause || '',
+                e.playerId, e.codename
             ]);
 
             let csv = headers.join(',') + '\n';
-            rows.forEach(row => {
-                csv += row.map(cell => `"${cell || ''}"`).join(',') + '\n';
-            });
+            rows.forEach(row => { csv += row.map(cell => `"${cell || ''}"`).join(',') + '\n'; });
 
             const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = `minesweeper_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+            a.href = URL.createObjectURL(blob);
+            a.download = `minesweeper_sensitivity_${new Date().toISOString().split('T')[0]}.csv`;
             a.click();
-            URL.revokeObjectURL(url);
         }
 
         function clearData() {
-            if (confirm('Êtes-vous sûr de vouloir effacer toutes les données analytics? Cette action est irréversible.')) {
+            if (confirm('Effacer toutes les données analytics?')) {
                 localStorage.removeItem(analyticsKey);
                 location.reload();
             }
@@ -582,8 +837,10 @@
         // Initialize
         renderSummaryStats();
         renderWinRateChart();
-        renderAvgTimeChart();
-        renderDetailsTable();
+        renderDecisionTimeChart();
+        renderPresetVsCustom();
+        renderSensitivityAnalysis();
+        renderBehavioralCharts();
         renderHistoryTable();
     </script>
 </body>

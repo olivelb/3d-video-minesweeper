@@ -51,6 +51,10 @@ export class MinesweeperRenderer {
         // State for direct instance animation
         this.lastHoveredId = -1;
 
+        // Click timing analytics
+        this.clickTimestamps = [];
+        this.lastClickTime = 0;
+
         this.init();
     }
 
@@ -415,6 +419,18 @@ export class MinesweeperRenderer {
     }
 
     handleGameUpdate(result) {
+        // Track click timing for analytics
+        const now = Date.now();
+        if (this.lastClickTime > 0) {
+            const delta = now - this.lastClickTime;
+            this.clickTimestamps.push({
+                time: now,
+                delta: delta,
+                type: result.type
+            });
+        }
+        this.lastClickTime = now;
+
         if (result.type === 'reveal' || result.type === 'win') {
             result.changes.forEach(change => {
                 this.updateCellVisual(change.x, change.y, change.value);
@@ -678,7 +694,8 @@ export class MinesweeperRenderer {
                 width: this.game.width,
                 height: this.game.height,
                 bombs: this.game.bombCount,
-                time: this.game.getElapsedTime()
+                time: this.game.getElapsedTime(),
+                clickData: this.getClickAnalytics()
             });
         }
     }
@@ -760,7 +777,8 @@ export class MinesweeperRenderer {
                 width: this.game.width,
                 height: this.game.height,
                 bombs: this.game.bombCount,
-                time: finalTime
+                time: finalTime,
+                clickData: this.getClickAnalytics()
             });
         }
 
@@ -791,6 +809,30 @@ export class MinesweeperRenderer {
                 colorStart, colorEnd, lifeTime: 2.0 + Math.random() * 3.0
             });
         }
+    }
+
+    /**
+     * Calculate click timing analytics for deep analysis
+     * @returns {Object} Click timing metrics
+     */
+    getClickAnalytics() {
+        if (this.clickTimestamps.length === 0) {
+            return { avgDecisionTime: 0, maxPause: 0, clickCount: 0, hesitations: 0 };
+        }
+
+        const deltas = this.clickTimestamps.map(c => c.delta);
+        const avgDecisionTime = Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length);
+        const maxPause = Math.max(...deltas);
+
+        // Count "hesitations" - pauses longer than 5 seconds
+        const hesitations = deltas.filter(d => d > 5000).length;
+
+        return {
+            avgDecisionTime: avgDecisionTime,
+            maxPause: maxPause,
+            clickCount: this.clickTimestamps.length,
+            hesitations: hesitations
+        };
     }
 
     updateUIOverlay(active) {
