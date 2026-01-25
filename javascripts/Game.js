@@ -136,6 +136,16 @@ export class MinesweeperGame {
             return { warning: true };
         }
 
+        // Save grid data for potential replay on loss
+        const gridData = {
+            width: this.width,
+            height: this.height,
+            bombCount: this.bombCount,
+            noGuessMode: this.noGuessMode || false,
+            minePositions: this.getMinePositions()
+        };
+        localStorage.setItem('minesweeper3d_last_grid', JSON.stringify(gridData));
+
         return true;
     }
 
@@ -281,7 +291,12 @@ export class MinesweeperGame {
                 }
             }
         }
-        return revealedCount === (this.width * this.height - this.bombCount);
+        const isWin = revealedCount === (this.width * this.height - this.bombCount);
+        if (isWin) {
+            // Clear saved grid on win (replay only available after loss)
+            localStorage.removeItem('minesweeper3d_last_grid');
+        }
+        return isWin;
     }
 
     /**
@@ -309,5 +324,34 @@ export class MinesweeperGame {
         this.retryCount++;
         this.lastMove = null;
         return true;
+    }
+
+    /**
+     * Récupère les positions de toutes les mines (pour sauvegarde/replay)
+     * @returns {Array<{x: number, y: number}>} Liste des coordonnées des mines
+     */
+    getMinePositions() {
+        const positions = [];
+        for (let x = 0; x < this.width; x++) {
+            for (let y = 0; y < this.height; y++) {
+                if (this.mines[x][y]) {
+                    positions.push({ x, y });
+                }
+            }
+        }
+        return positions;
+    }
+
+    /**
+     * Place les mines à des positions prédéfinies (pour replay)
+     * @param {Array<{x: number, y: number}>} positions - Liste des coordonnées des mines
+     */
+    setMinesFromPositions(positions) {
+        positions.forEach(({ x, y }) => {
+            this.mines[x][y] = true;
+            this.grid[x][y] = 1;
+        });
+        this.calculateNumbers();
+        this.firstClick = false; // Mines already placed, no need to wait for first click
     }
 }

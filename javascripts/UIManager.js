@@ -21,9 +21,13 @@ export class UIManager {
         this.noGuessCheckbox = document.getElementById('no-guess-mode');
         this.hintBtn = document.getElementById('hint-btn');
         this.flagStyleBtn = document.getElementById('flag-style-btn');
+        this.replayBtn = document.getElementById('replay-btn');
 
         // Difficulty Presets
         this.createDifficultyButtons();
+
+        // Check for saved grid and show replay button
+        this.checkReplayAvailable();
 
         // State
         this.customVideoUrl = null;
@@ -121,9 +125,71 @@ export class UIManager {
         }
     }
 
+    /**
+     * Check if a saved grid exists and show/hide replay button accordingly
+     */
+    checkReplayAvailable() {
+        const savedGrid = localStorage.getItem('minesweeper3d_last_grid');
+        if (savedGrid && this.replayBtn) {
+            this.replayBtn.style.display = 'block';
+        } else if (this.replayBtn) {
+            this.replayBtn.style.display = 'none';
+        }
+    }
+
+    /**
+     * Handle replay button click - start game with saved mine positions
+     */
+    handleReplay() {
+        const savedGrid = localStorage.getItem('minesweeper3d_last_grid');
+        if (!savedGrid) return;
+
+        const gridData = JSON.parse(savedGrid);
+
+        // Update input fields to reflect replay grid settings
+        this.widthInput.value = gridData.width;
+        this.heightInput.value = gridData.height;
+        this.bombInput.value = gridData.bombCount;
+        if (this.noGuessCheckbox) {
+            this.noGuessCheckbox.checked = gridData.noGuessMode;
+        }
+
+        // Hide menu
+        this.menuOverlay.style.display = 'none';
+
+        // Track replay analytics
+        const bgName = this.getBackgroundName();
+        this.scoreManager.trackGameEvent({
+            type: 'replay',
+            background: bgName,
+            width: gridData.width,
+            height: gridData.height,
+            bombs: gridData.bombCount
+        });
+
+        // Start game with replay data
+        if (this.onStartGame) {
+            const useHoverHelper = this.hoverHelperCheckbox ? this.hoverHelperCheckbox.checked : true;
+            this.onStartGame(
+                gridData.width,
+                gridData.height,
+                gridData.bombCount,
+                useHoverHelper,
+                gridData.noGuessMode,
+                bgName,
+                gridData.minePositions // Pass mine positions for replay
+            );
+        }
+    }
+
     bindEvents() {
         this.startBtn.addEventListener('click', () => this.handleStart());
         this.clearScoresBtn.addEventListener('click', () => this.handleClearScores());
+
+        // Replay button
+        if (this.replayBtn) {
+            this.replayBtn.addEventListener('click', () => this.handleReplay());
+        }
 
         this.videoUpload.addEventListener('change', (e) => this.handleVideoUpload(e));
         this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
@@ -474,6 +540,7 @@ export class UIManager {
         this.menuOverlay.style.display = 'flex';
         this.hintBtn.style.display = 'none';
         this.renderer = null; // Clear disposed renderer
+        this.checkReplayAvailable(); // Refresh replay button visibility
         this.updateLeaderboard();
     }
 

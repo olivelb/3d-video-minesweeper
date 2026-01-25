@@ -134,6 +134,7 @@
                     </div>
                 </div>
             </div>
+            <button id="replay-btn" style="display: none;">🔄 REJOUER LA GRILLE</button>
             <button id="start-btn">JOUER</button>
         </div>
 
@@ -174,8 +175,8 @@
             // Initialize UI
             uiManager = new UIManager(null, null, scoreManager);
 
-            uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName) => {
-                startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName);
+            uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines) => {
+                startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines);
             };
 
             // Main Loop integration for Timer/Score updates
@@ -219,7 +220,7 @@
             }, 100);
         });
 
-        function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName) {
+        function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines = null) {
             if (renderer) {
                 renderer.dispose();
                 renderer = null;
@@ -228,6 +229,11 @@
             game = new MinesweeperGame(width, height, bombs);
             game.noGuessMode = noGuessMode;
             game.init();
+
+            // If replaying, set mines immediately instead of waiting for first click
+            if (replayMines) {
+                game.setMinesFromPositions(replayMines);
+            }
 
             renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper, bgName);
 
