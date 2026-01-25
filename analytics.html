@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <title>Démineur 3D - Analytics</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            overflow-y: auto;
+            padding: 40px;
+            min-height: 100vh;
+        }
+
+        .analytics-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .analytics-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .analytics-header h1 {
+            font-size: 2.5em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .analytics-header p {
+            opacity: 0.8;
+            font-size: 1.1em;
+        }
+
+        .back-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateX(-5px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: 800;
+            color: #ffd700;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .chart-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 25px;
+        }
+
+        .chart-card h3 {
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            font-weight: 700;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .data-table th {
+            background: rgba(255, 255, 255, 0.1);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+
+        .data-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .win-rate-high {
+            color: #00ff88;
+        }
+
+        .win-rate-medium {
+            color: #ffcc00;
+        }
+
+        .win-rate-low {
+            color: #ff4444;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px;
+            opacity: 0.6;
+            font-style: italic;
+        }
+
+        .export-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 12px 25px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+        }
+
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .clear-btn {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(255, 0, 0, 0.4);
+        }
+
+        .actions {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-container {
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="analytics-container">
+        <a href="index.html" class="back-btn">← Retour au jeu</a>
+
+        <div class="analytics-header">
+            <h1>📊 Analytics Dashboard</h1>
+            <p>Analyse de l'impact des fonds d'écran sur vos performances</p>
+        </div>
+
+        <div id="stats-grid" class="stats-grid"></div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>🎯 Taux de Victoire par Fond d'Écran</h3>
+                <div class="chart-container">
+                    <canvas id="winRateChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>⏱️ Temps Moyen par Fond d'Écran</h3>
+                <div class="chart-container">
+                    <canvas id="avgTimeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>📈 Détails par Fond d'Écran</h3>
+            <div id="details-table"></div>
+        </div>
+
+        <div class="chart-card" style="margin-top: 30px;">
+            <h3>📜 Historique des Parties (20 dernières)</h3>
+            <div id="history-table"></div>
+        </div>
+
+        <div class="actions">
+            <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
+            <button class="export-btn clear-btn" onclick="clearData()">🗑️ Effacer les données</button>
+        </div>
+    </div>
+
+    <script>
+        // Load analytics data
+        const analyticsKey = 'minesweeper3d_analytics';
+        const scoresKey = 'minesweeper3d_scores';
+
+        function getAnalytics() {
+            try {
+                return JSON.parse(localStorage.getItem(analyticsKey)) || [];
+            } catch { return []; }
+        }
+
+        function getScores() {
+            try {
+                return JSON.parse(localStorage.getItem(scoresKey)) || [];
+            } catch { return []; }
+        }
+
+        function processData() {
+            const events = getAnalytics();
+            const stats = {};
+
+            events.forEach(e => {
+                if (e.type === 'start') return; // Skip starts for win/loss calc
+
+                const bg = e.background || 'Unknown';
+                if (!stats[bg]) {
+                    stats[bg] = { wins: 0, losses: 0, totalTime: 0, games: 0 };
+                }
+
+                if (e.type === 'win') {
+                    stats[bg].wins++;
+                    stats[bg].totalTime += e.time || 0;
+                    stats[bg].games++;
+                } else if (e.type === 'loss') {
+                    stats[bg].losses++;
+                    stats[bg].totalTime += e.time || 0;
+                    stats[bg].games++;
+                }
+            });
+
+            return stats;
+        }
+
+        function renderSummaryStats() {
+            const events = getAnalytics();
+            const scores = getScores();
+
+            const totalGames = events.filter(e => e.type !== 'start').length;
+            const wins = events.filter(e => e.type === 'win').length;
+            const losses = events.filter(e => e.type === 'loss').length;
+            const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+            const bestScore = scores.length > 0 ? Math.max(...scores.map(s => s.score)) : 0;
+
+            const uniqueBackgrounds = new Set(events.map(e => e.background)).size;
+
+            const html = `
+                <div class="stat-card">
+                    <span class="stat-value">${totalGames}</span>
+                    <span class="stat-label">Parties Jouées</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">${winRate}%</span>
+                    <span class="stat-label">Taux de Victoire</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">${wins}</span>
+                    <span class="stat-label">Victoires</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">${losses}</span>
+                    <span class="stat-label">Défaites</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">${bestScore.toLocaleString()}</span>
+                    <span class="stat-label">Meilleur Score</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">${uniqueBackgrounds}</span>
+                    <span class="stat-label">Fonds Testés</span>
+                </div>
+            `;
+
+            document.getElementById('stats-grid').innerHTML = html;
+        }
+
+        function renderWinRateChart() {
+            const stats = processData();
+            const labels = Object.keys(stats);
+            const winRates = labels.map(bg => {
+                const s = stats[bg];
+                return s.games > 0 ? Math.round((s.wins / s.games) * 100) : 0;
+            });
+
+            const colors = winRates.map(rate => {
+                if (rate >= 70) return 'rgba(0, 255, 136, 0.8)';
+                if (rate >= 40) return 'rgba(255, 204, 0, 0.8)';
+                return 'rgba(255, 68, 68, 0.8)';
+            });
+
+            new Chart(document.getElementById('winRateChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Taux de Victoire (%)',
+                        data: winRates,
+                        backgroundColor: colors,
+                        borderColor: colors.map(c => c.replace('0.8', '1')),
+                        borderWidth: 2,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: 'rgba(255,255,255,0.7)' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        x: {
+                            ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderAvgTimeChart() {
+            const stats = processData();
+            const labels = Object.keys(stats);
+            const avgTimes = labels.map(bg => {
+                const s = stats[bg];
+                return s.games > 0 ? Math.round(s.totalTime / s.games) : 0;
+            });
+
+            new Chart(document.getElementById('avgTimeChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Temps Moyen (secondes)',
+                        data: avgTimes,
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: 'rgba(255,255,255,0.7)' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        x: {
+                            ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDetailsTable() {
+            const stats = processData();
+            const backgrounds = Object.keys(stats);
+
+            if (backgrounds.length === 0) {
+                document.getElementById('details-table').innerHTML = '<p class="no-data">Aucune donnée disponible. Jouez quelques parties pour voir les statistiques.</p>';
+                return;
+            }
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Fond d'Écran</th>
+                            <th>Parties</th>
+                            <th>Victoires</th>
+                            <th>Défaites</th>
+                            <th>Taux Victoire</th>
+                            <th>Temps Moyen</th>
+                            <th>Sensibilité</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            // Calculate baseline (average win rate across all backgrounds)
+            const allGames = Object.values(stats).reduce((sum, s) => sum + s.games, 0);
+            const allWins = Object.values(stats).reduce((sum, s) => sum + s.wins, 0);
+            const baselineWinRate = allGames > 0 ? (allWins / allGames) * 100 : 50;
+
+            backgrounds.forEach(bg => {
+                const s = stats[bg];
+                const winRate = s.games > 0 ? (s.wins / s.games) * 100 : 0;
+                const avgTime = s.games > 0 ? Math.round(s.totalTime / s.games) : 0;
+
+                // Calculate sensitivity: how much does this background deviate from baseline?
+                const sensitivity = winRate - baselineWinRate;
+                let sensitivityLabel, sensitivityClass;
+                if (sensitivity > 10) {
+                    sensitivityLabel = '✅ Favorable';
+                    sensitivityClass = 'win-rate-high';
+                } else if (sensitivity < -10) {
+                    sensitivityLabel = '⚠️ Distrayant';
+                    sensitivityClass = 'win-rate-low';
+                } else {
+                    sensitivityLabel = '➖ Neutre';
+                    sensitivityClass = 'win-rate-medium';
+                }
+
+                const winRateClass = winRate >= 70 ? 'win-rate-high' : winRate >= 40 ? 'win-rate-medium' : 'win-rate-low';
+
+                html += `
+                    <tr>
+                        <td>${bg}</td>
+                        <td>${s.games}</td>
+                        <td>${s.wins}</td>
+                        <td>${s.losses}</td>
+                        <td class="${winRateClass}">${Math.round(winRate)}%</td>
+                        <td>${formatTime(avgTime)}</td>
+                        <td class="${sensitivityClass}">${sensitivityLabel}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('details-table').innerHTML = html;
+        }
+
+        function renderHistoryTable() {
+            const events = getAnalytics().filter(e => e.type !== 'start').slice(-20).reverse();
+
+            if (events.length === 0) {
+                document.getElementById('history-table').innerHTML = '<p class="no-data">Aucun historique disponible.</p>';
+                return;
+            }
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Résultat</th>
+                            <th>Fond</th>
+                            <th>Difficulté</th>
+                            <th>Temps</th>
+                            <th>Joueur</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            events.forEach(e => {
+                const date = new Date(e.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+                const resultClass = e.type === 'win' ? 'win-rate-high' : 'win-rate-low';
+                const resultLabel = e.type === 'win' ? '🏆 Victoire' : '💥 Défaite';
+
+                html += `
+                    <tr>
+                        <td>${date}</td>
+                        <td class="${resultClass}">${resultLabel}</td>
+                        <td>${e.background || 'Unknown'}</td>
+                        <td>${e.difficulty || 'N/A'}</td>
+                        <td>${formatTime(e.time || 0)}</td>
+                        <td>${e.codename || 'Anonyme'}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('history-table').innerHTML = html;
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function exportCSV() {
+            const events = getAnalytics();
+            if (events.length === 0) {
+                alert('Aucune donnée à exporter.');
+                return;
+            }
+
+            const headers = ['date', 'type', 'background', 'difficulty', 'bombs', 'time', 'playerId', 'codename'];
+            const rows = events.map(e => [
+                e.date,
+                e.type,
+                e.background,
+                e.difficulty,
+                e.bombs,
+                e.time,
+                e.playerId,
+                e.codename
+            ]);
+
+            let csv = headers.join(',') + '\n';
+            rows.forEach(row => {
+                csv += row.map(cell => `"${cell || ''}"`).join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `minesweeper_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function clearData() {
+            if (confirm('Êtes-vous sûr de vouloir effacer toutes les données analytics? Cette action est irréversible.')) {
+                localStorage.removeItem(analyticsKey);
+                location.reload();
+            }
+        }
+
+        // Initialize
+        renderSummaryStats();
+        renderWinRateChart();
+        renderAvgTimeChart();
+        renderDetailsTable();
+        renderHistoryTable();
+    </script>
+</body>
+
+</html>
