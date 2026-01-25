@@ -167,6 +167,7 @@ export class ScoreManager {
                 difficulty: `${eventData.width}x${eventData.height}`,
                 bombs: eventData.bombs,
                 time: eventData.time || 0,
+                clickData: eventData.clickData || null,
                 date: new Date().toISOString()
             });
             // On garde les 200 derniers événements pour ne pas saturer le storage

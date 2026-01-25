@@ -430,9 +430,10 @@
             const customTotal = customEvents.length;
             const customWinRate = customTotal > 0 ? Math.round((customWins / customTotal) * 100) : 0;
 
-            const avgDecision = events.filter(e => e.clickData?.avgDecisionTime)
-                .reduce((sum, e) => sum + e.clickData.avgDecisionTime, 0) /
-                (events.filter(e => e.clickData?.avgDecisionTime).length || 1);
+            const eventsWithDecision = events.filter(e => e.clickData?.avgDecisionTime > 0);
+            const avgDecision = eventsWithDecision.length > 0
+                ? eventsWithDecision.reduce((sum, e) => sum + e.clickData.avgDecisionTime, 0) / eventsWithDecision.length
+                : 0;
 
             document.getElementById('stats-grid').innerHTML = `
                 <div class="stat-card">
@@ -452,7 +453,7 @@
                     <span class="stat-label">Taux Custom</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">${Math.round(avgDecision / 1000)}s</span>
+                    <span class="stat-value">${avgDecision > 0 ? (avgDecision / 1000).toFixed(1) + 's' : '-'}</span>
                     <span class="stat-label">Décision Moy.</span>
                 </div>
             `;
@@ -498,7 +499,7 @@
         }
 
         function renderDecisionTimeChart() {
-            const events = getAnalytics().filter(e => e.type !== 'start' && e.clickData?.avgDecisionTime);
+            const events = getAnalytics().filter(e => e.type !== 'start' && e.clickData?.avgDecisionTime > 0);
             const bgStats = {};
 
             events.forEach(e => {
@@ -548,8 +549,14 @@
             const presetWinRate = presetEvents.length > 0 ? Math.round((presetWins / presetEvents.length) * 100) : 0;
             const customWinRate = customEvents.length > 0 ? Math.round((customWins / customEvents.length) * 100) : 0;
 
-            const presetAvgTime = presetEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.avgDecisionTime || 0), 0) / (presetEvents.filter(e => e.clickData).length || 1);
-            const customAvgTime = customEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.avgDecisionTime || 0), 0) / (customEvents.filter(e => e.clickData).length || 1);
+            const presetWithData = presetEvents.filter(e => e.clickData && e.clickData.avgDecisionTime > 0);
+            const presetAvgTime = presetWithData.length > 0 
+                ? presetWithData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / presetWithData.length 
+                : 0;
+            const customWithData = customEvents.filter(e => e.clickData && e.clickData.avgDecisionTime > 0);
+            const customAvgTime = customWithData.length > 0 
+                ? customWithData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / customWithData.length 
+                : 0;
 
             const presetHesitations = presetEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.hesitations || 0), 0);
             const customHesitations = customEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.hesitations || 0), 0);
@@ -583,9 +590,9 @@
                         </tr>
                         <tr>
                             <td>Temps de décision moyen</td>
-                            <td>${(presetAvgTime / 1000).toFixed(1)}s</td>
-                            <td>${(customAvgTime / 1000).toFixed(1)}s</td>
-                            <td>${customAvgTime > presetAvgTime * 1.3 ? '⚠️ Hésitation détectée' : '✅ Normal'}</td>
+                            <td>${presetAvgTime > 0 ? (presetAvgTime / 1000).toFixed(1) + 's' : '-'}</td>
+                            <td>${customAvgTime > 0 ? (customAvgTime / 1000).toFixed(1) + 's' : '-'}</td>
+                            <td>${(presetAvgTime > 0 && customAvgTime > 0 && customAvgTime > presetAvgTime * 1.3) ? '⚠️ Hésitation détectée' : '✅ Normal'}</td>
                         </tr>
                         <tr>
                             <td>Pauses longues (>5s)</td>
@@ -612,8 +619,10 @@
             const presetEvents = events.filter(e => !isCustomUpload(e.background));
             const baselineWinRate = presetEvents.length > 0 ?
                 (presetEvents.filter(e => e.type === 'win').length / presetEvents.length) * 100 : 50;
-            const baselineDecisionTime = presetEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.avgDecisionTime || 0), 0)
-                / (presetEvents.filter(e => e.clickData).length || 1);
+            const presetWithData = presetEvents.filter(e => e.clickData && e.clickData.avgDecisionTime > 0);
+            const baselineDecisionTime = presetWithData.length > 0 
+                ? presetWithData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / presetWithData.length
+                : 0;
 
             let html = '';
 
@@ -623,14 +632,19 @@
                 const total = uploadEvents.length;
                 const winRate = total > 0 ? (wins / total) * 100 : 0;
 
-                const avgDecision = uploadEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.avgDecisionTime || 0), 0)
-                    / (uploadEvents.filter(e => e.clickData).length || 1);
+                const eventsWithClickData = uploadEvents.filter(e => e.clickData && e.clickData.avgDecisionTime > 0);
+                const avgDecision = eventsWithClickData.length > 0 
+                    ? eventsWithClickData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / eventsWithClickData.length
+                    : 0;
                 const totalHesitations = uploadEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.hesitations || 0), 0);
-                const maxPause = Math.max(...uploadEvents.filter(e => e.clickData).map(e => e.clickData.maxPause || 0));
+                const maxPauseValues = uploadEvents.filter(e => e.clickData && e.clickData.maxPause > 0).map(e => e.clickData.maxPause);
+                const maxPause = maxPauseValues.length > 0 ? Math.max(...maxPauseValues) : 0;
 
                 // Calculate anomaly scores
                 const winRateDiff = baselineWinRate - winRate;
-                const decisionDiff = ((avgDecision - baselineDecisionTime) / baselineDecisionTime) * 100;
+                const decisionDiff = baselineDecisionTime > 0 
+                    ? ((avgDecision - baselineDecisionTime) / baselineDecisionTime) * 100 
+                    : 0;
 
                 let severityClass = '';
                 let severityLabel = '';
@@ -659,7 +673,7 @@
                         </div>
                         <div class="sensitivity-metric">
                             <span class="metric-label">Temps de décision moyen</span>
-                            <span class="metric-value">${(avgDecision / 1000).toFixed(1)}s 
+                            <span class="metric-value">${avgDecision > 0 ? (avgDecision / 1000).toFixed(1) + 's' : '-'} 
                                 ${decisionDiff > 25 ? `<span class="anomaly-badge ${decisionDiff > 50 ? 'high' : 'medium'}">+${Math.round(decisionDiff)}% plus lent</span>` : ''}
                             </span>
                         </div>
@@ -669,7 +683,7 @@
                         </div>
                         <div class="sensitivity-metric">
                             <span class="metric-label">Plus longue pause</span>
-                            <span class="metric-value">${(maxPause / 1000).toFixed(1)}s ${maxPause > 30000 ? '<span class="anomaly-badge high">Distraction majeure</span>' : ''}</span>
+                            <span class="metric-value">${maxPause > 0 ? (maxPause / 1000).toFixed(1) + 's' : '-'} ${maxPause > 30000 ? '<span class="anomaly-badge high">Distraction majeure</span>' : ''}</span>
                         </div>
                         <div class="sensitivity-metric">
                             <span class="metric-label">Utilisations répétées</span>
@@ -790,7 +804,7 @@
                         <td>${e.background || 'Unknown'} ${isCustom ? '📁' : ''}</td>
                         <td>${e.difficulty || 'N/A'}</td>
                         <td>${formatTime(e.time || 0)}</td>
-                        <td>${e.clickData ? (e.clickData.avgDecisionTime / 1000).toFixed(1) + 's' : '-'}</td>
+                        <td>${e.clickData && e.clickData.avgDecisionTime > 0 ? (e.clickData.avgDecisionTime / 1000).toFixed(1) + 's' : '-'}</td>
                         <td>${e.clickData?.hesitations || 0}</td>
                     </tr>
                 `;

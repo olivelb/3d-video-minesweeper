@@ -421,7 +421,21 @@ export class MinesweeperRenderer {
     handleGameUpdate(result) {
         // Track click timing for analytics
         const now = Date.now();
-        if (this.lastClickTime > 0) {
+        
+        // For the first click, use gameStartTime if available, otherwise use a default
+        if (this.lastClickTime === 0) {
+            // First click - calculate delta from game start time
+            const startTime = this.game.gameStartTime || now;
+            const delta = now - startTime;
+            // Only record if it's a meaningful decision time (at least 100ms)
+            if (delta >= 100) {
+                this.clickTimestamps.push({
+                    time: now,
+                    delta: delta,
+                    type: result.type
+                });
+            }
+        } else {
             const delta = now - this.lastClickTime;
             this.clickTimestamps.push({
                 time: now,
