@@ -11,6 +11,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy - required for Koyeb/cloud platforms that use reverse proxies
+// This allows express-rate-limit to correctly identify users via X-Forwarded-For
+app.set('trust proxy', 1);
+
 // Handle uncaught exceptions - don't crash
 process.on('uncaughtException', (error) => {
     console.error('[UNCAUGHT EXCEPTION]', error.message);
