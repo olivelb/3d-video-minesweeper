@@ -48,26 +48,37 @@ router.get('/info', async (req, res, next) => {
 
 /**
  * GET /api/youtube/stream?v=VIDEO_ID&q=quality
+ * GET /api/youtube/stream?url=FULL_URL&q=quality
  * Stream video content - main endpoint for video texture
+ * Supports YouTube, Vimeo, Dailymotion, and other yt-dlp supported platforms
  */
 router.get('/stream', streamLimiter, async (req, res, next) => {
     try {
-        const videoId = req.query.v || extractVideoId(req.query.url);
+        // Support both video ID (for YouTube) and full URL (for other platforms)
+        let videoIdOrUrl = req.query.url || req.query.v;
         const quality = req.query.q || 'auto';
         
-        if (!videoId) {
+        // If v= parameter looks like a YouTube ID, use it directly
+        // Otherwise, try to extract from url parameter or use as-is
+        if (req.query.v && !req.query.v.includes('://')) {
+            videoIdOrUrl = req.query.v;
+        } else if (req.query.url) {
+            videoIdOrUrl = req.query.url;
+        }
+        
+        if (!videoIdOrUrl) {
             return res.status(400).json({ 
-                error: 'Video ID required. Use ?v=VIDEO_ID or ?url=YOUTUBE_URL',
-                code: 'MISSING_VIDEO_ID'
+                error: 'Video URL required. Use ?url=VIDEO_URL or ?v=VIDEO_ID',
+                code: 'MISSING_VIDEO_URL'
             });
         }
         
-        console.log(`[STREAM] Starting stream for video: ${videoId}, quality: ${quality}`);
+        console.log(`[STREAM] Starting stream for: ${videoIdOrUrl}, quality: ${quality}`);
         
         // Get format info for headers
         let formatInfo;
         try {
-            formatInfo = await getStreamFormat(videoId, quality);
+            formatInfo = await getStreamFormat(videoIdOrUrl, quality);
             console.log(`[STREAM] Format info:`, formatInfo);
         } catch (e) {
             console.warn('[STREAM] Could not get format info:', e.message);
@@ -84,7 +95,7 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         res.setHeader('Transfer-Encoding', 'chunked');
         
         // Create the stream using yt-dlp
-        const { stream, process: ytdlpProc } = createVideoStream(videoId, quality);
+        const { stream, process: ytdlpProc } = createVideoStream(videoIdOrUrl, quality);
         
         let bytesSent = 0;
         let hasStarted = false;
@@ -92,7 +103,7 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         stream.on('data', (chunk) => {
             if (!hasStarted) {
                 hasStarted = true;
-                console.log(`[STREAM] First chunk received for ${videoId}`);
+                console.log(`[STREAM] First chunk received for ${videoIdOrUrl}`);
             }
             bytesSent += chunk.length;
         });

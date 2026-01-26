@@ -68,19 +68,31 @@ function execYtdlp(args) {
 
 /**
  * Get video information using yt-dlp
- * @param {string} urlOrId - YouTube URL or video ID
+ * Supports YouTube, Vimeo, Dailymotion, and many other platforms
+ * @param {string} urlOrId - Video URL or YouTube video ID
  * @returns {Promise<Object>} Video information
  */
 export async function getVideoInfo(urlOrId) {
-    const videoId = extractVideoId(urlOrId);
-    if (!videoId) {
-        throw new Error('Invalid YouTube URL or video ID');
+    // Determine if it's a YouTube ID or a full URL
+    let fullUrl;
+    let videoId;
+    
+    // If it looks like a URL (has ://)
+    if (urlOrId.includes('://')) {
+        fullUrl = urlOrId;
+        // Try to extract YouTube ID if it's a YouTube URL
+        videoId = extractVideoId(urlOrId) || urlOrId;
+    } else {
+        // Assume it's a YouTube video ID
+        videoId = extractVideoId(urlOrId);
+        if (!videoId) {
+            throw new Error('Invalid YouTube URL or video ID');
+        }
+        fullUrl = getYouTubeUrl(videoId);
     }
     
-    const fullUrl = getYouTubeUrl(videoId);
-    
     try {
-        console.log(`[yt-dlp] Getting info for ${videoId}`);
+        console.log(`[yt-dlp] Getting info for ${fullUrl}`);
         const output = await execYtdlp([
             '--dump-json',
             '--no-playlist',
@@ -88,12 +100,13 @@ export async function getVideoInfo(urlOrId) {
             '--force-ipv4',
             '--geo-bypass',
             '--no-check-certificates',
-            '--extractor-args', 'youtube:player_client=ios,web',
-            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
             fullUrl
         ]);
         
         const info = JSON.parse(output);
+        
+        // Use yt-dlp's ID or the URL itself as the identifier
+        const resolvedId = info.id || videoId;
         
         // Get available video-only formats (limit to essential fields)
         const videoFormats = (info.formats || [])
@@ -109,37 +122,47 @@ export async function getVideoInfo(urlOrId) {
             }))
             .sort((a, b) => (b.height || 0) - (a.height || 0));
         
-        console.log(`[yt-dlp] Got info for ${videoId}: "${info.title}"`);
+        console.log(`[yt-dlp] Got info for ${resolvedId}: "${info.title}" (${info.extractor})`);
         
         return {
-            videoId,
+            videoId: resolvedId,
             title: info.title,
-            author: info.uploader || info.channel,
-            channelUrl: info.channel_url,
+            author: info.uploader || info.channel || info.creator || 'Unknown',
+            channelUrl: info.channel_url || info.uploader_url,
             duration: info.duration || 0,
-            thumbnail: info.thumbnail || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+            thumbnail: info.thumbnail,
             isLive: info.is_live || false,
             isPrivate: false,
             viewCount: info.view_count || 0,
+            platform: info.extractor || 'unknown',
+            originalUrl: fullUrl,
             availableQualities: videoFormats
         };
     } catch (error) {
-        console.error(`[yt-dlp] Failed to get video info for ${videoId}:`, error.message);
+        console.error(`[yt-dlp] Failed to get video info for ${fullUrl}:`, error.message);
         throw error;
     }
 }
 
 /**
  * Get direct video URL using yt-dlp
- * @param {string} videoId - YouTube video ID
+ * Supports any URL that yt-dlp can handle
+ * @param {string} videoIdOrUrl - YouTube video ID or full URL
  * @param {string} quality - Quality preset (low, medium, high, auto)
  * @returns {Promise<Object>} Stream URL and format info
  */
-export async function getDirectUrl(videoId, quality = 'auto') {
-    const fullUrl = getYouTubeUrl(videoId);
+export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
+    // Determine if it's a URL or a YouTube ID
+    let fullUrl;
+    if (videoIdOrUrl.includes('://')) {
+        fullUrl = videoIdOrUrl;
+    } else {
+        fullUrl = getYouTubeUrl(videoIdOrUrl);
+    }
+    
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
     
-    console.log(`[yt-dlp] Getting direct URL for ${videoId} with format: ${formatSpec}`);
+    console.log(`[yt-dlp] Getting direct URL for ${fullUrl} with format: ${formatSpec}`);
     
     try {
         // Get URL and basic format info in one call using --print
@@ -157,8 +180,6 @@ export async function getDirectUrl(videoId, quality = 'auto') {
             '--force-ipv4',
             '--geo-bypass',
             '--no-check-certificates',
-            '--extractor-args', 'youtube:player_client=ios,web',
-            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
             fullUrl
         ]);
         
@@ -201,29 +222,36 @@ export async function getDirectUrl(videoId, quality = 'auto') {
 
 /**
  * Create a video stream using yt-dlp stdout
- * @param {string} videoId - YouTube video ID
+ * Supports any URL that yt-dlp can handle
+ * @param {string} videoIdOrUrl - YouTube video ID or full URL
  * @param {string} quality - Quality preset
  * @returns {Object} Object with stream and format info
  */
-export function createVideoStream(videoId, quality = 'auto') {
-    const fullUrl = getYouTubeUrl(videoId);
+export function createVideoStream(videoIdOrUrl, quality = 'auto') {
+    // Determine if it's a URL or a YouTube ID
+    let fullUrl;
+    if (videoIdOrUrl.includes('://')) {
+        fullUrl = videoIdOrUrl;
+    } else {
+        fullUrl = getYouTubeUrl(videoIdOrUrl);
+    }
+    
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
     
-    console.log(`[yt-dlp STREAM] Creating stream for ${videoId} with format: ${formatSpec}`);
+    console.log(`[yt-dlp STREAM] Creating stream for ${fullUrl} with format: ${formatSpec}`);
     
     const proc = spawn(YT_DLP_PATH, [
         '-f', formatSpec,
         '-o', '-',  // Output to stdout
         '--no-playlist',
         '--no-warnings',
-        // Options to avoid 403 errors and improve reliability
+        // Options to avoid errors and improve reliability
         '--retries', '3',
         '--fragment-retries', '3',
         '--extractor-retries', '3',
         '--force-ipv4',
         '--no-check-certificates',
-        // Use Android client which has fewer restrictions
-        '--extractor-args', 'youtube:player_client=android,web',
+        '--geo-bypass',
         fullUrl
     ], {
         windowsHide: true,
@@ -256,12 +284,20 @@ export function createVideoStream(videoId, quality = 'auto') {
 
 /**
  * Get the format info for streaming
- * @param {string} videoId - YouTube video ID
+ * Supports any URL that yt-dlp can handle
+ * @param {string} videoIdOrUrl - YouTube video ID or full URL
  * @param {string} quality - Quality preset
  * @returns {Promise<Object>} Format information
  */
-export async function getStreamFormat(videoId, quality = 'auto') {
-    const fullUrl = getYouTubeUrl(videoId);
+export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
+    // Determine if it's a URL or a YouTube ID
+    let fullUrl;
+    if (videoIdOrUrl.includes('://')) {
+        fullUrl = videoIdOrUrl;
+    } else {
+        fullUrl = getYouTubeUrl(videoIdOrUrl);
+    }
+    
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
     
     try {
@@ -279,8 +315,6 @@ export async function getStreamFormat(videoId, quality = 'auto') {
             '--force-ipv4',
             '--geo-bypass',
             '--no-check-certificates',
-            '--extractor-args', 'youtube:player_client=ios,web',
-            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
             fullUrl
         ]);
         
@@ -303,7 +337,7 @@ export async function getStreamFormat(videoId, quality = 'auto') {
             height
         };
     } catch (error) {
-        console.error(`[yt-dlp] Failed to get format info for ${videoId}:`, error.message);
+        console.error(`[yt-dlp] Failed to get format info for ${fullUrl}:`, error.message);
         throw error;
     }
 }

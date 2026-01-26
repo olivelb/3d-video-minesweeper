@@ -232,6 +232,8 @@ export class YouTubeManager {
             }
             
             this.currentVideoInfo = await response.json();
+            // Store the original URL for non-YouTube platforms
+            this.currentVideoInfo.originalUrl = url;
             this.currentVideoId = this.currentVideoInfo.videoId;
             
             this.onStatusChange('ready', this.currentVideoInfo.title);
@@ -340,6 +342,15 @@ export class YouTubeManager {
             return id;
         }
         
+        // For non-YouTube platforms (Vimeo, Dailymotion, etc.), pass the full URL
+        const platform = this.currentPlatform;
+        if (platform && platform.key !== 'youtube') {
+            // Use the original URL stored in currentVideoInfo or reconstruct from currentVideoId
+            const fullUrl = this.currentVideoInfo?.originalUrl || id;
+            return `${this.serverUrl}/api/youtube/stream?url=${encodeURIComponent(fullUrl)}&q=${quality}`;
+        }
+        
+        // For YouTube, use the video ID
         return `${this.serverUrl}/api/youtube/stream?v=${id}&q=${quality}`;
     }
     
