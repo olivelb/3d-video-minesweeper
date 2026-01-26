@@ -23,6 +23,19 @@ export class UIManager {
         this.flagStyleBtn = document.getElementById('flag-style-btn');
         this.replayBtn = document.getElementById('replay-btn');
 
+        // YouTube Elements
+        this.youtubeUrl = document.getElementById('youtube-url');
+        this.youtubeLoadBtn = document.getElementById('youtube-load-btn');
+        this.youtubeStatus = document.getElementById('youtube-status');
+        this.youtubePreview = document.getElementById('youtube-preview');
+        this.youtubeThumbnail = document.getElementById('youtube-thumbnail');
+        this.youtubeTitle = document.getElementById('youtube-title');
+        this.youtubeDuration = document.getElementById('youtube-duration');
+        this.youtubeClearBtn = document.getElementById('youtube-clear-btn');
+        this.youtubeQuality = document.getElementById('youtube-quality');
+        this.youtubeQualityContainer = document.getElementById('youtube-quality-container');
+        this.youtubeServerStatus = document.getElementById('youtube-server-status');
+
         // Difficulty Presets
         this.createDifficultyButtons();
 
@@ -32,9 +45,11 @@ export class UIManager {
         // State
         this.customVideoUrl = null;
         this.webcamStream = null;
-        this.isMuted = true;
-        this.mediaType = 'video'; // 'video' | 'image' | 'webcam'
+        this.isMuted = false;  // Sound ON by default - video starts muted for autoplay but unmutes after user interaction
+        this.mediaType = 'video'; // 'video' | 'image' | 'webcam' | 'youtube'
         this.imageElement = null; // For storing loaded image
+        this.youtubeManager = null;
+        this.youtubeVideoInfo = null;
 
         this.bindEvents();
         this.updateLeaderboard();
@@ -43,6 +58,213 @@ export class UIManager {
         this.updateFlagStyleButton();
         this.detectGpuTier();
         this.displayPlayerInfo();
+        
+        // Initialize YouTube manager
+        this.initYouTubeManager();
+    }
+
+    /**
+     * Initialize YouTube Manager for video streaming
+     */
+    async initYouTubeManager() {
+        try {
+            const { YouTubeManager } = await import('./YouTubeManager.js');
+            
+            this.youtubeManager = new YouTubeManager({
+                serverUrl: 'http://localhost:3001',
+                onStatusChange: (status, message) => this.updateYouTubeStatus(status, message),
+                onError: (error) => console.error('YouTube Error:', error)
+            });
+            
+            this.bindYouTubeEvents();
+            this.checkYouTubeServer();
+            
+        } catch (error) {
+            console.warn('YouTube manager not available:', error);
+            this.hideYouTubeSection();
+        }
+    }
+
+    /**
+     * Bind YouTube-related event listeners
+     */
+    bindYouTubeEvents() {
+        if (!this.youtubeLoadBtn) return;
+        
+        // Load button click
+        this.youtubeLoadBtn.addEventListener('click', () => this.handleYouTubeLoad());
+        
+        // Enter key in input
+        this.youtubeUrl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.handleYouTubeLoad();
+        });
+        
+        // Paste detection for auto-validation
+        this.youtubeUrl.addEventListener('paste', () => {
+            setTimeout(() => {
+                const url = this.youtubeUrl.value.trim();
+                if (url && this.youtubeManager?.extractVideoId(url)) {
+                    this.updateYouTubeStatus('', '');
+                }
+            }, 100);
+        });
+        
+        // Input change - clear status on edit
+        this.youtubeUrl.addEventListener('input', () => {
+            if (this.youtubeVideoInfo) {
+                // User is editing after a video was loaded
+                this.updateYouTubeStatus('', '');
+            }
+        });
+        
+        // Clear button
+        if (this.youtubeClearBtn) {
+            this.youtubeClearBtn.addEventListener('click', () => this.clearYouTube());
+        }
+    }
+
+    /**
+     * Check if YouTube proxy server is available
+     */
+    async checkYouTubeServer() {
+        if (!this.youtubeManager || !this.youtubeServerStatus) return;
+        
+        const statusDot = this.youtubeServerStatus.querySelector('.status-dot');
+        const statusText = this.youtubeServerStatus.querySelector('.status-text');
+        
+        statusDot.className = 'status-dot checking';
+        statusText.textContent = 'Vérification du serveur...';
+        
+        const isOnline = await this.youtubeManager.checkServerHealth();
+        
+        if (isOnline) {
+            statusDot.className = 'status-dot online';
+            statusText.textContent = 'Serveur YouTube connecté';
+            if (this.youtubeLoadBtn) this.youtubeLoadBtn.disabled = false;
+        } else {
+            statusDot.className = 'status-dot offline';
+            statusText.textContent = 'Serveur hors ligne - Lancez: cd server && npm start';
+            if (this.youtubeLoadBtn) this.youtubeLoadBtn.disabled = true;
+        }
+    }
+
+    /**
+     * Handle YouTube URL load button click
+     */
+    async handleYouTubeLoad() {
+        const url = this.youtubeUrl.value.trim();
+        if (!url) {
+            this.updateYouTubeStatus('error', 'Veuillez entrer un lien YouTube');
+            return;
+        }
+        
+        // Validate URL format first
+        const videoId = this.youtubeManager.extractVideoId(url);
+        if (!videoId) {
+            this.updateYouTubeStatus('error', 'Format de lien YouTube invalide');
+            return;
+        }
+        
+        this.youtubeLoadBtn.disabled = true;
+        this.youtubeLoadBtn.classList.add('loading');
+        
+        try {
+            // Get video info from server
+            const info = await this.youtubeManager.getVideoInfo(url);
+            
+            // Show preview
+            this.showYouTubePreview(info);
+            
+            // Clear other media selections
+            this.stopWebcam();
+            this.useWebcamCheckbox.checked = false;
+            this.clearPresetHighlights();
+            this.videoUpload.value = '';
+            this.videoFilename.textContent = 'YouTube sélectionné';
+            this.videoFilename.classList.add('custom-video');
+            
+            // Set media type
+            this.mediaType = 'youtube';
+            this.youtubeVideoInfo = info;
+            
+            // PRE-LOAD: Start loading the video immediately so it's ready when game starts
+            const quality = this.youtubeQuality?.value || 'low';
+            const streamUrl = this.youtubeManager.getStreamUrl(info.videoId, quality);
+            this.videoElement.src = streamUrl;
+            this.videoElement.crossOrigin = 'anonymous';
+            this.videoElement.muted = true;
+            this.videoElement.loop = true;
+            this.videoElement.preload = 'auto';
+            this.videoElement.load();
+            console.log('[YouTube] Pre-loading video:', streamUrl);
+            
+            this.updateYouTubeStatus('success', 'Vidéo en chargement... Vous pouvez démarrer!');
+            
+        } catch (error) {
+            this.updateYouTubeStatus('error', error.message);
+        } finally {
+            this.youtubeLoadBtn.disabled = false;
+            this.youtubeLoadBtn.classList.remove('loading');
+            // Re-check server status
+            this.checkYouTubeServer();
+        }
+    }
+
+    /**
+     * Show YouTube video preview
+     */
+    showYouTubePreview(info) {
+        if (!this.youtubePreview) return;
+        
+        this.youtubeThumbnail.src = this.youtubeManager.getThumbnailUrl(info.videoId);
+        this.youtubeTitle.textContent = info.title;
+        this.youtubeDuration.textContent = this.youtubeManager.formatDuration(info.duration);
+        this.youtubePreview.style.display = 'flex';
+        this.youtubeQualityContainer.style.display = 'flex';
+    }
+
+    /**
+     * Update YouTube status message
+     */
+    updateYouTubeStatus(status, message) {
+        if (!this.youtubeStatus) return;
+        
+        this.youtubeStatus.className = `youtube-status ${status}`;
+        this.youtubeStatus.textContent = message;
+    }
+
+    /**
+     * Clear YouTube selection
+     */
+    clearYouTube() {
+        this.youtubeUrl.value = '';
+        if (this.youtubePreview) this.youtubePreview.style.display = 'none';
+        if (this.youtubeQualityContainer) this.youtubeQualityContainer.style.display = 'none';
+        if (this.youtubeStatus) {
+            this.youtubeStatus.textContent = '';
+            this.youtubeStatus.className = 'youtube-status';
+        }
+        this.youtubeVideoInfo = null;
+        
+        // Reset to video type and reselect default preset
+        this.mediaType = 'video';
+        this.videoFilename.textContent = 'Utilise le préréglage sélectionné';
+        this.videoFilename.classList.remove('custom-video');
+        
+        const defaultPreset = document.querySelector('.preset-item[data-value="video:images/storm_render.mp4"]');
+        if (defaultPreset) {
+            defaultPreset.click();
+        }
+    }
+
+    /**
+     * Hide YouTube section if server not available
+     */
+    hideYouTubeSection() {
+        const section = document.getElementById('youtube-section');
+        if (section) {
+            section.style.display = 'none';
+        }
     }
 
     displayPlayerInfo() {
@@ -63,6 +285,9 @@ export class UIManager {
     }
 
     getBackgroundName() {
+        if (this.mediaType === 'youtube' && this.youtubeVideoInfo) {
+            return `YouTube: ${this.youtubeVideoInfo.title.substring(0, 30)}...`;
+        }
         if (this.useWebcamCheckbox.checked) return 'Webcam';
         if (this.customVideoUrl) {
             const fileName = this.videoFilename.textContent;
@@ -286,7 +511,33 @@ export class UIManager {
         const bombs = parseInt(this.bombInput.value) || 50;
 
         // Configuration de la source vidéo
-        if (this.videoUpload.files && this.videoUpload.files[0]) {
+        if (this.mediaType === 'youtube' && this.youtubeVideoInfo) {
+            // YouTube video - already pre-loaded when user selected it
+            this.stopWebcam();
+            
+            // Check if we need to update quality
+            const quality = this.youtubeQuality?.value || 'low';
+            const expectedUrl = this.youtubeManager.getStreamUrl(this.youtubeVideoInfo.videoId, quality);
+            
+            // Only reload if quality changed
+            if (this.videoElement.src !== expectedUrl) {
+                this.videoElement.src = expectedUrl;
+                this.videoElement.crossOrigin = 'anonymous';
+                this.videoElement.muted = true;
+                this.videoElement.loop = true;
+                this.videoElement.load();
+            }
+            
+            // DON'T wait - start game immediately, video will load in background
+            // The renderer will handle showing a placeholder until video is ready
+            // Start muted, then unmute after play succeeds (user interaction allows it)
+            this.videoElement.play().then(() => {
+                // User has interacted, now we can unmute if sound is enabled
+                if (!this.isMuted) {
+                    this.videoElement.muted = false;
+                }
+            }).catch(() => {});
+        } else if (this.videoUpload.files && this.videoUpload.files[0]) {
             this.stopWebcam();
             this.videoElement.muted = false;
         } else if (this.useWebcamCheckbox.checked) {
@@ -304,7 +555,7 @@ export class UIManager {
             }
         }
 
-        // Only try to play if it is a video (webcam or file)
+        // Only try to play if it is a video (webcam or file or youtube)
         if (this.mediaType !== 'image') {
             this.videoElement.play().catch(e => console.warn("Auto-lecture bloquée:", e));
         }
@@ -340,6 +591,11 @@ export class UIManager {
         this.videoFilename.textContent = 'Utilise le préréglage sélectionné';
         this.videoFilename.classList.remove('custom-video');
         this.videoUpload.value = ''; // Ensure file input is cleared
+        
+        // Clear YouTube state if switching away
+        if (this.youtubeVideoInfo) {
+            this.clearYouTube();
+        }
 
         if (type === 'video') {
             this.mediaType = 'video';
@@ -384,6 +640,10 @@ export class UIManager {
         this.stopWebcam();
         this.useWebcamCheckbox.checked = false;
         this.clearPresetHighlights();
+        // Clear YouTube when uploading a file
+        if (this.youtubeVideoInfo) {
+            this.clearYouTube();
+        }
         if (this.customVideoUrl) {
             URL.revokeObjectURL(this.customVideoUrl);
         }
@@ -460,6 +720,54 @@ export class UIManager {
         }
     }
 
+    /**
+     * Wait for video element to be ready to play
+     * @param {HTMLVideoElement} video
+     * @returns {Promise<void>}
+     */
+    waitForVideoReady(video) {
+        return new Promise((resolve) => {
+            // If video already has enough data, resolve immediately
+            if (video.readyState >= 3) { // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
+                video.play().catch(() => {});
+                resolve();
+                return;
+            }
+            
+            const onCanPlay = () => {
+                cleanup();
+                video.play().catch(() => {});
+                resolve();
+            };
+            
+            const onError = (e) => {
+                cleanup();
+                console.warn('Video error while waiting:', e);
+                resolve(); // Continue anyway
+            };
+            
+            const cleanup = () => {
+                video.removeEventListener('canplay', onCanPlay);
+                video.removeEventListener('canplaythrough', onCanPlay);
+                video.removeEventListener('loadeddata', onCanPlay);
+                video.removeEventListener('error', onError);
+            };
+            
+            video.addEventListener('canplay', onCanPlay);
+            video.addEventListener('canplaythrough', onCanPlay);
+            video.addEventListener('loadeddata', onCanPlay);
+            video.addEventListener('error', onError);
+            
+            // Timeout after 15 seconds
+            setTimeout(() => {
+                cleanup();
+                console.warn('Video load timeout, starting anyway');
+                video.play().catch(() => {});
+                resolve();
+            }, 15000);
+        });
+    }
+
     stopWebcam() {
         if (this.webcamStream) {
             this.webcamStream.getTracks().forEach(t => t.stop());
@@ -531,6 +839,12 @@ export class UIManager {
         this.isMuted = !this.isMuted;
         this.muteBtn.textContent = this.isMuted ? '🔇 OFF' : '🔊 ON';
         this.muteBtn.title = this.isMuted ? 'Activer le son' : 'Désactiver le son';
+        
+        // Also mute/unmute the video element for YouTube/video audio
+        if (this.videoElement) {
+            this.videoElement.muted = this.isMuted;
+        }
+        
         if (this.renderer && this.renderer.soundManager) {
             this.renderer.soundManager.setMute(this.isMuted);
         }
@@ -540,6 +854,18 @@ export class UIManager {
         this.menuOverlay.style.display = 'flex';
         this.hintBtn.style.display = 'none';
         this.renderer = null; // Clear disposed renderer
+        
+        // Stop video playback when returning to menu
+        if (this.videoElement) {
+            this.videoElement.pause();
+            // For YouTube streams, clear the src to stop the server stream
+            // But keep the video info so we can restart with the same video
+            if (this.mediaType === 'youtube') {
+                this.videoElement.src = '';
+                this.videoElement.load();
+            }
+        }
+        
         this.checkReplayAvailable(); // Refresh replay button visibility
         this.updateLeaderboard();
     }

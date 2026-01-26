@@ -130,7 +130,90 @@ export class MinesweeperRenderer {
         } else if (video) {
             // Default to video texture
             this.mediaType = 'video';
-            this.mediaTexture = new THREE.VideoTexture(video);
+            
+            // Check if this is a YouTube stream (cross-origin video that needs to load)
+            // Works with both localhost and production Koyeb server
+            const isYouTubeStream = video.src && (video.src.includes('localhost:3001') || video.src.includes('.koyeb.app') || video.src.includes('/api/youtube/'));
+            
+            if (isYouTubeStream) {
+                console.log('[Renderer] YouTube stream detected');
+                // Create a placeholder texture (solid color) until video loads
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#1a1a2e';  // Dark blue placeholder
+                ctx.fillRect(0, 0, 64, 64);
+                this.mediaTexture = new THREE.CanvasTexture(canvas);
+                this.placeholderTexture = this.mediaTexture;
+                
+                // Function to check if video has actual frames (not just audio)
+                const hasVideoFrames = () => {
+                    return video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
+                };
+                
+                // When video is ready with actual frames, switch to video texture
+                const switchToVideoTexture = () => {
+                    if (this.videoTextureReady) return; // Already switched
+                    
+                    console.log('[Renderer] Video ready, switching to video texture');
+                    this.videoTextureReady = true;
+                    this.mediaTexture = new THREE.VideoTexture(video);
+                    this.mediaTexture.minFilter = THREE.LinearFilter;
+                    this.mediaTexture.magFilter = THREE.LinearFilter;
+                    this.mediaTexture.colorSpace = THREE.SRGBColorSpace;
+                    this.videoTexture = this.mediaTexture;
+                    this.updateCubeMaterial();
+                };
+                
+                const onVideoReady = () => {
+                    if (hasVideoFrames()) {
+                        switchToVideoTexture();
+                        video.removeEventListener('loadeddata', onVideoReady);
+                        video.removeEventListener('canplay', onVideoReady);
+                        video.removeEventListener('playing', onVideoReady);
+                        if (this.videoCheckInterval) {
+                            clearInterval(this.videoCheckInterval);
+                            this.videoCheckInterval = null;
+                        }
+                    }
+                };
+                
+                // Check if already ready (for replay with same video)
+                if (hasVideoFrames()) {
+                    console.log('[Renderer] Video already has frames, using immediately');
+                    switchToVideoTexture();
+                } else {
+                    // Listen for events
+                    video.addEventListener('loadeddata', onVideoReady);
+                    video.addEventListener('canplay', onVideoReady);
+                    video.addEventListener('playing', onVideoReady);
+                    
+                    // Also poll periodically in case events are missed (some browsers/streams)
+                    this.videoCheckInterval = setInterval(() => {
+                        if (hasVideoFrames()) {
+                            onVideoReady();
+                        }
+                    }, 100);
+                    
+                    // Timeout after 10 seconds - give up on video frames
+                    setTimeout(() => {
+                        if (this.videoCheckInterval) {
+                            clearInterval(this.videoCheckInterval);
+                            this.videoCheckInterval = null;
+                        }
+                        if (!this.videoTextureReady && video.readyState >= 2) {
+                            console.log('[Renderer] Video timeout, forcing texture switch');
+                            switchToVideoTexture();
+                        }
+                    }, 10000);
+                }
+                
+                // Try to play
+                video.play().catch(() => {});
+            } else {
+                this.mediaTexture = new THREE.VideoTexture(video);
+            }
         }
 
         if (this.mediaTexture) {
@@ -147,6 +230,82 @@ export class MinesweeperRenderer {
                 resolve();
             });
         });
+    }
+
+    /**
+     * Wait for video element to have enough data to start playing
+     * @param {HTMLVideoElement} video
+     * @returns {Promise<void>}
+     */
+    waitForVideoReady(video) {
+        return new Promise((resolve) => {
+            // If video already has data, resolve immediately
+            if (video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+                resolve();
+                return;
+            }
+            
+            const onCanPlay = () => {
+                video.removeEventListener('canplay', onCanPlay);
+                video.removeEventListener('loadeddata', onCanPlay);
+                video.removeEventListener('error', onError);
+                resolve();
+            };
+            
+            const onError = () => {
+                video.removeEventListener('canplay', onCanPlay);
+                video.removeEventListener('loadeddata', onCanPlay);
+                video.removeEventListener('error', onError);
+                console.warn('Video failed to load, continuing anyway');
+                resolve();
+            };
+            
+            video.addEventListener('canplay', onCanPlay);
+            video.addEventListener('loadeddata', onCanPlay);
+            video.addEventListener('error', onError);
+            
+            // Timeout after 10 seconds
+            setTimeout(() => {
+                video.removeEventListener('canplay', onCanPlay);
+                video.removeEventListener('loadeddata', onCanPlay);
+                video.removeEventListener('error', onError);
+                console.warn('Video load timeout, continuing anyway');
+                resolve();
+            }, 10000);
+        });
+    }
+
+    /**
+     * Set up periodic texture updates for streaming video sources
+     * @param {HTMLVideoElement} video
+     */
+    setupVideoTextureUpdater(video) {
+        // Force texture updates when video time updates
+        video.addEventListener('timeupdate', () => {
+            if (this.mediaTexture) {
+                this.mediaTexture.needsUpdate = true;
+            }
+        });
+        
+        // Also update on play
+        video.addEventListener('play', () => {
+            if (this.mediaTexture) {
+                this.mediaTexture.needsUpdate = true;
+            }
+        });
+    }
+
+    /**
+     * Update the grid mesh cube material with the current media texture
+     * Called when switching from placeholder to video texture
+     */
+    updateCubeMaterial() {
+        if (this.gridMesh && this.gridMesh.material && Array.isArray(this.gridMesh.material)) {
+            const videoMaterialIndex = 4; // Front face
+            this.gridMesh.material[videoMaterialIndex].map = this.mediaTexture;
+            this.gridMesh.material[videoMaterialIndex].needsUpdate = true;
+            console.log('[Renderer] Cube material updated with new texture');
+        }
     }
 
     /**
@@ -171,6 +330,12 @@ export class MinesweeperRenderer {
         } else {
             // Create a video texture
             this.mediaTexture = new THREE.VideoTexture(source);
+            
+            // Check if this is a YouTube stream (localhost or production)
+            const isYouTubeStream = source.src && (source.src.includes('localhost:3001') || source.src.includes('.koyeb.app') || source.src.includes('/api/youtube/'));
+            if (isYouTubeStream) {
+                this.setupVideoTextureUpdater(source);
+            }
         }
 
         // Apply common settings
@@ -449,13 +614,13 @@ export class MinesweeperRenderer {
             result.changes.forEach(change => {
                 this.updateCellVisual(change.x, change.y, change.value);
             });
-            this.soundManager.play('click');
+            // Click sound removed - only video sound
             if (result.type === 'win') this.triggerWin();
         } else if (result.type === 'explode') {
-            this.soundManager.play('explosion');
+            // Explosion sound removed - only video sound
             this.triggerExplosion();
         } else if (result.type === 'flag') {
-            this.soundManager.play('flag');
+            // Flag sound removed - only video sound
             this.updateFlagVisual(result.x, result.y, result.active);
         }
     }
@@ -485,7 +650,7 @@ export class MinesweeperRenderer {
 
         // Sound effect
         if (this.soundManager) {
-            this.soundManager.play('click'); // Or a specific hint sound
+            // Hint sound removed - only video sound
         }
 
         // Particle effect
@@ -761,7 +926,7 @@ export class MinesweeperRenderer {
 
     triggerWin() {
         this.game.victory = true;
-        this.soundManager.play('win');
+        // Win sound removed - only video sound
 
         if (this.scoreManager) {
             const finalTime = this.game.getElapsedTime();
@@ -969,6 +1134,12 @@ export class MinesweeperRenderer {
     dispose() {
         this.renderer.setAnimationLoop(null);
         this.particleSystem.dispose();
+        
+        // Clean up video check interval
+        if (this.videoCheckInterval) {
+            clearInterval(this.videoCheckInterval);
+            this.videoCheckInterval = null;
+        }
 
         this.scene.traverse((object) => {
             if (object.geometry) object.geometry.dispose();

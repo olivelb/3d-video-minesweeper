@@ -34,7 +34,7 @@
             title="Basculer vers les drapeaux 3D">⭐
             ÉTOILES</button>
         <div id="hint-display">🧩 Indices: 0</div>
-        <button id="mute-btn" class="control-btn" title="Activer/Désactiver le son">🔇 OFF</button>
+        <button id="mute-btn" class="control-btn" title="Désactiver le son">🔊 ON</button>
         <button id="retry-btn" title="Recommencer au dernier coup sûr">🔁 REESSAYER</button>
     </div>
 
@@ -122,6 +122,44 @@
                     <label class="webcam-label"><input type="checkbox" id="use-webcam"> Utiliser la webcam si
                         disponible</label>
                     <small class="hint">Si la webcam est refusée ou absente, on revient à la vidéo par défaut.</small>
+                </div>
+
+                <!-- YouTube URL Input Section -->
+                <div class="youtube-section" id="youtube-section">
+                    <label class="section-label">
+                        <span class="youtube-icon">▶</span> YouTube Video
+                    </label>
+                    <div class="youtube-input-row">
+                        <input type="text" 
+                               id="youtube-url" 
+                               placeholder="Coller un lien YouTube..."
+                               autocomplete="off">
+                        <button id="youtube-load-btn" class="youtube-btn" title="Charger la vidéo" disabled>
+                            ▶
+                        </button>
+                    </div>
+                    <div id="youtube-status" class="youtube-status"></div>
+                    <div id="youtube-preview" class="youtube-preview" style="display: none;">
+                        <img id="youtube-thumbnail" src="" alt="Thumbnail">
+                        <div class="youtube-info">
+                            <span id="youtube-title"></span>
+                            <span id="youtube-duration"></span>
+                        </div>
+                        <button id="youtube-clear-btn" class="youtube-clear" title="Effacer">✕</button>
+                    </div>
+                    <div class="youtube-quality-row" style="display: none;" id="youtube-quality-container">
+                        <label>Qualité:</label>
+                        <select id="youtube-quality">
+                            <option value="auto">Auto (Recommandé)</option>
+                            <option value="low">Basse (360p)</option>
+                            <option value="medium">Moyenne (480p)</option>
+                            <option value="high">Haute (720p)</option>
+                        </select>
+                    </div>
+                    <div class="youtube-server-status" id="youtube-server-status">
+                        <span class="status-dot offline"></span>
+                        <span class="status-text">Vérification du serveur...</span>
+                    </div>
                 </div>
                 <div class="input-row" style="margin-top: 10px;">
                     <div class="input-group">
