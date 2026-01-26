@@ -86,7 +86,10 @@ export async function getVideoInfo(urlOrId) {
             '--no-playlist',
             '--no-warnings',
             '--force-ipv4',
-            '--extractor-args', 'youtube:player_client=android,web',
+            '--geo-bypass',
+            '--no-check-certificates',
+            '--extractor-args', 'youtube:player_client=ios,web',
+            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
             fullUrl
         ]);
         
@@ -152,7 +155,10 @@ export async function getDirectUrl(videoId, quality = 'auto') {
             '--no-playlist',
             '--no-warnings',
             '--force-ipv4',
-            '--extractor-args', 'youtube:player_client=android,web',
+            '--geo-bypass',
+            '--no-check-certificates',
+            '--extractor-args', 'youtube:player_client=ios,web',
+            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
             fullUrl
         ]);
         
@@ -271,7 +277,10 @@ export async function getStreamFormat(videoId, quality = 'auto') {
             '--no-playlist',
             '--no-warnings',
             '--force-ipv4',
-            '--extractor-args', 'youtube:player_client=android,web',
+            '--geo-bypass',
+            '--no-check-certificates',
+            '--extractor-args', 'youtube:player_client=ios,web',
+            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
             fullUrl
         ]);
         
