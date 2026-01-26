@@ -143,7 +143,13 @@ export class UIManager {
             if (this.youtubeLoadBtn) this.youtubeLoadBtn.disabled = false;
         } else {
             statusDot.className = 'status-dot offline';
-            statusText.textContent = 'Serveur hors ligne - Lancez: cd server && npm start';
+            // Show different message for production vs local
+            const serverUrl = this.youtubeManager?.serverUrl || '';
+            if (serverUrl.includes('koyeb') || serverUrl.includes('github')) {
+                statusText.textContent = 'Serveur distant hors ligne - Réessayez plus tard';
+            } else {
+                statusText.textContent = 'Serveur hors ligne - Lancez: cd server && npm start';
+            }
             if (this.youtubeLoadBtn) this.youtubeLoadBtn.disabled = true;
         }
     }

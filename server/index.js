@@ -42,17 +42,23 @@ process.on('SIGTERM', () => {
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+
+// Health check - before CORS to allow all origins
+app.get('/health', (req, res) => {
+    console.log('[HEALTH] Health check requested from:', req.get('origin') || 'no-origin');
+    res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Cache-Control': 'no-cache'
+    });
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.use(corsMiddleware);
 app.use(rateLimiter);
 
 // Parse JSON bodies
 app.use(express.json());
-
-// Health check
-app.get('/health', (req, res) => {
-    console.log('[HEALTH] Health check requested');
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 
 // YouTube routes
 app.use('/api/youtube', youtubeRoutes);
