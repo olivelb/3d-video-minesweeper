@@ -132,13 +132,19 @@
                     <div class="youtube-input-row">
                         <input type="text" 
                                id="youtube-url" 
-                               placeholder="URL vidéo (YouTube, Dailymotion, Vimeo, MP4...)"
+                               placeholder="URL vidéo : Archive.org, lien .mp4 direct..."
                                autocomplete="off">
                         <button id="youtube-load-btn" class="youtube-btn" title="Charger la vidéo">
                             ▶
                         </button>
                     </div>
                     <div id="youtube-status" class="youtube-status"></div>
+                    <small class="hint youtube-hint">
+                        💡 <strong>YouTube bloqué sur ce serveur.</strong> Utilisez plutôt :<br>
+                        • <a href="#" class="video-example" data-url="https://archive.org/details/BigBuckBunny_124">Big Buck Bunny (Archive.org)</a><br>
+                        • <a href="#" class="video-example" data-url="https://www.w3schools.com/html/mov_bbb.mp4">Exemple MP4 direct</a><br>
+                        • Pour YouTube : lancez le <a href="https://github.com/olivelb/3d-video-minesweeper#serveur-local" target="_blank">serveur local</a>
+                    </small>
                     <div id="youtube-preview" class="youtube-preview" style="display: none;">
                         <img id="youtube-thumbnail" src="" alt="Thumbnail">
                         <div class="youtube-info">

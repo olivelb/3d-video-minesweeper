@@ -452,6 +452,19 @@ export class UIManager {
         this.videoUpload.addEventListener('change', (e) => this.handleVideoUpload(e));
         this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
 
+        // Video example links in the hint
+        document.querySelectorAll('.video-example').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const url = link.dataset.url;
+                if (url && this.youtubeUrl) {
+                    this.youtubeUrl.value = url;
+                    // Trigger load
+                    this.handleYouTubeLoad();
+                }
+            });
+        });
+
         // Visual Preset Selector Logic
         const presetItems = document.querySelectorAll('.preset-item');
         presetItems.forEach(item => {
