@@ -1,9 +1,64 @@
 /**
- * YouTubeManager - Handles YouTube video integration via proxy server
- * This module manages the communication with the backend YouTube proxy
- * and provides methods to load, validate, and stream YouTube videos.
+ * VideoManager - Handles video integration from multiple sources
+ * Supports: YouTube, Dailymotion, Vimeo, Internet Archive, and direct URLs
+ * Direct URLs (mp4, webm) work without any server proxy
  */
 import { YOUTUBE_SERVER_URL } from './config.js';
+
+// Supported platforms and their URL patterns
+const PLATFORMS = {
+    direct: {
+        name: 'Direct URL',
+        icon: '🎬',
+        patterns: [
+            /\.(mp4|webm|ogg|ogv|m4v)(\?.*)?$/i,
+            /^https?:\/\/.*\.(mp4|webm|ogg|ogv|m4v)/i,
+            /^blob:/i
+        ],
+        needsServer: false
+    },
+    youtube: {
+        name: 'YouTube',
+        icon: '📺',
+        patterns: [
+            /(?:youtube\.com|youtu\.be|music\.youtube\.com)/i
+        ],
+        needsServer: true
+    },
+    dailymotion: {
+        name: 'Dailymotion',
+        icon: '🎥',
+        patterns: [
+            /(?:dailymotion\.com|dai\.ly)/i
+        ],
+        needsServer: true
+    },
+    vimeo: {
+        name: 'Vimeo',
+        icon: '🎞️',
+        patterns: [
+            /vimeo\.com/i
+        ],
+        needsServer: true
+    },
+    archive: {
+        name: 'Internet Archive',
+        icon: '📚',
+        patterns: [
+            /archive\.org/i
+        ],
+        needsServer: true
+    },
+    peertube: {
+        name: 'PeerTube',
+        icon: '🌐',
+        patterns: [
+            /\/videos\/watch\//i,
+            /\/w\//i
+        ],
+        needsServer: true
+    }
+};
 
 export class YouTubeManager {
     constructor(options = {}) {
@@ -13,8 +68,38 @@ export class YouTubeManager {
         
         this.currentVideoId = null;
         this.currentVideoInfo = null;
+        this.currentPlatform = null;
         this.isLoading = false;
         this.serverOnline = false;
+    }
+    
+    /**
+     * Detect which platform a URL belongs to
+     * @param {string} url - Video URL
+     * @returns {Object|null} Platform info or null
+     */
+    detectPlatform(url) {
+        if (!url) return null;
+        url = url.trim();
+        
+        for (const [key, platform] of Object.entries(PLATFORMS)) {
+            for (const pattern of platform.patterns) {
+                if (pattern.test(url)) {
+                    return { key, ...platform };
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Check if URL is a direct video URL (no server needed)
+     * @param {string} url 
+     * @returns {boolean}
+     */
+    isDirectUrl(url) {
+        const platform = this.detectPlatform(url);
+        return platform?.key === 'direct';
     }
     
     /**
@@ -74,40 +159,68 @@ export class YouTubeManager {
     }
     
     /**
-     * Validate YouTube URL via server
-     * @param {string} url - YouTube URL to validate
+     * Validate any video URL
+     * @param {string} url - Video URL to validate
      * @returns {Promise<Object>} Validation result
      */
     async validateUrl(url) {
-        const videoId = this.extractVideoId(url);
-        if (!videoId) {
-            return { valid: false, error: 'Format de lien YouTube invalide' };
+        const platform = this.detectPlatform(url);
+        
+        if (!platform) {
+            return { valid: false, error: 'Format de lien non reconnu' };
         }
         
-        try {
-            const response = await fetch(
-                `${this.serverUrl}/api/youtube/validate?url=${encodeURIComponent(url)}`
-            );
-            
-            if (!response.ok) {
-                const error = await response.json();
-                return { valid: false, error: error.error || 'Validation failed' };
-            }
-            
-            return await response.json();
-        } catch (error) {
-            return { valid: false, error: 'Serveur non disponible' };
+        // Direct URLs are always valid if they look like video files
+        if (platform.key === 'direct') {
+            return { valid: true, platform: platform.name };
         }
+        
+        // For YouTube, check video ID format
+        if (platform.key === 'youtube') {
+            const videoId = this.extractVideoId(url);
+            if (!videoId) {
+                return { valid: false, error: 'Format de lien YouTube invalide' };
+            }
+        }
+        
+        // For server-based platforms, try to validate via server
+        if (platform.needsServer && this.serverOnline) {
+            try {
+                const response = await fetch(
+                    `${this.serverUrl}/api/youtube/validate?url=${encodeURIComponent(url)}`
+                );
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    return { valid: false, error: error.error || 'Validation failed' };
+                }
+                
+                return await response.json();
+            } catch (error) {
+                return { valid: false, error: 'Serveur non disponible' };
+            }
+        }
+        
+        return { valid: true, platform: platform.name };
     }
     
     /**
-     * Get video information from the server
-     * @param {string} url - YouTube URL
+     * Get video information - handles direct URLs and server-based platforms
+     * @param {string} url - Video URL
      * @returns {Promise<Object>} Video information
      */
     async getVideoInfo(url) {
+        const platform = this.detectPlatform(url);
+        this.currentPlatform = platform;
+        
+        // Handle direct video URLs (no server needed!)
+        if (platform?.key === 'direct') {
+            return this.getDirectVideoInfo(url);
+        }
+        
+        // Handle server-based platforms
         try {
-            this.onStatusChange('loading', 'Chargement des informations...');
+            this.onStatusChange('loading', `Chargement depuis ${platform?.name || 'la source'}...`);
             
             const response = await fetch(
                 `${this.serverUrl}/api/youtube/info?url=${encodeURIComponent(url)}`
@@ -132,20 +245,107 @@ export class YouTubeManager {
     }
     
     /**
-     * Get the stream URL for a video (proxied through server)
-     * @param {string} videoId - Video ID (optional, uses current if not provided)
+     * Get video info from a direct URL (no server needed)
+     * @param {string} url - Direct video URL
+     * @returns {Promise<Object>} Video information
+     */
+    async getDirectVideoInfo(url) {
+        this.onStatusChange('loading', 'Vérification du lien direct...');
+        
+        try {
+            // Try to get video metadata via HEAD request
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            
+            const response = await fetch(url, {
+                method: 'HEAD',
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`Vidéo inaccessible (${response.status})`);
+            }
+            
+            const contentType = response.headers.get('content-type') || '';
+            const contentLength = response.headers.get('content-length');
+            
+            // Check if it's actually a video
+            if (!contentType.includes('video') && !url.match(/\.(mp4|webm|ogg|ogv|m4v)(\?.*)?$/i)) {
+                throw new Error('Le lien ne pointe pas vers une vidéo');
+            }
+            
+            // Extract filename from URL
+            const urlPath = new URL(url).pathname;
+            const filename = decodeURIComponent(urlPath.split('/').pop() || 'Vidéo externe');
+            
+            this.currentVideoInfo = {
+                videoId: url, // Use URL as ID for direct videos
+                title: filename.replace(/\.[^.]+$/, ''), // Remove extension
+                author: 'Lien direct',
+                duration: 0, // Unknown
+                thumbnail: null,
+                isLive: false,
+                isDirect: true,
+                directUrl: url,
+                contentType,
+                contentLength: contentLength ? parseInt(contentLength) : null
+            };
+            
+            this.currentVideoId = url;
+            this.onStatusChange('ready', `🎬 ${this.currentVideoInfo.title}`);
+            
+            return this.currentVideoInfo;
+            
+        } catch (error) {
+            // If HEAD fails (CORS), still try to use the URL
+            console.warn('HEAD request failed, attempting to use URL directly:', error.message);
+            
+            const urlPath = new URL(url).pathname;
+            const filename = decodeURIComponent(urlPath.split('/').pop() || 'Vidéo externe');
+            
+            this.currentVideoInfo = {
+                videoId: url,
+                title: filename.replace(/\.[^.]+$/, ''),
+                author: 'Lien direct',
+                duration: 0,
+                thumbnail: null,
+                isLive: false,
+                isDirect: true,
+                directUrl: url
+            };
+            
+            this.currentVideoId = url;
+            this.onStatusChange('ready', `🎬 ${this.currentVideoInfo.title}`);
+            
+            return this.currentVideoInfo;
+        }
+    }
+    
+    /**
+     * Get the stream URL for a video
+     * For direct URLs, returns the URL directly
+     * For platforms, proxies through server
+     * @param {string} videoId - Video ID or direct URL
      * @param {string} quality - Quality preset (auto, low, medium, high)
      * @returns {string|null} Stream URL
      */
     getStreamUrl(videoId = null, quality = 'auto') {
         const id = videoId || this.currentVideoId;
         if (!id) return null;
+        
+        // If it's a direct URL, return it as-is
+        if (this.currentVideoInfo?.isDirect || this.isDirectUrl(id)) {
+            return id;
+        }
+        
         return `${this.serverUrl}/api/youtube/stream?v=${id}&q=${quality}`;
     }
     
     /**
      * Get the direct URL for a video (bypasses proxy, fetches from YouTube CDN)
-     * This is preferred because it supports Range requests for seeking
+     * For direct URLs, returns the URL directly
      * @param {string} videoId - Video ID (optional, uses current if not provided) 
      * @param {string} quality - Quality preset (auto, low, medium, high)
      * @returns {Promise<string|null>} Direct video URL
@@ -153,6 +353,11 @@ export class YouTubeManager {
     async getDirectUrl(videoId = null, quality = 'auto') {
         const id = videoId || this.currentVideoId;
         if (!id) return null;
+        
+        // If it's already a direct URL, return it
+        if (this.currentVideoInfo?.isDirect || this.isDirectUrl(id)) {
+            return id;
+        }
         
         try {
             const response = await fetch(
