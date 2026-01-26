@@ -1,3 +1,5 @@
+import { YOUTUBE_SERVER_URL } from './config.js';
+
 export class UIManager {
     constructor(game, renderer, scoreManager) {
         this.game = game;
@@ -71,7 +73,7 @@ export class UIManager {
             const { YouTubeManager } = await import('./YouTubeManager.js');
             
             this.youtubeManager = new YouTubeManager({
-                serverUrl: 'http://localhost:3001',
+                serverUrl: YOUTUBE_SERVER_URL,
                 onStatusChange: (status, message) => this.updateYouTubeStatus(status, message),
                 onError: (error) => console.error('YouTube Error:', error)
             });
