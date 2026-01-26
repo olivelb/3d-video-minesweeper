@@ -1,31 +1,108 @@
 /**
  * Application configuration
- * Automatically detects environment and uses appropriate server URL
+ * Tries local server first, falls back to Koyeb if unavailable
  */
-
-// Detect if running on GitHub Pages or locally
-const isProduction = window.location.hostname.endsWith('.github.io') || 
-                     window.location.hostname.includes('koyeb') ||
-                     !window.location.hostname.includes('localhost');
 
 // Server URLs
 const SERVERS = {
-    // Local development server
+    // Local development server (priority)
     local: 'http://localhost:3001',
     
-    // Production server on Koyeb
+    // Production server on Koyeb (fallback)
     production: 'https://flaky-caroline-visionova-sas-d785f85f.koyeb.app'
 };
 
-// Export the active server URL
-export const YOUTUBE_SERVER_URL = isProduction ? SERVERS.production : SERVERS.local;
+// Will be set after detecting available server
+let activeServerUrl = null;
+let serverCheckPromise = null;
+
+/**
+ * Check if a server is available
+ * @param {string} url - Server URL to check
+ * @returns {Promise<boolean>}
+ */
+async function checkServer(url) {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+        
+        const response = await fetch(`${url}/health`, {
+            method: 'GET',
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        return response.ok;
+    } catch (error) {
+        return false;
+    }
+}
+
+/**
+ * Detect the best available server (local first, then Koyeb)
+ * @returns {Promise<string>} The URL of the available server
+ */
+async function detectServer() {
+    // Try local server first
+    console.log('[Config] Checking local server...');
+    const localAvailable = await checkServer(SERVERS.local);
+    
+    if (localAvailable) {
+        console.log('[Config] ✓ Local server available - using localhost');
+        return SERVERS.local;
+    }
+    
+    // Fall back to Koyeb
+    console.log('[Config] Local server unavailable, trying Koyeb...');
+    const koyebAvailable = await checkServer(SERVERS.production);
+    
+    if (koyebAvailable) {
+        console.log('[Config] ✓ Koyeb server available');
+        return SERVERS.production;
+    }
+    
+    // Both unavailable - return Koyeb anyway (might come online later)
+    console.log('[Config] ⚠ No server available, defaulting to Koyeb');
+    return SERVERS.production;
+}
+
+/**
+ * Get the active server URL (async, waits for detection)
+ * @returns {Promise<string>}
+ */
+export async function getServerUrl() {
+    if (activeServerUrl) {
+        return activeServerUrl;
+    }
+    
+    if (!serverCheckPromise) {
+        serverCheckPromise = detectServer().then(url => {
+            activeServerUrl = url;
+            return url;
+        });
+    }
+    
+    return serverCheckPromise;
+}
+
+// Start detection immediately
+serverCheckPromise = detectServer().then(url => {
+    activeServerUrl = url;
+    return url;
+});
+
+// For backwards compatibility - will be set after detection
+// Initially try local, update async
+export let YOUTUBE_SERVER_URL = SERVERS.local;
+
+// Update the exported value when detection completes
+serverCheckPromise.then(url => {
+    YOUTUBE_SERVER_URL = url;
+});
 
 // Export config object for flexibility
 export const config = {
-    isProduction,
-    serverUrl: YOUTUBE_SERVER_URL,
-    servers: SERVERS
+    servers: SERVERS,
+    getServerUrl
 };
 
-console.log(`[Config] Environment: ${isProduction ? 'production' : 'development'}`);
-console.log(`[Config] YouTube Server: ${YOUTUBE_SERVER_URL}`);

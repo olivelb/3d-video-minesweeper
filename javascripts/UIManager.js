@@ -1,4 +1,4 @@
-import { YOUTUBE_SERVER_URL } from './config.js';
+import { getServerUrl } from './config.js';
 
 export class UIManager {
     constructor(game, renderer, scoreManager) {
@@ -72,8 +72,11 @@ export class UIManager {
         try {
             const { YouTubeManager } = await import('./YouTubeManager.js');
             
+            // Wait for server detection (tries local first, then Koyeb)
+            const serverUrl = await getServerUrl();
+            
             this.youtubeManager = new YouTubeManager({
-                serverUrl: YOUTUBE_SERVER_URL,
+                serverUrl: serverUrl,
                 onStatusChange: (status, message) => this.updateYouTubeStatus(status, message),
                 onError: (error) => console.error('YouTube Error:', error)
             });
@@ -138,19 +141,21 @@ export class UIManager {
         statusText.textContent = 'Vérification du serveur...';
         
         const isOnline = await this.youtubeManager.checkServerHealth();
+        const serverUrl = this.youtubeManager?.serverUrl || '';
+        const isLocal = serverUrl.includes('localhost');
         
         if (isOnline) {
             statusDot.className = 'status-dot online';
-            statusText.textContent = 'Serveur YouTube connecté';
+            statusText.textContent = isLocal 
+                ? 'Serveur local connecté ✓' 
+                : 'Serveur Koyeb connecté';
             if (this.youtubeLoadBtn) this.youtubeLoadBtn.disabled = false;
         } else {
             statusDot.className = 'status-dot offline';
-            // Show different message for production vs local
-            const serverUrl = this.youtubeManager?.serverUrl || '';
-            if (serverUrl.includes('koyeb') || serverUrl.includes('github')) {
-                statusText.textContent = 'Serveur distant hors ligne - Réessayez plus tard';
+            if (isLocal) {
+                statusText.textContent = 'Serveur local hors ligne - Lancez: cd server && npm start';
             } else {
-                statusText.textContent = 'Serveur hors ligne - Lancez: cd server && npm start';
+                statusText.textContent = 'Serveur hors ligne - Lancez le serveur local';
             }
             if (this.youtubeLoadBtn) this.youtubeLoadBtn.disabled = true;
         }
