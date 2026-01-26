@@ -13,9 +13,8 @@ const SERVERS = {
     // Local development server
     local: 'http://localhost:3001',
     
-    // Production server on Koyeb (UPDATE THIS after deployment!)
-    // Format: https://your-app-name-your-username.koyeb.app
-    production: 'https://minesweeper-youtube-proxy.koyeb.app'
+    // Production server on Koyeb
+    production: 'https://flaky-caroline-visionova-sas-d785f85f.koyeb.app'
 };
 
 // Export the active server URL
