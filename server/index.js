@@ -47,7 +47,14 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
+// Detect if we're running on a cloud platform (Koyeb, etc.) or locally
+const isCloudServer = process.env.PORT || process.env.KOYEB_APP_ID || 
+                      process.env.RAILWAY_ENVIRONMENT || process.env.RENDER_EXTERNAL_URL ||
+                      process.env.FLY_APP_NAME;
+const serverType = isCloudServer ? 'cloud' : 'local';
+
 // Health check - before CORS to allow all origins
+// Also returns server capabilities so client knows what's supported
 app.get('/health', (req, res) => {
     console.log('[HEALTH] Health check requested from:', req.get('origin') || 'no-origin');
     res.set({
@@ -55,7 +62,21 @@ app.get('/health', (req, res) => {
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Cache-Control': 'no-cache'
     });
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        serverType: serverType,
+        capabilities: {
+            // Cloud servers have yt-dlp but YouTube/Dailymotion block cloud IPs
+            // Only local servers can reliably access these platforms
+            youtube: serverType === 'local',
+            dailymotion: serverType === 'local',
+            vimeo: serverType === 'local',
+            archive: true,  // Internet Archive works everywhere
+            peertube: true, // Open platforms work
+            direct: true    // Direct URLs always work
+        }
+    });
 });
 
 app.use(corsMiddleware);

@@ -141,17 +141,24 @@ export class UIManager {
         statusText.textContent = 'Vérification du serveur...';
         
         const isOnline = await this.youtubeManager.checkServerHealth();
-        const serverUrl = this.youtubeManager?.serverUrl || '';
-        const isLocal = serverUrl.includes('localhost');
+        const isLocal = this.youtubeManager.isLocalServer;
+        const capabilities = this.youtubeManager.serverCapabilities || {};
         
         // Always enable button - direct URLs work without server
         if (this.youtubeLoadBtn) this.youtubeLoadBtn.disabled = false;
         
         if (isOnline) {
             statusDot.className = 'status-dot online';
-            statusText.textContent = isLocal 
-                ? 'Serveur local connecté ✓ (Toutes plateformes)' 
-                : 'Serveur Koyeb connecté (Dailymotion, Vimeo...)';
+            if (isLocal) {
+                statusText.textContent = 'Serveur local connecté ✓ (Toutes plateformes)';
+            } else {
+                // Build list of supported platforms
+                const supported = [];
+                if (capabilities.archive) supported.push('Internet Archive');
+                if (capabilities.peertube) supported.push('PeerTube');
+                supported.push('liens directs');
+                statusText.textContent = `Serveur cloud connecté (${supported.join(', ')})`;
+            }
         } else {
             statusDot.className = 'status-dot offline';
             statusText.textContent = 'Liens directs .mp4/.webm uniquement (serveur hors ligne)';
@@ -172,19 +179,21 @@ export class UIManager {
         const platform = this.youtubeManager.detectPlatform(url);
         
         if (!platform) {
-            this.updateYouTubeStatus('error', 'Format de lien non reconnu. Utilisez YouTube, Dailymotion, Vimeo, ou un lien direct .mp4/.webm');
+            this.updateYouTubeStatus('error', 'Format de lien non reconnu. Utilisez Internet Archive, ou un lien direct .mp4/.webm');
             return;
         }
         
-        // For direct URLs, no server check needed
-        const needsServer = platform.needsServer;
-        
-        // Check if server is needed but unavailable
-        if (needsServer && !this.youtubeManager.serverOnline) {
+        // Check if platform is supported with current server
+        if (!this.youtubeManager.isPlatformSupported(platform)) {
             // Re-check server before failing
             await this.youtubeManager.checkServerHealth();
-            if (!this.youtubeManager.serverOnline) {
-                this.updateYouTubeStatus('error', `${platform.name} nécessite le serveur. Utilisez un lien direct .mp4 ou lancez le serveur local.`);
+            
+            if (!this.youtubeManager.isPlatformSupported(platform)) {
+                if (platform.needsLocalServer) {
+                    this.updateYouTubeStatus('error', `${platform.name} nécessite un serveur local avec yt-dlp. Utilisez Internet Archive ou un lien direct .mp4`);
+                } else {
+                    this.updateYouTubeStatus('error', `${platform.name} nécessite le serveur. Utilisez un lien direct .mp4 ou lancez le serveur local.`);
+                }
                 return;
             }
         }

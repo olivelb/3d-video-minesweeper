@@ -1,11 +1,16 @@
 /**
  * VideoManager - Handles video integration from multiple sources
- * Supports: YouTube, Dailymotion, Vimeo, Internet Archive, and direct URLs
- * Direct URLs (mp4, webm) work without any server proxy
+ * 
+ * IMPORTANT: Platform support varies based on server location:
+ * - Direct URLs (.mp4, .webm) - Work everywhere, no server needed
+ * - Internet Archive - Works on any server (open access)
+ * - YouTube/Dailymotion/Vimeo - ONLY work with LOCAL server (yt-dlp required)
+ *   These platforms block cloud server IPs and require updated yt-dlp
  */
 import { YOUTUBE_SERVER_URL } from './config.js';
 
 // Supported platforms and their URL patterns
+// needsLocalServer: true = only works with local yt-dlp server (blocked on cloud)
 const PLATFORMS = {
     direct: {
         name: 'Direct URL',
@@ -15,31 +20,8 @@ const PLATFORMS = {
             /^https?:\/\/.*\.(mp4|webm|ogg|ogv|m4v)/i,
             /^blob:/i
         ],
-        needsServer: false
-    },
-    youtube: {
-        name: 'YouTube',
-        icon: '📺',
-        patterns: [
-            /(?:youtube\.com|youtu\.be|music\.youtube\.com)/i
-        ],
-        needsServer: true
-    },
-    dailymotion: {
-        name: 'Dailymotion',
-        icon: '🎥',
-        patterns: [
-            /(?:dailymotion\.com|dai\.ly)/i
-        ],
-        needsServer: true
-    },
-    vimeo: {
-        name: 'Vimeo',
-        icon: '🎞️',
-        patterns: [
-            /vimeo\.com/i
-        ],
-        needsServer: true
+        needsServer: false,
+        needsLocalServer: false
     },
     archive: {
         name: 'Internet Archive',
@@ -47,7 +29,35 @@ const PLATFORMS = {
         patterns: [
             /archive\.org/i
         ],
-        needsServer: true
+        needsServer: true,
+        needsLocalServer: false  // Works on any server
+    },
+    youtube: {
+        name: 'YouTube',
+        icon: '📺',
+        patterns: [
+            /(?:youtube\.com|youtu\.be|music\.youtube\.com)/i
+        ],
+        needsServer: true,
+        needsLocalServer: true  // Only works with local server
+    },
+    dailymotion: {
+        name: 'Dailymotion',
+        icon: '🎥',
+        patterns: [
+            /(?:dailymotion\.com|dai\.ly)/i
+        ],
+        needsServer: true,
+        needsLocalServer: true  // Only works with local server
+    },
+    vimeo: {
+        name: 'Vimeo',
+        icon: '🎞️',
+        patterns: [
+            /vimeo\.com/i
+        ],
+        needsServer: true,
+        needsLocalServer: true  // Only works with local server
     },
     peertube: {
         name: 'PeerTube',
@@ -56,7 +66,8 @@ const PLATFORMS = {
             /\/videos\/watch\//i,
             /\/w\//i
         ],
-        needsServer: true
+        needsServer: true,
+        needsLocalServer: false  // Open platforms work
     }
 };
 
@@ -71,6 +82,8 @@ export class YouTubeManager {
         this.currentPlatform = null;
         this.isLoading = false;
         this.serverOnline = false;
+        this.isLocalServer = false;  // Whether we're using local yt-dlp server
+        this.serverCapabilities = {}; // What platforms the server can handle
     }
     
     /**
@@ -136,7 +149,7 @@ export class YouTubeManager {
     }
     
     /**
-     * Check if server is available
+     * Check if server is available and get its capabilities
      * @returns {Promise<boolean>} True if server is online
      */
     async checkServerHealth() {
@@ -151,11 +164,54 @@ export class YouTubeManager {
             
             clearTimeout(timeoutId);
             this.serverOnline = response.ok;
+            
+            // Get server capabilities if available
+            if (response.ok) {
+                try {
+                    const data = await response.json();
+                    this.serverCapabilities = data.capabilities || {};
+                    this.isLocalServer = data.serverType === 'local';
+                    console.log(`[YouTubeManager] Server: ${this.serverUrl}, Type: ${data.serverType}, Capabilities:`, this.serverCapabilities);
+                } catch (e) {
+                    // Fallback: check URL pattern
+                    this.isLocalServer = this.serverUrl.includes('localhost') || 
+                                         this.serverUrl.includes('127.0.0.1');
+                    this.serverCapabilities = {};
+                }
+            }
+            
             return response.ok;
         } catch (error) {
             this.serverOnline = false;
+            this.isLocalServer = false;
+            this.serverCapabilities = {};
             return false;
         }
+    }
+    
+    /**
+     * Check if a platform is supported with current server
+     * @param {Object} platform - Platform info
+     * @returns {boolean} True if platform is supported
+     */
+    isPlatformSupported(platform) {
+        if (!platform) return false;
+        
+        // Direct URLs always work
+        if (!platform.needsServer) return true;
+        
+        // If server reports capabilities, use them
+        if (this.serverCapabilities && this.serverCapabilities[platform.key] !== undefined) {
+            return this.serverCapabilities[platform.key] && this.serverOnline;
+        }
+        
+        // Fallback: if platform needs local server, check if we have one
+        if (platform.needsLocalServer && !this.isLocalServer) {
+            return false;
+        }
+        
+        // Otherwise, just need any server online
+        return this.serverOnline;
     }
     
     /**
@@ -173,6 +229,18 @@ export class YouTubeManager {
         // Direct URLs are always valid if they look like video files
         if (platform.key === 'direct') {
             return { valid: true, platform: platform.name };
+        }
+        
+        // Check if platform is supported with current server
+        if (!this.isPlatformSupported(platform)) {
+            if (platform.needsLocalServer) {
+                return { 
+                    valid: false, 
+                    error: `${platform.name} nécessite un serveur local. Utilisez un lien direct (.mp4) ou Internet Archive.`,
+                    needsLocalServer: true
+                };
+            }
+            return { valid: false, error: 'Serveur non disponible' };
         }
         
         // For YouTube, check video ID format
