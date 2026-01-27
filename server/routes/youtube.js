@@ -73,15 +73,14 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
             });
         }
         
-        console.log(`[STREAM] Starting stream for: ${videoIdOrUrl}, quality: ${quality}`);
+        console.log(`[STREAM] ${videoIdOrUrl}, quality: ${quality}`);
         
         // Get format info for headers
         let formatInfo;
         try {
             formatInfo = await getStreamFormat(videoIdOrUrl, quality);
-            console.log(`[STREAM] Format info:`, formatInfo);
         } catch (e) {
-            console.warn('[STREAM] Could not get format info:', e.message);
+            // Could not get format info, continue without it
         }
         
         // Determine content type - prefer mp4
@@ -103,7 +102,6 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         stream.on('data', (chunk) => {
             if (!hasStarted) {
                 hasStarted = true;
-                console.log(`[STREAM] First chunk received for ${videoIdOrUrl}`);
             }
             bytesSent += chunk.length;
         });
@@ -118,7 +116,7 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         });
         
         stream.on('end', () => {
-            console.log(`[STREAM] Completed ${videoId}: ${(bytesSent / 1024 / 1024).toFixed(2)} MB sent`);
+            // Stream completed
         });
         
         // Pipe to response
@@ -126,7 +124,6 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         
         // Clean up on client disconnect
         req.on('close', () => {
-            console.log(`[STREAM] Client disconnected for ${videoId}`);
             if (ytdlpProc && !ytdlpProc.killed) {
                 ytdlpProc.kill();
             }
@@ -154,10 +151,9 @@ router.get('/direct', async (req, res, next) => {
             });
         }
         
-        console.log(`[DIRECT] Getting direct URL for video: ${videoId}, quality: ${quality}`);
+        console.log(`[DIRECT] Getting URL for: ${videoId}`);
         
         const result = await getDirectUrl(videoId, quality);
-        console.log(`[DIRECT] Got result, sending response...`);
         
         const response = {
             videoId,
@@ -167,12 +163,10 @@ router.get('/direct', async (req, res, next) => {
             expiresIn: '~6 hours'
         };
         
-        console.log(`[DIRECT] Response object created, url length: ${result.url?.length}`);
         res.json(response);
-        console.log(`[DIRECT] Response sent successfully`);
         
     } catch (error) {
-        console.error(`[DIRECT] Error:`, error);
+        console.error(`[DIRECT] Error for ${req.query.v}:`, error.message);
         next(error);
     }
 });

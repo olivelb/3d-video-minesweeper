@@ -469,40 +469,40 @@ export class UIManager {
         return new Promise((resolve) => {
             // If video already has enough data, resolve immediately
             if (video.readyState >= 3) { // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
-                video.play().catch(() => {});
+                video.play().catch(() => { });
                 resolve();
                 return;
             }
-            
+
             const onCanPlay = () => {
                 cleanup();
-                video.play().catch(() => {});
+                video.play().catch(() => { });
                 resolve();
             };
-            
+
             const onError = (e) => {
                 cleanup();
                 console.warn('Video error while waiting:', e);
                 resolve(); // Continue anyway
             };
-            
+
             const cleanup = () => {
                 video.removeEventListener('canplay', onCanPlay);
                 video.removeEventListener('canplaythrough', onCanPlay);
                 video.removeEventListener('loadeddata', onCanPlay);
                 video.removeEventListener('error', onError);
             };
-            
+
             video.addEventListener('canplay', onCanPlay);
             video.addEventListener('canplaythrough', onCanPlay);
             video.addEventListener('loadeddata', onCanPlay);
             video.addEventListener('error', onError);
-            
+
             // Timeout after 15 seconds
             setTimeout(() => {
                 cleanup();
                 console.warn('Video load timeout, starting anyway');
-                video.play().catch(() => {});
+                video.play().catch(() => { });
                 resolve();
             }, 15000);
         });
@@ -553,6 +553,7 @@ export class UIManager {
         this.leaderboardList.innerHTML = topScores.map((score, index) => {
             const noGuessBadge = score.noGuessMode ? '<span class="score-badge ng">Logique</span>' : '';
             const hintsBadge = score.hintCount > 0 ? `<span class="score-badge hints">${score.hintCount} 💡</span>` : '';
+            const retryBadge = score.retryCount > 0 ? `<span class="score-badge retry">${score.retryCount} 🔁</span>` : '';
 
             return `
                 <div class="score-entry">
@@ -562,6 +563,7 @@ export class UIManager {
                             ${score.score.toLocaleString()} pts
                             ${noGuessBadge}
                             ${hintsBadge}
+                            ${retryBadge}
                         </div>
                         <div class="score-details">
                             ${score.width}x${score.height} | ${score.bombs} 💣 | ${this.scoreManager.formatTime(score.time)}
@@ -579,12 +581,12 @@ export class UIManager {
         this.isMuted = !this.isMuted;
         this.muteBtn.textContent = this.isMuted ? '🔇 OFF' : '🔊 ON';
         this.muteBtn.title = this.isMuted ? 'Activer le son' : 'Désactiver le son';
-        
+
         // Also mute/unmute the video element for video audio
         if (this.videoElement) {
             this.videoElement.muted = this.isMuted;
         }
-        
+
         if (this.renderer && this.renderer.soundManager) {
             this.renderer.soundManager.setMute(this.isMuted);
         }
@@ -594,12 +596,12 @@ export class UIManager {
         this.menuOverlay.style.display = 'flex';
         this.hintBtn.style.display = 'none';
         this.renderer = null; // Clear disposed renderer
-        
+
         // Stop video playback when returning to menu
         if (this.videoElement) {
             this.videoElement.pause();
         }
-        
+
         this.checkReplayAvailable(); // Refresh replay button visibility
         this.updateLeaderboard();
     }

@@ -44,25 +44,20 @@ async function checkServer(url) {
  */
 async function detectServer() {
     // Try local server first
-    console.log('[Config] Checking local server...');
     const localAvailable = await checkServer(SERVERS.local);
     
     if (localAvailable) {
-        console.log('[Config] ✓ Local server available - using localhost');
         return SERVERS.local;
     }
     
     // Fall back to Koyeb
-    console.log('[Config] Local server unavailable, trying Koyeb...');
     const koyebAvailable = await checkServer(SERVERS.production);
     
     if (koyebAvailable) {
-        console.log('[Config] ✓ Koyeb server available');
         return SERVERS.production;
     }
     
     // Both unavailable - return Koyeb anyway (might come online later)
-    console.log('[Config] ⚠ No server available, defaulting to Koyeb');
     return SERVERS.production;
 }
 

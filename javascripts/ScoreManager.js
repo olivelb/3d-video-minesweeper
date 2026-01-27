@@ -95,6 +95,7 @@ export class ScoreManager {
             score: scoreData.score,
             noGuessMode: scoreData.noGuessMode || false,
             hintCount: scoreData.hintCount || 0,
+            retryCount: scoreData.retryCount || 0,
             background: scoreData.background || 'Unknown',
             date: scoreData.date || new Date().toISOString()
         });

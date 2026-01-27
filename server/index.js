@@ -56,7 +56,6 @@ const serverType = isCloudServer ? 'cloud' : 'local';
 // Health check - before CORS to allow all origins
 // Also returns server capabilities so client knows what's supported
 app.get('/health', (req, res) => {
-    console.log('[HEALTH] Health check requested from:', req.get('origin') || 'no-origin');
     res.set({
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -92,7 +91,5 @@ app.use('/api/youtube', youtubeRoutes);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-    console.log(`🎮 YouTube Proxy Server running on http://localhost:${PORT}`);
-    console.log(`📺 Stream endpoint: http://localhost:${PORT}/api/youtube/stream?v=VIDEO_ID`);
-    console.log(`❤️  Health check: http://localhost:${PORT}/health`);
+    console.log(`🎮 Server running on port ${PORT}`);
 });

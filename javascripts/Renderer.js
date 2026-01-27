@@ -142,7 +142,6 @@ export class MinesweeperRenderer {
             const isYouTubeStream = video.src && (video.src.includes('localhost:3001') || video.src.includes('.koyeb.app') || video.src.includes('/api/youtube/'));
 
             if (isYouTubeStream) {
-                console.log('[Renderer] YouTube stream detected');
                 // Create a placeholder texture (solid color) until video loads
                 const canvas = document.createElement('canvas');
                 canvas.width = 64;
@@ -161,8 +160,6 @@ export class MinesweeperRenderer {
                 // When video is ready with actual frames, switch to video texture
                 const switchToVideoTexture = () => {
                     if (this.videoTextureReady) return; // Already switched
-
-                    console.log('[Renderer] Video ready, switching to video texture');
 
                     // Dispose placeholder texture
                     if (this.mediaTexture) {
@@ -193,7 +190,6 @@ export class MinesweeperRenderer {
 
                 // Check if already ready (for replay with same video)
                 if (hasVideoFrames()) {
-                    console.log('[Renderer] Video already has frames, using immediately');
                     switchToVideoTexture();
                 } else {
                     // Listen for events
@@ -215,7 +211,6 @@ export class MinesweeperRenderer {
                             this.videoCheckInterval = null;
                         }
                         if (!this.videoTextureReady && video.readyState >= 2) {
-                            console.log('[Renderer] Video timeout, forcing texture switch');
                             switchToVideoTexture();
                         }
                     }, 10000);
@@ -320,7 +315,6 @@ export class MinesweeperRenderer {
             const videoMaterialIndex = 4; // Front face
             this.gridMesh.material[videoMaterialIndex].map = this.mediaTexture;
             this.gridMesh.material[videoMaterialIndex].needsUpdate = true;
-            console.log('[Renderer] Cube material updated with new texture');
         }
     }
 
@@ -948,7 +942,8 @@ export class MinesweeperRenderer {
             const finalTime = this.game.getElapsedTime();
             const options = {
                 noGuessMode: this.game.noGuessMode,
-                hintCount: this.game.hintCount
+                hintCount: this.game.hintCount,
+                retryCount: this.game.retryCount
             };
             const finalScore = this.scoreManager.calculateScore(
                 this.game.width, this.game.height, this.game.bombCount, finalTime, options
@@ -962,6 +957,7 @@ export class MinesweeperRenderer {
                 score: finalScore,
                 noGuessMode: this.game.noGuessMode,
                 hintCount: this.game.hintCount,
+                retryCount: this.game.retryCount,
                 background: this.bgName
             });
 

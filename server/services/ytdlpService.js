@@ -23,9 +23,8 @@ try {
     } else {
         YT_DLP_PATH = execSync('which yt-dlp', { encoding: 'utf8' }).trim();
     }
-    console.log(`[yt-dlp] Found at: ${YT_DLP_PATH}`);
 } catch (e) {
-    console.warn('[yt-dlp] Could not find yt-dlp, using default path');
+    // Use default yt-dlp path
 }
 
 /**
@@ -35,8 +34,6 @@ try {
  */
 function execYtdlp(args) {
     return new Promise((resolve, reject) => {
-        console.log(`[yt-dlp] Running: ${YT_DLP_PATH} ${args.join(' ')}`);
-        
         const proc = spawn(YT_DLP_PATH, args, {
             windowsHide: true
         });
@@ -92,7 +89,6 @@ export async function getVideoInfo(urlOrId) {
     }
     
     try {
-        console.log(`[yt-dlp] Getting info for ${fullUrl}`);
         const output = await execYtdlp([
             '--dump-json',
             '--no-playlist',
@@ -122,8 +118,6 @@ export async function getVideoInfo(urlOrId) {
             }))
             .sort((a, b) => (b.height || 0) - (a.height || 0));
         
-        console.log(`[yt-dlp] Got info for ${resolvedId}: "${info.title}" (${info.extractor})`);
-        
         return {
             videoId: resolvedId,
             title: info.title,
@@ -139,7 +133,6 @@ export async function getVideoInfo(urlOrId) {
             availableQualities: videoFormats
         };
     } catch (error) {
-        console.error(`[yt-dlp] Failed to get video info for ${fullUrl}:`, error.message);
         throw error;
     }
 }
@@ -162,8 +155,6 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
     
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
     
-    console.log(`[yt-dlp] Getting direct URL for ${fullUrl} with format: ${formatSpec}`);
-    
     try {
         // Get URL and basic format info in one call using --print
         const output = await execYtdlp([
@@ -183,11 +174,7 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
             fullUrl
         ]);
         
-        console.log(`[yt-dlp] Raw output received, length: ${output.length}`);
-        
         const lines = output.trim().split('\n');
-        console.log(`[yt-dlp] Parsed ${lines.length} lines`);
-        
         const url = lines[0];
         const ext = lines[1] || 'mp4';
         const formatId = lines[2] || 'unknown';
@@ -196,9 +183,7 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
         const fps = parseInt(lines[5]) || 0;
         const filesize = parseInt(lines[6]) || 0;
         
-        console.log(`[yt-dlp] Got direct URL for ${videoId}: ${width}x${height} ${ext}`);
-        
-        const result = {
+        return {
             url,
             format: {
                 itag: formatId,
@@ -211,11 +196,7 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
                 height
             }
         };
-        
-        console.log(`[yt-dlp] Returning result object`);
-        return result;
     } catch (error) {
-        console.error(`[yt-dlp] Failed to get direct URL for ${videoId}:`, error.message);
         throw error;
     }
 }
@@ -237,8 +218,6 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
     }
     
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
-    
-    console.log(`[yt-dlp STREAM] Creating stream for ${fullUrl} with format: ${formatSpec}`);
     
     const proc = spawn(YT_DLP_PATH, [
         '-f', formatSpec,
@@ -262,17 +241,15 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
     
     proc.stderr.on('data', (data) => {
         stderrData += data.toString();
-        console.error(`[yt-dlp STDERR] ${data.toString().trim()}`);
     });
     
     proc.on('error', (err) => {
-        console.error(`[yt-dlp PROC ERROR] ${err.message}`);
+        console.error(`[yt-dlp] Error: ${err.message}`);
     });
     
     proc.on('close', (code) => {
-        console.log(`[yt-dlp] Process exited with code ${code}`);
         if (code !== 0 && stderrData) {
-            console.error(`[yt-dlp] Error output: ${stderrData}`);
+            console.error(`[yt-dlp] Exit ${code}: ${stderrData.slice(0, 200)}`);
         }
     });
     
@@ -337,7 +314,6 @@ export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
             height
         };
     } catch (error) {
-        console.error(`[yt-dlp] Failed to get format info for ${fullUrl}:`, error.message);
         throw error;
     }
 }

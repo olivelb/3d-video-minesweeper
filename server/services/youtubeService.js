@@ -59,7 +59,6 @@ export async function getVideoInfo(urlOrId) {
             formats: info.formats // Keep full formats for direct URL access
         };
     } catch (error) {
-        console.error(`Failed to get video info for ${videoId}:`, error.message);
         throw error;
     }
 }
@@ -89,8 +88,6 @@ export function createVideoStream(videoId, quality = 'auto') {
         options.quality = preset.quality;
         options.filter = preset.filter;
     }
-    
-    console.log(`[STREAM] Creating stream for ${videoId} with quality: ${quality}`);
     
     return ytdl(url, options);
 }

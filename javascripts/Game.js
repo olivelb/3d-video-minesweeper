@@ -50,7 +50,6 @@ export class MinesweeperGame {
         this.gameStartTime = null;
 
         // Note: On place les mines au premier clic pour éviter de perdre tout de suite
-        console.log("Jeu initialisé");
     }
 
     /**
@@ -91,7 +90,6 @@ export class MinesweeperGame {
 
         do {
             if (this.cancelGeneration) {
-                console.log("Génération interrompue par l'utilisateur. Utilisation de la dernière grille générée.");
                 return { cancelled: true };
             }
 
@@ -132,7 +130,6 @@ export class MinesweeperGame {
         } while (!MinesweeperSolver.isSolvable(this, safeX, safeY) && attempts < maxAttempts);
 
         if (this.noGuessMode && attempts >= maxAttempts) {
-            console.warn(`Impossible de générer une grille 100% logique après ${maxAttempts} tentatives.`);
             return { warning: true };
         }
 

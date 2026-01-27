@@ -171,7 +171,6 @@ export class YouTubeManager {
                     const data = await response.json();
                     this.serverCapabilities = data.capabilities || {};
                     this.isLocalServer = data.serverType === 'local';
-                    console.log(`[YouTubeManager] Server: ${this.serverUrl}, Type: ${data.serverType}, Capabilities:`, this.serverCapabilities);
                 } catch (e) {
                     // Fallback: check URL pattern
                     this.isLocalServer = this.serverUrl.includes('localhost') || 
@@ -449,10 +448,8 @@ export class YouTubeManager {
             }
             
             const data = await response.json();
-            console.log('[YouTubeManager] Got direct URL:', data.format);
             return data.url;
         } catch (error) {
-            console.error('[YouTubeManager] Failed to get direct URL:', error);
             // Fall back to stream URL
             return this.getStreamUrl(videoId, quality);
         }
