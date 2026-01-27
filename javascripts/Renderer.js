@@ -55,6 +55,12 @@ export class MinesweeperRenderer {
         this.clickTimestamps = [];
         this.lastClickTime = 0;
 
+        // Bound event listeners for proper removal
+        this._boundOnMouseMove = (e) => this.onMouseMove(e);
+        this._boundOnMouseClick = (e) => this.onMouseClick(e);
+        this._boundOnWindowResize = () => this.onWindowResize();
+        this._videoEventListeners = [];
+
         this.init();
     }
 
@@ -93,9 +99,9 @@ export class MinesweeperRenderer {
 
         this.createGrid();
 
-        window.addEventListener('resize', () => this.onWindowResize(), false);
-        this.renderer.domElement.addEventListener('pointerdown', (e) => this.onMouseClick(e), false);
-        this.renderer.domElement.addEventListener('pointermove', (e) => this.onMouseMove(e), false);
+        window.addEventListener('resize', this._boundOnWindowResize, false);
+        this.renderer.domElement.addEventListener('pointerdown', this._boundOnMouseClick, false);
+        this.renderer.domElement.addEventListener('pointermove', this._boundOnMouseMove, false);
         this.renderer.setAnimationLoop(() => this.animate());
     }
 
@@ -130,11 +136,11 @@ export class MinesweeperRenderer {
         } else if (video) {
             // Default to video texture
             this.mediaType = 'video';
-            
+
             // Check if this is a YouTube stream (cross-origin video that needs to load)
             // Works with both localhost and production Koyeb server
             const isYouTubeStream = video.src && (video.src.includes('localhost:3001') || video.src.includes('.koyeb.app') || video.src.includes('/api/youtube/'));
-            
+
             if (isYouTubeStream) {
                 console.log('[Renderer] YouTube stream detected');
                 // Create a placeholder texture (solid color) until video loads
@@ -146,17 +152,23 @@ export class MinesweeperRenderer {
                 ctx.fillRect(0, 0, 64, 64);
                 this.mediaTexture = new THREE.CanvasTexture(canvas);
                 this.placeholderTexture = this.mediaTexture;
-                
+
                 // Function to check if video has actual frames (not just audio)
                 const hasVideoFrames = () => {
                     return video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
                 };
-                
+
                 // When video is ready with actual frames, switch to video texture
                 const switchToVideoTexture = () => {
                     if (this.videoTextureReady) return; // Already switched
-                    
+
                     console.log('[Renderer] Video ready, switching to video texture');
+
+                    // Dispose placeholder texture
+                    if (this.mediaTexture) {
+                        this.mediaTexture.dispose();
+                    }
+
                     this.videoTextureReady = true;
                     this.mediaTexture = new THREE.VideoTexture(video);
                     this.mediaTexture.minFilter = THREE.LinearFilter;
@@ -165,7 +177,7 @@ export class MinesweeperRenderer {
                     this.videoTexture = this.mediaTexture;
                     this.updateCubeMaterial();
                 };
-                
+
                 const onVideoReady = () => {
                     if (hasVideoFrames()) {
                         switchToVideoTexture();
@@ -178,7 +190,7 @@ export class MinesweeperRenderer {
                         }
                     }
                 };
-                
+
                 // Check if already ready (for replay with same video)
                 if (hasVideoFrames()) {
                     console.log('[Renderer] Video already has frames, using immediately');
@@ -188,14 +200,14 @@ export class MinesweeperRenderer {
                     video.addEventListener('loadeddata', onVideoReady);
                     video.addEventListener('canplay', onVideoReady);
                     video.addEventListener('playing', onVideoReady);
-                    
+
                     // Also poll periodically in case events are missed (some browsers/streams)
                     this.videoCheckInterval = setInterval(() => {
                         if (hasVideoFrames()) {
                             onVideoReady();
                         }
                     }, 100);
-                    
+
                     // Timeout after 10 seconds - give up on video frames
                     setTimeout(() => {
                         if (this.videoCheckInterval) {
@@ -208,9 +220,9 @@ export class MinesweeperRenderer {
                         }
                     }, 10000);
                 }
-                
+
                 // Try to play
-                video.play().catch(() => {});
+                video.play().catch(() => { });
             } else {
                 this.mediaTexture = new THREE.VideoTexture(video);
             }
@@ -244,14 +256,14 @@ export class MinesweeperRenderer {
                 resolve();
                 return;
             }
-            
+
             const onCanPlay = () => {
                 video.removeEventListener('canplay', onCanPlay);
                 video.removeEventListener('loadeddata', onCanPlay);
                 video.removeEventListener('error', onError);
                 resolve();
             };
-            
+
             const onError = () => {
                 video.removeEventListener('canplay', onCanPlay);
                 video.removeEventListener('loadeddata', onCanPlay);
@@ -259,11 +271,11 @@ export class MinesweeperRenderer {
                 console.warn('Video failed to load, continuing anyway');
                 resolve();
             };
-            
+
             video.addEventListener('canplay', onCanPlay);
             video.addEventListener('loadeddata', onCanPlay);
             video.addEventListener('error', onError);
-            
+
             // Timeout after 10 seconds
             setTimeout(() => {
                 video.removeEventListener('canplay', onCanPlay);
@@ -281,18 +293,22 @@ export class MinesweeperRenderer {
      */
     setupVideoTextureUpdater(video) {
         // Force texture updates when video time updates
-        video.addEventListener('timeupdate', () => {
+        const onTimeUpdate = () => {
             if (this.mediaTexture) {
                 this.mediaTexture.needsUpdate = true;
             }
-        });
-        
+        };
+        video.addEventListener('timeupdate', onTimeUpdate);
+        this._videoEventListeners.push({ element: video, type: 'timeupdate', listener: onTimeUpdate });
+
         // Also update on play
-        video.addEventListener('play', () => {
+        const onPlay = () => {
             if (this.mediaTexture) {
                 this.mediaTexture.needsUpdate = true;
             }
-        });
+        };
+        video.addEventListener('play', onPlay);
+        this._videoEventListeners.push({ element: video, type: 'play', listener: onPlay });
     }
 
     /**
@@ -330,7 +346,7 @@ export class MinesweeperRenderer {
         } else {
             // Create a video texture
             this.mediaTexture = new THREE.VideoTexture(source);
-            
+
             // Check if this is a YouTube stream (localhost or production)
             const isYouTubeStream = source.src && (source.src.includes('localhost:3001') || source.src.includes('.koyeb.app') || source.src.includes('/api/youtube/'));
             if (isYouTubeStream) {
@@ -586,7 +602,7 @@ export class MinesweeperRenderer {
     handleGameUpdate(result) {
         // Track click timing for analytics
         const now = Date.now();
-        
+
         // For the first click, use gameStartTime if available, otherwise use a default
         if (this.lastClickTime === 0) {
             // First click - calculate delta from game start time
@@ -1132,28 +1148,59 @@ export class MinesweeperRenderer {
     }
 
     dispose() {
+        this.onGameEnd = null;
         this.renderer.setAnimationLoop(null);
-        this.particleSystem.dispose();
-        
+        if (this.particleSystem) {
+            this.particleSystem.dispose();
+        }
+
         // Clean up video check interval
         if (this.videoCheckInterval) {
             clearInterval(this.videoCheckInterval);
             this.videoCheckInterval = null;
         }
 
+        // Dispose all managed textures
+        Object.values(this.textures).forEach(tex => {
+            if (tex) tex.dispose();
+        });
+        if (this.mediaTexture) this.mediaTexture.dispose();
+        if (this.flag2DTexture) this.flag2DTexture.dispose();
+        if (this.placeholderTexture) this.placeholderTexture.dispose();
+
         this.scene.traverse((object) => {
             if (object.geometry) object.geometry.dispose();
             if (object.material) {
-                if (Array.isArray(object.material)) object.material.forEach(m => m.dispose());
-                else object.material.dispose();
+                if (Array.isArray(object.material)) {
+                    object.material.forEach(m => {
+                        if (m.map) m.map.dispose();
+                        m.dispose();
+                    });
+                } else {
+                    if (object.material.map) object.material.map.dispose();
+                    object.material.dispose();
+                }
             }
         });
 
         this.renderer.dispose();
-        this.container.innerHTML = '';
+        if (this.container) {
+            this.container.innerHTML = '';
+        }
 
-        // Remove listeners
-        this.renderer.domElement.removeEventListener('pointerdown', (e) => this.onMouseClick(e));
-        this.renderer.domElement.removeEventListener('pointermove', (e) => this.onMouseMove(e));
+        // Remove window listeners
+        window.removeEventListener('resize', this._boundOnWindowResize);
+
+        // Remove video element listeners
+        this._videoEventListeners.forEach(({ element, type, listener }) => {
+            element.removeEventListener(type, listener);
+        });
+        this._videoEventListeners = [];
+
+        // Remove renderer element listeners
+        if (this.renderer && this.renderer.domElement) {
+            this.renderer.domElement.removeEventListener('pointerdown', this._boundOnMouseClick);
+            this.renderer.domElement.removeEventListener('pointermove', this._boundOnMouseMove);
+        }
     }
 }
