@@ -1,5 +1,3 @@
-import { getServerUrl } from './config.js';
-
 export class UIManager {
     constructor(game, renderer, scoreManager) {
         this.game = game;
@@ -25,19 +23,6 @@ export class UIManager {
         this.flagStyleBtn = document.getElementById('flag-style-btn');
         this.replayBtn = document.getElementById('replay-btn');
 
-        // YouTube Elements - DISABLED (feature removed)
-        this.youtubeUrl = null;
-        this.youtubeLoadBtn = null;
-        this.youtubeStatus = null;
-        this.youtubePreview = null;
-        this.youtubeThumbnail = null;
-        this.youtubeTitle = null;
-        this.youtubeDuration = null;
-        this.youtubeClearBtn = null;
-        this.youtubeQuality = null;
-        this.youtubeQualityContainer = null;
-        this.youtubeServerStatus = null;
-
         // Difficulty Presets
         this.createDifficultyButtons();
 
@@ -47,11 +32,9 @@ export class UIManager {
         // State
         this.customVideoUrl = null;
         this.webcamStream = null;
-        this.isMuted = false;  // Sound ON by default - video starts muted for autoplay but unmutes after user interaction
-        this.mediaType = 'video'; // 'video' | 'image' | 'webcam' | 'youtube'
-        this.imageElement = null; // For storing loaded image
-        this.youtubeManager = null;
-        this.youtubeVideoInfo = null;
+        this.isMuted = false;
+        this.mediaType = 'video'; // 'video' | 'image' | 'webcam'
+        this.imageElement = null;
 
         this.bindEvents();
         this.updateLeaderboard();
@@ -60,97 +43,6 @@ export class UIManager {
         this.updateFlagStyleButton();
         this.detectGpuTier();
         this.displayPlayerInfo();
-        
-        // YouTube streaming removed - not working reliably
-        // this.initYouTubeManager();
-    }
-
-    /**
-     * Initialize YouTube Manager for video streaming
-     * DISABLED - Online streaming not working reliably
-     */
-    async initYouTubeManager() {
-        // Disabled - feature not working
-        return;
-        /*
-        try {
-            const { YouTubeManager } = await import('./YouTubeManager.js');
-            
-            // Wait for server detection (tries local first, then Koyeb)
-            const serverUrl = await getServerUrl();
-            
-            this.youtubeManager = new YouTubeManager({
-                serverUrl: serverUrl,
-                onStatusChange: (status, message) => this.updateYouTubeStatus(status, message),
-                onError: (error) => console.error('YouTube Error:', error)
-            });
-            
-            this.bindYouTubeEvents();
-            this.checkYouTubeServer();
-            
-        } catch (error) {
-            console.warn('YouTube manager not available:', error);
-            this.hideYouTubeSection();
-        }
-        */
-    }
-
-    /**
-     * Bind YouTube-related event listeners
-     * DISABLED - Feature removed
-     */
-    bindYouTubeEvents() {
-        // Feature disabled
-        return;
-    }
-
-    /**
-     * Check if YouTube proxy server is available
-     * DISABLED - Feature removed
-     */
-    async checkYouTubeServer() {
-        return; // Feature disabled
-    }
-    }
-
-    /**
-     * Handle YouTube URL load button click
-     * DISABLED - Feature removed
-     */
-    async handleYouTubeLoad() {
-        return; // Feature disabled
-    }
-
-    /**
-     * Show video preview
-     * DISABLED - Feature removed
-     */
-    showYouTubePreview(info) {
-        return; // Feature disabled
-    }
-
-    /**
-     * Update YouTube status display
-     * DISABLED - Feature removed
-     */
-    updateYouTubeStatus(status, message) {
-        return; // Feature disabled
-    }
-
-    /**
-     * Clear YouTube selection
-     * DISABLED - Feature removed
-     */
-    clearYouTube() {
-        return; // Feature disabled
-    }
-
-    /**
-     * Hide YouTube section if server not available
-     * DISABLED - Feature removed
-     */
-    hideYouTubeSection() {
-        return; // Feature disabled
     }
 
     displayPlayerInfo() {
@@ -171,15 +63,12 @@ export class UIManager {
     }
 
     getBackgroundName() {
-        if (this.mediaType === 'youtube' && this.youtubeVideoInfo) {
-            return `YouTube: ${this.youtubeVideoInfo.title.substring(0, 30)}...`;
-        }
         if (this.useWebcamCheckbox.checked) return 'Webcam';
         if (this.customVideoUrl) {
             const fileName = this.videoFilename.textContent;
             return `Custom: ${fileName}`;
         }
-        // Extract name from preset value (e.g., "video:images/storm_render.mp4")
+        // Extract name from preset value
         const activePreset = document.querySelector('.preset-item.active');
         return activePreset ? activePreset.querySelector('span').textContent : 'Default';
     }
@@ -305,19 +194,6 @@ export class UIManager {
         this.videoUpload.addEventListener('change', (e) => this.handleVideoUpload(e));
         this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
 
-        // Video example links in the hint
-        document.querySelectorAll('.video-example').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const url = link.dataset.url;
-                if (url && this.youtubeUrl) {
-                    this.youtubeUrl.value = url;
-                    // Trigger load
-                    this.handleYouTubeLoad();
-                }
-            });
-        });
-
         // Visual Preset Selector Logic
         const presetItems = document.querySelectorAll('.preset-item');
         presetItems.forEach(item => {
@@ -410,33 +286,7 @@ export class UIManager {
         const bombs = parseInt(this.bombInput.value) || 50;
 
         // Configuration de la source vidéo
-        if (this.mediaType === 'youtube' && this.youtubeVideoInfo) {
-            // YouTube video - already pre-loaded when user selected it
-            this.stopWebcam();
-            
-            // Check if we need to update quality
-            const quality = this.youtubeQuality?.value || 'low';
-            const expectedUrl = this.youtubeManager.getStreamUrl(this.youtubeVideoInfo.videoId, quality);
-            
-            // Only reload if quality changed
-            if (this.videoElement.src !== expectedUrl) {
-                this.videoElement.src = expectedUrl;
-                this.videoElement.crossOrigin = 'anonymous';
-                this.videoElement.muted = true;
-                this.videoElement.loop = true;
-                this.videoElement.load();
-            }
-            
-            // DON'T wait - start game immediately, video will load in background
-            // The renderer will handle showing a placeholder until video is ready
-            // Start muted, then unmute after play succeeds (user interaction allows it)
-            this.videoElement.play().then(() => {
-                // User has interacted, now we can unmute if sound is enabled
-                if (!this.isMuted) {
-                    this.videoElement.muted = false;
-                }
-            }).catch(() => {});
-        } else if (this.videoUpload.files && this.videoUpload.files[0]) {
+        if (this.videoUpload.files && this.videoUpload.files[0]) {
             this.stopWebcam();
             this.videoElement.muted = false;
         } else if (this.useWebcamCheckbox.checked) {
@@ -454,7 +304,7 @@ export class UIManager {
             }
         }
 
-        // Only try to play if it is a video (webcam or file or youtube)
+        // Only try to play if it is a video (webcam or file)
         if (this.mediaType !== 'image') {
             this.videoElement.play().catch(e => console.warn("Auto-lecture bloquée:", e));
         }
@@ -490,11 +340,6 @@ export class UIManager {
         this.videoFilename.textContent = 'Utilise le préréglage sélectionné';
         this.videoFilename.classList.remove('custom-video');
         this.videoUpload.value = ''; // Ensure file input is cleared
-        
-        // Clear YouTube state if switching away
-        if (this.youtubeVideoInfo) {
-            this.clearYouTube();
-        }
 
         if (type === 'video') {
             this.mediaType = 'video';
@@ -539,10 +384,6 @@ export class UIManager {
         this.stopWebcam();
         this.useWebcamCheckbox.checked = false;
         this.clearPresetHighlights();
-        // Clear YouTube when uploading a file
-        if (this.youtubeVideoInfo) {
-            this.clearYouTube();
-        }
         if (this.customVideoUrl) {
             URL.revokeObjectURL(this.customVideoUrl);
         }
@@ -739,7 +580,7 @@ export class UIManager {
         this.muteBtn.textContent = this.isMuted ? '🔇 OFF' : '🔊 ON';
         this.muteBtn.title = this.isMuted ? 'Activer le son' : 'Désactiver le son';
         
-        // Also mute/unmute the video element for YouTube/video audio
+        // Also mute/unmute the video element for video audio
         if (this.videoElement) {
             this.videoElement.muted = this.isMuted;
         }
@@ -757,12 +598,6 @@ export class UIManager {
         // Stop video playback when returning to menu
         if (this.videoElement) {
             this.videoElement.pause();
-            // For YouTube streams, clear the src to stop the server stream
-            // But keep the video info so we can restart with the same video
-            if (this.mediaType === 'youtube') {
-                this.videoElement.src = '';
-                this.videoElement.load();
-            }
         }
         
         this.checkReplayAvailable(); // Refresh replay button visibility
