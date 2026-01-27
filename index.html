@@ -123,52 +123,7 @@
                         disponible</label>
                     <small class="hint">Si la webcam est refusée ou absente, on revient à la vidéo par défaut.</small>
                 </div>
-
-                <!-- Video URL Input Section (YouTube, Dailymotion, Vimeo, or direct MP4/WebM links) -->
-                <div class="youtube-section" id="youtube-section">
-                    <label class="section-label">
-                        <span class="youtube-icon">▶</span> Vidéo en ligne
-                    </label>
-                    <div class="youtube-input-row">
-                        <input type="text" 
-                               id="youtube-url" 
-                               placeholder="URL vidéo : Archive.org, lien .mp4 direct..."
-                               autocomplete="off">
-                        <button id="youtube-load-btn" class="youtube-btn" title="Charger la vidéo">
-                            ▶
-                        </button>
-                    </div>
-                    <div id="youtube-status" class="youtube-status"></div>
-                    <small class="hint youtube-hint">
-                        💡 <strong>YouTube bloqué sur ce serveur.</strong> Utilisez plutôt :<br>
-                        • <a href="#" class="video-example" data-url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">Big Buck Bunny (MP4)</a><br>
-                        • <a href="#" class="video-example" data-url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4">Elephants Dream (MP4)</a><br>
-                        • <a href="#" class="video-example" data-url="https://archive.org/details/BigBuckBunny_124">Archive.org (via serveur)</a><br>
-                        • Pour YouTube : lancez le <a href="https://github.com/olivelb/3d-video-minesweeper#serveur-local" target="_blank">serveur local</a>
-                    </small>
-                    <div id="youtube-preview" class="youtube-preview" style="display: none;">
-                        <img id="youtube-thumbnail" src="" alt="Thumbnail">
-                        <div class="youtube-info">
-                            <span id="youtube-title"></span>
-                            <span id="youtube-duration"></span>
-                        </div>
-                        <button id="youtube-clear-btn" class="youtube-clear" title="Effacer">✕</button>
-                    </div>
-                    <div class="youtube-quality-row" style="display: none;" id="youtube-quality-container">
-                        <label>Qualité:</label>
-                        <select id="youtube-quality">
-                            <option value="auto">Auto (Recommandé)</option>
-                            <option value="low">Basse (360p)</option>
-                            <option value="medium">Moyenne (480p)</option>
-                            <option value="high">Haute (720p)</option>
-                        </select>
-                    </div>
-                    <div class="youtube-server-status" id="youtube-server-status">
-                        <span class="status-dot offline"></span>
-                        <span class="status-text">Vérification du serveur...</span>
-                    </div>
-                </div>
-                <div class="input-row" style="margin-top: 10px;">
+                <div class="input-row" style="margin-top: 15px;">
                     <div class="input-group">
                         <label class="checkbox-label"><input type="checkbox" id="hover-helper" checked> Aide au
                             survol</label>

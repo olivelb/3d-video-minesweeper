@@ -61,14 +61,18 @@ export class UIManager {
         this.detectGpuTier();
         this.displayPlayerInfo();
         
-        // Initialize YouTube manager
-        this.initYouTubeManager();
+        // YouTube streaming removed - not working reliably
+        // this.initYouTubeManager();
     }
 
     /**
      * Initialize YouTube Manager for video streaming
+     * DISABLED - Online streaming not working reliably
      */
     async initYouTubeManager() {
+        // Disabled - feature not working
+        return;
+        /*
         try {
             const { YouTubeManager } = await import('./YouTubeManager.js');
             
@@ -88,6 +92,7 @@ export class UIManager {
             console.warn('YouTube manager not available:', error);
             this.hideYouTubeSection();
         }
+        */
     }
 
     /**
