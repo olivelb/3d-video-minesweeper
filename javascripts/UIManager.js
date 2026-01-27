@@ -25,18 +25,18 @@ export class UIManager {
         this.flagStyleBtn = document.getElementById('flag-style-btn');
         this.replayBtn = document.getElementById('replay-btn');
 
-        // YouTube Elements
-        this.youtubeUrl = document.getElementById('youtube-url');
-        this.youtubeLoadBtn = document.getElementById('youtube-load-btn');
-        this.youtubeStatus = document.getElementById('youtube-status');
-        this.youtubePreview = document.getElementById('youtube-preview');
-        this.youtubeThumbnail = document.getElementById('youtube-thumbnail');
-        this.youtubeTitle = document.getElementById('youtube-title');
-        this.youtubeDuration = document.getElementById('youtube-duration');
-        this.youtubeClearBtn = document.getElementById('youtube-clear-btn');
-        this.youtubeQuality = document.getElementById('youtube-quality');
-        this.youtubeQualityContainer = document.getElementById('youtube-quality-container');
-        this.youtubeServerStatus = document.getElementById('youtube-server-status');
+        // YouTube Elements - DISABLED (feature removed)
+        this.youtubeUrl = null;
+        this.youtubeLoadBtn = null;
+        this.youtubeStatus = null;
+        this.youtubePreview = null;
+        this.youtubeThumbnail = null;
+        this.youtubeTitle = null;
+        this.youtubeDuration = null;
+        this.youtubeClearBtn = null;
+        this.youtubeQuality = null;
+        this.youtubeQualityContainer = null;
+        this.youtubeServerStatus = null;
 
         // Difficulty Presets
         this.createDifficultyButtons();
@@ -97,8 +97,12 @@ export class UIManager {
 
     /**
      * Bind YouTube-related event listeners
+     * DISABLED - Feature removed
      */
     bindYouTubeEvents() {
+        // Feature disabled
+        return;
+        /*
         if (!this.youtubeLoadBtn) return;
         
         // Load button click
@@ -135,8 +139,10 @@ export class UIManager {
 
     /**
      * Check if YouTube proxy server is available
+     * DISABLED - Feature removed
      */
     async checkYouTubeServer() {
+        return; // Feature disabled
         if (!this.youtubeManager || !this.youtubeServerStatus) return;
         
         const statusDot = this.youtubeServerStatus.querySelector('.status-dot');
@@ -172,8 +178,10 @@ export class UIManager {
 
     /**
      * Handle YouTube URL load button click
+     * DISABLED - Feature removed
      */
     async handleYouTubeLoad() {
+        return; // Feature disabled
         const url = this.youtubeUrl.value.trim();
         if (!url) {
             this.updateYouTubeStatus('error', 'Veuillez entrer une URL vidéo');
@@ -259,59 +267,34 @@ export class UIManager {
 
     /**
      * Show video preview
+     * DISABLED - Feature removed
      */
     showYouTubePreview(info) {
-        if (!this.youtubePreview) return;
-        
-        this.youtubeThumbnail.src = this.youtubeManager.getThumbnailUrl(info.videoId);
-        this.youtubeTitle.textContent = info.title;
-        this.youtubeDuration.textContent = this.youtubeManager.formatDuration(info.duration);
-        this.youtubePreview.style.display = 'flex';
-        this.youtubeQualityContainer.style.display = 'flex';
+        return; // Feature disabled
     }
 
     /**
-     * Update YouTube status message
+     * Update YouTube status display
+     * DISABLED - Feature removed
      */
     updateYouTubeStatus(status, message) {
-        if (!this.youtubeStatus) return;
-        
-        this.youtubeStatus.className = `youtube-status ${status}`;
-        this.youtubeStatus.textContent = message;
+        return; // Feature disabled
     }
 
     /**
      * Clear YouTube selection
+     * DISABLED - Feature removed
      */
     clearYouTube() {
-        this.youtubeUrl.value = '';
-        if (this.youtubePreview) this.youtubePreview.style.display = 'none';
-        if (this.youtubeQualityContainer) this.youtubeQualityContainer.style.display = 'none';
-        if (this.youtubeStatus) {
-            this.youtubeStatus.textContent = '';
-            this.youtubeStatus.className = 'youtube-status';
-        }
-        this.youtubeVideoInfo = null;
-        
-        // Reset to video type and reselect default preset
-        this.mediaType = 'video';
-        this.videoFilename.textContent = 'Utilise le préréglage sélectionné';
-        this.videoFilename.classList.remove('custom-video');
-        
-        const defaultPreset = document.querySelector('.preset-item[data-value="video:images/storm_render.mp4"]');
-        if (defaultPreset) {
-            defaultPreset.click();
-        }
+        return; // Feature disabled
     }
 
     /**
      * Hide YouTube section if server not available
+     * DISABLED - Feature removed
      */
     hideYouTubeSection() {
-        const section = document.getElementById('youtube-section');
-        if (section) {
-            section.style.display = 'none';
-        }
+        return; // Feature disabled
     }
 
     displayPlayerInfo() {
