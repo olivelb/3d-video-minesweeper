@@ -102,39 +102,6 @@ export class UIManager {
     bindYouTubeEvents() {
         // Feature disabled
         return;
-        /*
-        if (!this.youtubeLoadBtn) return;
-        
-        // Load button click
-        this.youtubeLoadBtn.addEventListener('click', () => this.handleYouTubeLoad());
-        
-        // Enter key in input
-        this.youtubeUrl.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.handleYouTubeLoad();
-        });
-        
-        // Paste detection for auto-validation
-        this.youtubeUrl.addEventListener('paste', () => {
-            setTimeout(() => {
-                const url = this.youtubeUrl.value.trim();
-                if (url && this.youtubeManager?.extractVideoId(url)) {
-                    this.updateYouTubeStatus('', '');
-                }
-            }, 100);
-        });
-        
-        // Input change - clear status on edit
-        this.youtubeUrl.addEventListener('input', () => {
-            if (this.youtubeVideoInfo) {
-                // User is editing after a video was loaded
-                this.updateYouTubeStatus('', '');
-            }
-        });
-        
-        // Clear button
-        if (this.youtubeClearBtn) {
-            this.youtubeClearBtn.addEventListener('click', () => this.clearYouTube());
-        }
     }
 
     /**
@@ -143,6 +110,7 @@ export class UIManager {
      */
     async checkYouTubeServer() {
         return; // Feature disabled
+    }
     }
 
     /**
