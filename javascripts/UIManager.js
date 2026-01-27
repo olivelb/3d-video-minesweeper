@@ -143,37 +143,6 @@ export class UIManager {
      */
     async checkYouTubeServer() {
         return; // Feature disabled
-        if (!this.youtubeManager || !this.youtubeServerStatus) return;
-        
-        const statusDot = this.youtubeServerStatus.querySelector('.status-dot');
-        const statusText = this.youtubeServerStatus.querySelector('.status-text');
-        
-        statusDot.className = 'status-dot checking';
-        statusText.textContent = 'Vérification du serveur...';
-        
-        const isOnline = await this.youtubeManager.checkServerHealth();
-        const isLocal = this.youtubeManager.isLocalServer;
-        const capabilities = this.youtubeManager.serverCapabilities || {};
-        
-        // Always enable button - direct URLs work without server
-        if (this.youtubeLoadBtn) this.youtubeLoadBtn.disabled = false;
-        
-        if (isOnline) {
-            statusDot.className = 'status-dot online';
-            if (isLocal) {
-                statusText.textContent = 'Serveur local connecté ✓ (Toutes plateformes)';
-            } else {
-                // Build list of supported platforms
-                const supported = [];
-                if (capabilities.archive) supported.push('Internet Archive');
-                if (capabilities.peertube) supported.push('PeerTube');
-                supported.push('liens directs');
-                statusText.textContent = `Serveur cloud connecté (${supported.join(', ')})`;
-            }
-        } else {
-            statusDot.className = 'status-dot offline';
-            statusText.textContent = 'Liens directs .mp4/.webm uniquement (serveur hors ligne)';
-        }
     }
 
     /**
@@ -182,87 +151,6 @@ export class UIManager {
      */
     async handleYouTubeLoad() {
         return; // Feature disabled
-        const url = this.youtubeUrl.value.trim();
-        if (!url) {
-            this.updateYouTubeStatus('error', 'Veuillez entrer une URL vidéo');
-            return;
-        }
-        
-        // Detect platform and validate
-        const platform = this.youtubeManager.detectPlatform(url);
-        
-        if (!platform) {
-            this.updateYouTubeStatus('error', 'Format de lien non reconnu. Utilisez Internet Archive, ou un lien direct .mp4/.webm');
-            return;
-        }
-        
-        // Check if platform is supported with current server
-        if (!this.youtubeManager.isPlatformSupported(platform)) {
-            // Re-check server before failing
-            await this.youtubeManager.checkServerHealth();
-            
-            if (!this.youtubeManager.isPlatformSupported(platform)) {
-                if (platform.needsLocalServer) {
-                    this.updateYouTubeStatus('error', `${platform.name} nécessite un serveur local avec yt-dlp. Utilisez Internet Archive ou un lien direct .mp4`);
-                } else {
-                    this.updateYouTubeStatus('error', `${platform.name} nécessite le serveur. Utilisez un lien direct .mp4 ou lancez le serveur local.`);
-                }
-                return;
-            }
-        }
-        
-        this.youtubeLoadBtn.disabled = true;
-        this.youtubeLoadBtn.classList.add('loading');
-        
-        try {
-            // Get video info (works differently for direct URLs vs platforms)
-            const info = await this.youtubeManager.getVideoInfo(url);
-            
-            // Show preview
-            this.showYouTubePreview(info);
-            
-            // Clear other media selections
-            this.stopWebcam();
-            this.useWebcamCheckbox.checked = false;
-            this.clearPresetHighlights();
-            this.videoUpload.value = '';
-            this.videoFilename.textContent = `${platform.icon} ${platform.name} sélectionné`;
-            this.videoFilename.classList.add('custom-video');
-            
-            // Set media type
-            this.mediaType = 'youtube';
-            this.youtubeVideoInfo = info;
-            
-            // PRE-LOAD: Start loading the video immediately so it's ready when game starts
-            const quality = this.youtubeQuality?.value || 'low';
-            
-            // For direct URLs, use the URL directly; for platforms, use stream URL
-            let streamUrl;
-            if (info.isDirect) {
-                streamUrl = info.directUrl;
-                console.log('[Video] Direct URL loaded:', streamUrl);
-            } else {
-                streamUrl = this.youtubeManager.getStreamUrl(info.videoId, quality);
-                console.log('[Video] Platform stream URL:', streamUrl);
-            }
-            
-            this.videoElement.src = streamUrl;
-            this.videoElement.crossOrigin = 'anonymous';
-            this.videoElement.muted = true;
-            this.videoElement.loop = true;
-            this.videoElement.preload = 'auto';
-            this.videoElement.load();
-            
-            this.updateYouTubeStatus('success', 'Vidéo en chargement... Vous pouvez démarrer!');
-            
-        } catch (error) {
-            this.updateYouTubeStatus('error', error.message);
-        } finally {
-            this.youtubeLoadBtn.disabled = false;
-            this.youtubeLoadBtn.classList.remove('loading');
-            // Re-check server status
-            this.checkYouTubeServer();
-        }
     }
 
     /**
