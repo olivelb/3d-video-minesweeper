@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/drag-drop.css">
 
+    <!-- Support HEIC -->
+    <script src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
+
     <!-- Import Map pour résoudre 'three' dans les modules -->
     <script type="importmap">
         {
@@ -112,7 +115,7 @@
                 </div>
 
                 <div class="video-upload-container">
-                    <input type="file" id="video-upload" accept="video/mp4,video/webm,video/ogg,image/*">
+                    <input type="file" id="video-upload" accept="video/mp4,video/webm,video/ogg,image/*,.heic,.heif">
                     <label for="video-upload" class="video-upload-btn">
                         <span class="upload-icon">📁</span>
                         <span class="upload-text">Ou importer un fichier...</span>

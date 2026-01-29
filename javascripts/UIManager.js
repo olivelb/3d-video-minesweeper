@@ -383,30 +383,51 @@ export class UIManager {
         if (file) this.processFile(file);
     }
 
-    processFile(file) {
+    async processFile(file) {
         if (!file) return;
 
         this.stopWebcam();
         this.useWebcamCheckbox.checked = false;
         this.clearPresetHighlights();
 
-        // Update the file input if this came from drag and drop
-        // This ensures the input and internal state stay somewhat in sync, 
-        // though we can't programmatically set files attribute easily, 
-        // we mainly care about the UI state
+        let fileToProcess = file;
+
+        // HEIC Support
+        const isHEIC = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic';
+
+        if (isHEIC && typeof heic2any === 'function') {
+            try {
+                this.videoFilename.textContent = 'Conversion HEIC... ⏳';
+                this.videoFilename.classList.add('custom-video');
+
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: "image/jpeg",
+                    quality: 0.8
+                });
+
+                // Result can be an array if multiple images in HEIC, take first
+                const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+                fileToProcess = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" });
+            } catch (err) {
+                console.error("Erreur conversion HEIC:", err);
+                this.videoFilename.textContent = 'Erreur conversion HEIC';
+                return;
+            }
+        }
 
         if (this.customVideoUrl) {
             URL.revokeObjectURL(this.customVideoUrl);
         }
-        this.customVideoUrl = URL.createObjectURL(file);
+        this.customVideoUrl = URL.createObjectURL(fileToProcess);
 
-        const isImage = file.type.startsWith('image/');
-        const isVideo = file.type.startsWith('video/');
+        const isImage = fileToProcess.type.startsWith('image/');
+        const isVideo = fileToProcess.type.startsWith('video/');
 
         if (isImage) {
-            this.handleImageFile(file);
+            this.handleImageFile(fileToProcess);
         } else if (isVideo) {
-            this.handleVideoFile(file);
+            this.handleVideoFile(fileToProcess);
         }
     }
 
