@@ -43,6 +43,7 @@ export class UIManager {
         this.updateFlagStyleButton();
         this.detectGpuTier();
         this.displayPlayerInfo();
+        this.bindDragAndDropEvents();
     }
 
     displayPlayerInfo() {
@@ -379,11 +380,21 @@ export class UIManager {
 
     handleVideoUpload(e) {
         const file = e.target.files[0];
+        if (file) this.processFile(file);
+    }
+
+    processFile(file) {
         if (!file) return;
 
         this.stopWebcam();
         this.useWebcamCheckbox.checked = false;
         this.clearPresetHighlights();
+
+        // Update the file input if this came from drag and drop
+        // This ensures the input and internal state stay somewhat in sync, 
+        // though we can't programmatically set files attribute easily, 
+        // we mainly care about the UI state
+
         if (this.customVideoUrl) {
             URL.revokeObjectURL(this.customVideoUrl);
         }
@@ -397,6 +408,43 @@ export class UIManager {
         } else if (isVideo) {
             this.handleVideoFile(file);
         }
+    }
+
+    bindDragAndDropEvents() {
+        const dropZone = this.menuOverlay;
+
+        const preventDefaults = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        // Add visual indicator
+        let dragCounter = 0;
+
+        dropZone.addEventListener('dragenter', (e) => {
+            dragCounter++;
+            dropZone.classList.add('is-dragover');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            dragCounter--;
+            if (dragCounter === 0) {
+                dropZone.classList.remove('is-dragover');
+            }
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            dragCounter = 0;
+            dropZone.classList.remove('is-dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                this.processFile(file);
+            }
+        });
     }
 
 
