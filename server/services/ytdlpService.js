@@ -48,8 +48,8 @@ function getCommonArgs() {
         '--no-check-certificates',
         '--geo-bypass',
         '--force-ipv4',
-        // Use a modern browser user-agent to avoid being flagged as a bot
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        // Use Android client API which is less strict about bot detection than the web client
+        '--extractor-args', 'youtube:player_client=android'
     ];
 
     // Only add cookies if the file exists and was written successfully
