@@ -17,6 +17,9 @@ package-lock.json
 .DS_Store
 Thumbs.db
 
+# Local Development / Agent Skills
+.github/
+
 # Logs
 *.log
 npm-debug.log*
