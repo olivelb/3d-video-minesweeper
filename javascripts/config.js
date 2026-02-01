@@ -5,10 +5,16 @@
 
 // Server URLs
 const SERVERS = {
-    // Local development server (priority)
+    // Local development server (PC)
     local: 'http://localhost:3001',
 
-    // Production server on Koyeb (fallback)
+    // Raspberry Pi on LAN (Fastest at home)
+    raspberryLocal: 'http://192.168.1.232:3001',
+
+    // Raspberry Pi via Cloudflare (Works from anywhere)
+    raspberryCloud: 'https://clearly-exhaust-cove-sword.trycloudflare.com',
+
+    // Old Production server (Fallback)
     production: 'https://flaky-caroline-visionova-sas-d785f85f.koyeb.app'
 };
 
@@ -24,17 +30,21 @@ let serverCheckPromise = null;
 async function checkServer(url) {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout for cold starts
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
 
-        const response = await fetch(`${url}/health`, {
+        // Simple health check or root fetch
+        // Note: Your server doesn't have /health yet, but we can try root or a simple GET
+        // We'll try /api/youtube/formats which is lightweight, or just catch the 404 from root
+        // Using HEAD request to be fast
+        const response = await fetch(`${url}/api/youtube/validate?url=https://google.com`, {
             method: 'GET',
             signal: controller.signal
         });
 
         clearTimeout(timeoutId);
-        return response.ok;
+        return true; // If we get a response (even 400/404), the server is up
     } catch (error) {
-        console.warn(`[Config] Connection failed to ${url}:`, error.message);
+        // console.warn(`[Config] Connection failed to ${url}`);
         return false;
     }
 }
@@ -46,36 +56,26 @@ async function checkServer(url) {
 async function detectServer() {
     console.log('[Config] Detecting best server...');
 
-    // Try local server (localhost)
-    console.log(`[Config] Checking local server at ${SERVERS.local}...`);
-    let localAvailable = await checkServer(SERVERS.local);
-
-    if (localAvailable) {
-        console.log('[Config] ✅ Local server found (localhost)');
+    // 1. Try localhost
+    if (await checkServer(SERVERS.local)) {
+        console.log('[Config] ✅ Using Localhost');
         return SERVERS.local;
     }
 
-    // Try local server (127.0.0.1) - Fallback for some Windows logic/Node versions
-    const localIP = SERVERS.local.replace('localhost', '127.0.0.1');
-    console.log(`[Config] Checking local server at ${localIP}...`);
-    localAvailable = await checkServer(localIP);
-
-    if (localAvailable) {
-        console.log('[Config] ✅ Local server found (127.0.0.1)');
-        return localIP;
+    // 2. Try Raspberry Pi LAN
+    if (await checkServer(SERVERS.raspberryLocal)) {
+        console.log('[Config] ✅ Using Raspberry Pi (LAN)');
+        return SERVERS.raspberryLocal;
     }
 
-    // Checking Production
-    console.log(`[Config] Checking production server at ${SERVERS.production}...`);
-    const koyebAvailable = await checkServer(SERVERS.production);
-
-    if (koyebAvailable) {
-        console.log('[Config] ☁️ Production server available');
-        return SERVERS.production;
+    // 3. Try Raspberry Pi Cloud
+    if (await checkServer(SERVERS.raspberryCloud)) {
+        console.log('[Config] ✅ Using Raspberry Pi (Cloudflare)');
+        return SERVERS.raspberryCloud;
     }
 
-    console.warn('[Config] ⚠️ No server found. Defaulting to production.');
-    // Both unavailable - return Koyeb anyway (might come online later)
+    // 4. Fallback
+    console.warn('[Config] ⚠️ No custom servers found. Using Fallback.');
     return SERVERS.production;
 }
 
