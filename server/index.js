@@ -48,9 +48,11 @@ app.use(helmet({
 }));
 
 // Detect if we're running on a cloud platform (Koyeb, etc.) or locally
-const isCloudServer = process.env.PORT || process.env.KOYEB_APP_ID || 
-                      process.env.RAILWAY_ENVIRONMENT || process.env.RENDER_EXTERNAL_URL ||
-                      process.env.FLY_APP_NAME;
+const isCloudServer = process.env.KOYEB_APP_ID ||
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RENDER_EXTERNAL_URL ||
+    process.env.FLY_APP_NAME ||
+    process.env.HEROKU_APP_ID;
 const serverType = isCloudServer ? 'cloud' : 'local';
 
 // Health check - before CORS to allow all origins
@@ -61,8 +63,8 @@ app.get('/health', (req, res) => {
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Cache-Control': 'no-cache'
     });
-    res.json({ 
-        status: 'ok', 
+    res.json({
+        status: 'ok',
         timestamp: new Date().toISOString(),
         serverType: serverType,
         capabilities: {
