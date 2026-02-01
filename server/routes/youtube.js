@@ -95,7 +95,7 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         res.setHeader('Transfer-Encoding', 'chunked');
 
         // Create the stream using yt-dlp
-        const { stream, process: ytdlpProc } = await createVideoStream(videoIdOrUrl, quality);
+        const { stream, process: ytdlpProc } = createVideoStream(videoIdOrUrl, quality);
 
         let bytesSent = 0;
         let hasStarted = false;

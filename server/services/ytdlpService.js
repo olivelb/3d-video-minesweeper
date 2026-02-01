@@ -37,21 +37,6 @@ if (process.env.YOUTUBE_COOKIES) {
     }
 }
 
-// Reliable Invidious instances for Plan C (Cloud YouTube bypass)
-const INVIDIOUS_INSTANCES = [
-    'https://invidious.fdn.fr',
-    'https://yewtu.be',
-    'https://vid.puffyan.us',
-    'https://invidious.projectsegfau.lt',
-    'https://invidious.privacydev.net',
-    'https://inv.nadeko.net',
-    'https://invidious.jing.rocks',
-    'https://yt.artemislena.eu',
-    'https://iv.ggtyler.dev',
-    'https://invidious.drg.li',
-    'https://inv.tux.pizza'
-];
-
 /**
  * Get common arguments for yt-dlp including cookies if available
  * @returns {string[]} Array of arguments
@@ -62,22 +47,12 @@ function getCommonArgs() {
         '--no-warnings',
         '--no-check-certificates',
         '--geo-bypass',
-        '--force-ipv4'
+        '--force-ipv4',
+        // Use Android client API which is less strict about bot detection
+        '--extractor-args', 'youtube:player_client=android'
     ];
 
-    // Detect if we're running on cloud (Koyeb/Heroku/Railway/Render)
-    const isCloudServer = process.env.KOYEB_APP_ID ||
-        process.env.RAILWAY_ENVIRONMENT ||
-        process.env.RENDER_EXTERNAL_URL ||
-        process.env.HEROKU_APP_ID;
-
-    // Use Android client API only for direct YouTube access (Local)
-    // On Cloud, we use Invidious URLs so this argument is irrelevant/harmful
-    if (!isCloudServer) {
-        args.push('--extractor-args', 'youtube:player_client=android');
-    }
     // Only add cookies if the file exists and was written successfully
-    // Cookies are generally not needed for Invidious, but kept for local execution
     if (hasCookies && fs.existsSync(COOKIES_PATH)) {
         args.push('--cookies', COOKIES_PATH);
     }
@@ -86,44 +61,17 @@ function getCommonArgs() {
 }
 
 /**
- * Determine the best URL to use for yt-dlp
- * On Cloud: Transforms YouTube URLs to Invidious URLs to bypass IP blocks
- * On Local: Uses original YouTube URLs
+ * Resolve video ID or URL to a full URL
  * @param {string} videoIdOrUrl - The video ID or URL
- * @returns {string} The resolved URL to pass to yt-dlp
+ * @returns {string} The resolved URL
  */
 function resolveTargetUrl(videoIdOrUrl) {
-    // Detect if we're running on cloud (Koyeb/Heroku/Railway/Render)
-    const isCloudServer = process.env.KOYEB_APP_ID ||
-        process.env.RAILWAY_ENVIRONMENT ||
-        process.env.RENDER_EXTERNAL_URL ||
-        process.env.HEROKU_APP_ID;
-
-    let fullUrl;
-    let isYoutube = false;
-
-    // Check if it's a YouTube URL or ID
+    // If it's already a URL, return as-is
     if (videoIdOrUrl.includes('://')) {
-        fullUrl = videoIdOrUrl;
-        isYoutube = fullUrl.includes('youtube.com') || fullUrl.includes('youtu.be');
-    } else {
-        // It's an ID, assume YouTube
-        isYoutube = true;
-        fullUrl = getYouTubeUrl(videoIdOrUrl);
+        return videoIdOrUrl;
     }
-
-    // If we are on cloud AND it is YouTube, rewrite to Invidious
-    if (isCloudServer && isYoutube) {
-        const videoId = extractVideoId(fullUrl) || videoIdOrUrl;
-        if (videoId && !videoId.includes('://')) {
-            const instance = INVIDIOUS_INSTANCES[Math.floor(Math.random() * INVIDIOUS_INSTANCES.length)];
-            const invidiousUrl = `${instance}/watch?v=${videoId}`;
-            console.log(`[yt-dlp] ☁️ Cloud detected: Rewriting YouTube URL -> ${invidiousUrl}`);
-            return invidiousUrl;
-        }
-    }
-
-    return fullUrl;
+    // Otherwise, assume it's a YouTube ID
+    return getYouTubeUrl(videoIdOrUrl);
 }
 
 // Quality format strings for yt-dlp
@@ -192,120 +140,14 @@ function execYtdlp(args) {
 }
 
 /**
- * Try to fetch video info from Invidious API (Plan C)
- * @param {string} videoId 
- */
-async function fetchInvidiousInfo(videoId) {
-    // Shuffle instances to distribute load and find working one
-    const instances = [...INVIDIOUS_INSTANCES].sort(() => Math.random() - 0.5);
-
-    for (const instance of instances) {
-        try {
-            console.log(`[Invidious API] Trying ${instance}...`);
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 6000); // 6s timeout
-
-            const response = await fetch(`${instance}/api/v1/videos/${videoId}`, {
-                signal: controller.signal
-            });
-            clearTimeout(timeout);
-
-            if (response.ok) {
-                // Critical check: Ensure response is actually JSON and not an HTML error page
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    console.warn(`[Invidious API] Invalid content-type ${contentType} from ${instance}`);
-                    continue;
-                }
-
-                try {
-                    const data = await response.json();
-                    if (data.error) {
-                        console.warn(`[Invidious API] API Error from ${instance}: ${data.error}`);
-                        continue;
-                    }
-
-                    console.log(`[Invidious API] ✅ Success with ${instance}`);
-                    return data;
-                } catch (jsonError) {
-                    console.warn(`[Invidious API] JSON Parse error from ${instance}: ${jsonError.message}`);
-                    continue;
-                }
-            } else {
-                console.warn(`[Invidious API] HTTP ${response.status} from ${instance}`);
-            }
-        } catch (e) {
-            console.warn(`[Invidious API] Error with ${instance}: ${e.message}`);
-        }
-    }
-    throw new Error('All Invidious instances failed to return video info.');
-}
-
-/**
- * Get video information using yt-dlp (or Invidious API on Cloud)
+ * Get video information using yt-dlp
  * Supports YouTube, Vimeo, Dailymotion, and many other platforms
  * @param {string} urlOrId - Video URL or YouTube video ID
  * @returns {Promise<Object>} Video information
  */
 export async function getVideoInfo(urlOrId) {
-    // Detect if we're running on cloud (Koyeb/Heroku/Railway/Render)
-    const isCloudServer = process.env.KOYEB_APP_ID ||
-        process.env.RAILWAY_ENVIRONMENT ||
-        process.env.RENDER_EXTERNAL_URL ||
-        process.env.HEROKU_APP_ID;
-
-    // Check if it's strictly a YouTube video (URL or ID)
-    let isYoutube = !urlOrId.includes('://') || urlOrId.includes('youtube.com') || urlOrId.includes('youtu.be');
-    let videoId = extractVideoId(urlOrId) || (isYoutube && !urlOrId.includes('://') ? urlOrId : null);
-
-    // PLAN C: DISABLED - Public Invidious instances are too unstable (Feb 2026)
-    // Keeping code for potential future use if situation improves
-    const PLAN_C_ENABLED = false;
-    if (PLAN_C_ENABLED && isCloudServer && isYoutube && videoId) {
-        try {
-            console.log(`[Plan C] ☁️ Cloud detected. Fetching info via Invidious API for ${videoId}...`);
-            const data = await fetchInvidiousInfo(videoId);
-
-            // Map Invidious JSON to our format
-            return {
-                videoId: data.videoId,
-                title: data.title,
-                author: data.author,
-                channelUrl: data.authorUrl,
-                duration: data.lengthSeconds,
-                thumbnail: data.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-                isLive: data.liveNow,
-                isPrivate: false,
-                viewCount: data.viewCount,
-                platform: 'youtube', // processed via invidious
-                originalUrl: `https://www.youtube.com/watch?v=${videoId}`,
-                availableQualities: (data.formatStreams || []).map(f => ({
-                    quality: f.resolution || 'unknown',
-                    itag: f.itag,
-                    container: f.container,
-                    fps: f.fps,
-                    width: parseInt(f.size?.split('x')[0] || 0),
-                    height: parseInt(f.size?.split('x')[1] || 0),
-                    url: f.url // We have the direct URL here!
-                }))
-            };
-        } catch (e) {
-            console.error(`[Plan C] Failed: ${e.message}. Falling back to yt-dlp...`);
-            // Fallback to normal flow if Invidious API fails entirely
-        }
-    }
-
-    // Normal Flow (Local or Non-YouTube)
     const targetUrl = resolveTargetUrl(urlOrId);
-
-    // Extract ID if not already present (reuse variable from above)
-    if (!videoId) {
-        if (urlOrId.includes('://')) {
-            videoId = extractVideoId(urlOrId) || urlOrId;
-        } else {
-            videoId = extractVideoId(urlOrId);
-        }
-    }
+    const videoId = extractVideoId(urlOrId) || urlOrId;
 
     try {
         const commonArgs = getCommonArgs();
@@ -413,70 +255,13 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
 }
 
 /**
- * Create a video stream using yt-dlp stdout (or curl via Plan C)
+ * Create a video stream using yt-dlp stdout
  * Supports any URL that yt-dlp can handle
  * @param {string} videoIdOrUrl - YouTube video ID or full URL
  * @param {string} quality - Quality preset
- * @returns {Promise<Object>} Object with stream and format info
+ * @returns {Object} Object with stream and process
  */
-export async function createVideoStream(videoIdOrUrl, quality = 'auto') {
-    // Detect if we're running on cloud
-    const isCloudServer = process.env.KOYEB_APP_ID ||
-        process.env.RAILWAY_ENVIRONMENT ||
-        process.env.RENDER_EXTERNAL_URL ||
-        process.env.HEROKU_APP_ID;
-
-    let videoId = extractVideoId(videoIdOrUrl);
-    const isYoutube = !videoIdOrUrl.includes('://') || videoIdOrUrl.includes('youtube') || videoIdOrUrl.includes('youtu.be');
-
-    // PLAN C: DISABLED - Public Invidious instances are too unstable (Feb 2026)
-    const PLAN_C_ENABLED = false;
-    if (PLAN_C_ENABLED && isCloudServer && isYoutube && videoId) {
-        try {
-            console.log(`[Plan C] ☁️ Stream requested for ${videoId}. resolving direct URL via Invidious...`);
-            const info = await fetchInvidiousInfo(videoId);
-
-            // Find best format (mp4, 720p or 360p)
-            // Filter formats that have a URL
-            const formats = (info.formatStreams || []).filter(f => f.url);
-
-            // Sort by resolution (naive) or use quality preference
-            // quality: 'low' (360), 'medium' (480), 'high' (720), 'highest' (1080)
-            let targetHeight = 360;
-            if (quality === 'medium') targetHeight = 480;
-            if (quality === 'high') targetHeight = 720;
-            if (quality === 'highest') targetHeight = 1080;
-
-            // Find closest match
-            const bestFormat = formats.reduce((prev, curr) => {
-                const prevH = parseInt(prev.size?.split('x')[1] || 0);
-                const currH = parseInt(curr.size?.split('x')[1] || 0);
-                return (Math.abs(currH - targetHeight) < Math.abs(prevH - targetHeight)) ? curr : prev;
-            }, formats[0]);
-
-            if (bestFormat && bestFormat.url) {
-                console.log(`[Plan C] Streaming via curl from: ${bestFormat.url.substring(0, 50)}...`);
-
-                const proc = spawn('curl', ['-L', bestFormat.url, '--no-buffer'], {
-                    stdio: ['ignore', 'pipe', 'pipe']
-                });
-
-                // Log curl errors for debugging
-                proc.stderr.on('data', (chunk) => {
-                    console.warn(`[Plan C curl stderr] ${chunk.toString().trim()}`);
-                });
-
-                return {
-                    stream: proc.stdout,
-                    process: proc
-                };
-            }
-        } catch (e) {
-            console.error(`[Plan C] Stream setup failed: ${e.message}. Fallback to yt-dlp.`);
-        }
-    }
-
-    // Normal Flow (Fallback or Local)
+export function createVideoStream(videoIdOrUrl, quality = 'auto') {
     const targetUrl = resolveTargetUrl(videoIdOrUrl);
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
     const commonArgs = getCommonArgs();
