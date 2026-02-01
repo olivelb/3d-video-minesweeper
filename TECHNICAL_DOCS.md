@@ -5,20 +5,113 @@
 Le projet utilise une architecture **MVC-like** adaptée au web moderne :
 
 ```
-┌─────────────┐      ┌──────────────┐      ┌───────────────┐
-│  index.html │─────▶│   Game.js    │◀────▶│  Renderer.js  │
-│   (View)    │      │   (Model)    │      │ (View/Three)  │
-└─────────────┘      └──────────────┘      └───────────────┘
-      │                      │                       │
-      ▼                      │                       │
-┌──────────────┐             │                   Instancing
-│ YouTubeMgr   │◀────────────┘                   Particles
-└──────────────┘
-      │
-      ▼
-┌──────────────┐
-│ Proxy Server │ (Node.js/Express)
-└──────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           index.html (View)                         │
+└─────────────────────────┬───────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                          Game.js (Model)                            │
+│        MinesweeperGame - Pure game logic, no DOM/Three.js           │
+└─────────────┬───────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Renderer.js (View/Three.js)                      │
+│                         ┌───────────────┐                           │
+│                         │  Core Engine  │                           │
+│                         └───────┬───────┘                           │
+│                                 │                                   │
+│    ┌────────────────────────────┼────────────────────────────┐      │
+│    │                            │                            │      │
+│    ▼                            ▼                            ▼      │
+│ ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │
+│ │GridRenderer.js   │  │FlagRenderer.js   │  │VideoTextureManager│   │
+│ │Instanced cells   │  │Particle/3D flags │  │Video/image tex.  │   │
+│ └──────────────────┘  └──────────────────┘  └──────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   YouTubeManager.js                                 │
+│                 ┌─────────────┐                                     │
+│                 │  config.js  │ ← Auto-detect environment           │
+│                 └──────┬──────┘                                     │
+│                        │                                            │
+│                        ▼                                            │
+│              ┌───────────────────┐                                  │
+│              │  Proxy Server     │  (Node.js/Express on Raspberry Pi)
+│              │  - yt-dlp         │                                  │
+│              │  - URL validation │                                  │
+│              └───────────────────┘                                  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Module Architecture (v2.0)
+
+The codebase was refactored into modular ES6 components:
+
+| Module | Responsibility | Dependencies |
+|--------|---------------|--------------|
+| `config.js` | Server URL management, environment detection | None |
+| `Game.js` | Pure game logic, no rendering | `MinesweeperSolver.js` |
+| `MinesweeperSolver.js` | AI solver, validation, hints | None |
+| `Renderer.js` | Core 3D engine, orchestration | Three.js, sub-modules |
+| `GridRenderer.js` | Instanced mesh grid cells | Three.js |
+| `FlagRenderer.js` | Flag visuals (particle/3D) | Three.js |
+| `VideoTextureManager.js` | Video/image texture loading | Three.js |
+| `YouTubeManager.js` | Video URL extraction, proxy | `config.js` |
+| `UIManager.js` | DOM interactions, menus | None |
+| `SoundManager.js` | Audio effects | Web Audio API |
+| `ScoreManager.js` | Leaderboard, scoring | None |
+
+---
+
+## 0. Configuration System (config.js)
+
+### Environment Auto-Detection
+
+```javascript
+function detectEnvironment() {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    if (hostname.endsWith('.github.io')) return 'github-pages';
+    if (hostname === 'localhost' || protocol === 'file:') return 'local';
+    return 'hosted';
+}
+```
+
+### Server Discovery Strategy
+
+| Environment | Check Order | Rationale |
+|-------------|-------------|-----------|
+| `local` | localhost → mDNS → LAN IP → Cloud | Fast local dev iteration |
+| `github-pages` | Cloud only | CORS prevents local/LAN access |
+| `hosted` | All | Unknown network topology |
+
+### Configuration Hierarchy
+
+1. `window.MINESWEEPER_SERVERS` - Runtime override (set in HTML)
+2. `localStorage['minesweeper_servers']` - User persisted settings
+3. `servers-local.json` - Local dev file (gitignored)
+4. Built-in defaults per environment
+
+### Usage Example
+
+```javascript
+// In index.html for GitHub Pages
+<script>
+  window.MINESWEEPER_SERVERS = {
+    raspberryCloud: 'https://abc123.trycloudflare.com'
+  };
+</script>
+
+// Or programmatically
+import { configureServers, waitForServer } from './config.js';
+
+configureServers({ raspberryCloud: 'https://...' }, true); // persist to localStorage
+await waitForServer(); // Wait for detection
 ```
 
 ---

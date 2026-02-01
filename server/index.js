@@ -79,8 +79,11 @@ app.get('/health', (req, res) => {
 app.use(corsMiddleware);
 app.use(rateLimiter);
 
-// Parse JSON bodies
-app.use(express.json());
+// Parse JSON bodies with size limit to prevent DoS
+app.use(express.json({ limit: '10kb' }));
+
+// Parse URL-encoded bodies with size limit
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // YouTube routes
 app.use('/api/youtube', youtubeRoutes);

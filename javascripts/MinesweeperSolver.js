@@ -118,7 +118,7 @@ export class MinesweeperSolver {
             iterations++;
 
             // Strategy 1: Basic counting rules (fast, run first)
-            const basicResult = this.applyBasicRulesOptimized(grid, visibleGrid, flags, width, height, dirtyCells, flagCount);
+            const basicResult = this.applyBasicRules(grid, visibleGrid, flags, width, height, dirtyCells, flagCount);
             if (basicResult.progress) {
                 progress = true;
                 flagCount = basicResult.flagCount;
@@ -127,7 +127,7 @@ export class MinesweeperSolver {
             }
 
             // Strategy 2: Subset logic (moderately expensive)
-            const subsetResult = this.applySubsetLogicOptimized(grid, visibleGrid, flags, width, height, dirtyCells, flagCount);
+            const subsetResult = this.applySubsetLogic(grid, visibleGrid, flags, width, height, dirtyCells, flagCount);
             if (subsetResult.progress) {
                 progress = true;
                 flagCount = subsetResult.flagCount;
@@ -136,7 +136,7 @@ export class MinesweeperSolver {
             }
 
             // Strategy 3: Proof by contradiction (expensive - limit frontier size)
-            const contradictionResult = this.solveByContradictionOptimized(grid, visibleGrid, flags, width, height, flagCount);
+            const contradictionResult = this.solveByContradiction(grid, visibleGrid, flags, width, height, flagCount);
             if (contradictionResult.progress) {
                 progress = true;
                 flagCount = contradictionResult.flagCount;
@@ -151,7 +151,7 @@ export class MinesweeperSolver {
             }
 
             // Strategy 4: Tank Solver (very expensive - use sparingly)
-            const tankResult = this.tankSolverOptimized(grid, visibleGrid, flags, width, height, bombCount, flagCount);
+            const tankResult = this.tankSolver(grid, visibleGrid, flags, width, height, bombCount, flagCount);
             if (tankResult.progress) {
                 progress = true;
                 flagCount = tankResult.flagCount;
@@ -165,7 +165,7 @@ export class MinesweeperSolver {
             }
 
             // Strategy 5: Global mine counting
-            const globalResult = this.applyGlobalMineCountOptimized(grid, visibleGrid, flags, width, height, bombCount, flagCount);
+            const globalResult = this.applyGlobalMineCount(grid, visibleGrid, flags, width, height, bombCount, flagCount);
             if (globalResult.progress) {
                 progress = true;
                 flagCount = globalResult.flagCount;
@@ -185,43 +185,9 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Strategy 1: Basic counting rules (original version for compatibility)
+     * Strategy 1: Basic counting rules - Only process dirty cells, use cached neighbors
      */
-    static applyBasicRules(grid, visibleGrid, flags, width, height) {
-        let progress = false;
-
-        for (let x = 0; x < width; x++) {
-            for (let y = 0; y < height; y++) {
-                const val = visibleGrid[x][y];
-                if (val <= 0) continue;
-
-                const neighbors = this.getNeighbors(x, y, width, height);
-                const hidden = neighbors.filter(n => visibleGrid[n.x][n.y] === -1 && !flags[n.x][n.y]);
-                const flagged = neighbors.filter(n => flags[n.x][n.y]);
-
-                if (hidden.length === 0) continue;
-
-                if (val === hidden.length + flagged.length) {
-                    hidden.forEach(n => { flags[n.x][n.y] = true; });
-                    progress = true;
-                }
-
-                if (val === flagged.length) {
-                    hidden.forEach(n => {
-                        this.simulateReveal(grid, visibleGrid, flags, width, height, n.x, n.y);
-                    });
-                    progress = true;
-                }
-            }
-        }
-
-        return progress;
-    }
-
-    /**
-     * Optimized Strategy 1: Only process dirty cells, use cached neighbors
-     */
-    static applyBasicRulesOptimized(grid, visibleGrid, flags, width, height, dirtyCells, flagCount) {
+    static applyBasicRules(grid, visibleGrid, flags, width, height, dirtyCells, flagCount) {
         let progress = false;
         const newDirtyCells = new Set();
         const processedCells = new Set();
@@ -277,66 +243,9 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Strategy 2: Subset logic (original version for compatibility)
+     * Strategy 2: Subset logic - Use Sets for O(1) membership tests
      */
-    static applySubsetLogic(grid, visibleGrid, flags, width, height) {
-        let progress = false;
-
-        for (let x = 0; x < width; x++) {
-            for (let y = 0; y < height; y++) {
-                const valA = visibleGrid[x][y];
-                if (valA <= 0) continue;
-
-                const neighborsA = this.getNeighbors(x, y, width, height);
-                const hiddenA = neighborsA.filter(n => visibleGrid[n.x][n.y] === -1 && !flags[n.x][n.y]);
-                const flaggedA = neighborsA.filter(n => flags[n.x][n.y]);
-                const remainingA = valA - flaggedA.length;
-
-                if (hiddenA.length === 0 || remainingA < 0) continue;
-
-                for (let dx = -2; dx <= 2; dx++) {
-                    for (let dy = -2; dy <= 2; dy++) {
-                        const nx = x + dx;
-                        const ny = y + dy;
-                        if (nx < 0 || nx >= width || ny < 0 || ny >= height || (dx === 0 && dy === 0)) continue;
-
-                        const valB = visibleGrid[nx][ny];
-                        if (valB <= 0) continue;
-
-                        const neighborsB = this.getNeighbors(nx, ny, width, height);
-                        const hiddenB = neighborsB.filter(n => visibleGrid[n.x][n.y] === -1 && !flags[n.x][n.y]);
-                        const flaggedB = neighborsB.filter(n => flags[n.x][n.y]);
-                        const remainingB = valB - flaggedB.length;
-
-                        if (hiddenB.length === 0 || remainingB < 0) continue;
-
-                        const isSubset = hiddenA.every(na => hiddenB.some(nb => na.x === nb.x && na.y === nb.y));
-                        if (isSubset && hiddenA.length < hiddenB.length) {
-                            const diff = hiddenB.filter(nb => !hiddenA.some(na => na.x === nb.x && na.y === nb.y));
-                            const diffMines = remainingB - remainingA;
-
-                            if (diffMines === 0 && diff.length > 0) {
-                                diff.forEach(n => {
-                                    this.simulateReveal(grid, visibleGrid, flags, width, height, n.x, n.y);
-                                });
-                                progress = true;
-                            } else if (diffMines === diff.length && diff.length > 0) {
-                                diff.forEach(n => { flags[n.x][n.y] = true; });
-                                progress = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return progress;
-    }
-
-    /**
-     * Optimized Strategy 2: Use Sets for O(1) membership tests
-     */
-    static applySubsetLogicOptimized(grid, visibleGrid, flags, width, height, dirtyCells, flagCount) {
+    static applySubsetLogic(grid, visibleGrid, flags, width, height, dirtyCells, flagCount) {
         let progress = false;
         const newDirtyCells = new Set();
         
@@ -453,30 +362,10 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Strategy 3: Proof by contradiction (original version)
+     * Strategy 3: Proof by contradiction with frontier limit and faster propagation
      */
-    static solveByContradiction(grid, visibleGrid, flags, width, height) {
+    static solveByContradiction(grid, visibleGrid, flags, width, height, flagCount) {
         const frontier = this.getFrontier(visibleGrid, flags, width, height);
-
-        for (const cell of frontier) {
-            if (this.checkDeepContradiction(visibleGrid, flags, width, height, cell, true)) {
-                this.simulateReveal(grid, visibleGrid, flags, width, height, cell.x, cell.y);
-                return true;
-            }
-
-            if (this.checkDeepContradiction(visibleGrid, flags, width, height, cell, false)) {
-                flags[cell.x][cell.y] = true;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Optimized proof by contradiction with frontier limit and faster propagation
-     */
-    static solveByContradictionOptimized(grid, visibleGrid, flags, width, height, flagCount) {
-        const frontier = this.getFrontierOptimized(visibleGrid, flags, width, height);
         
         // Limit frontier processing to avoid exponential blowup at game start
         const maxFrontierToCheck = Math.min(frontier.length, 50);
@@ -484,12 +373,12 @@ export class MinesweeperSolver {
         for (let i = 0; i < maxFrontierToCheck; i++) {
             const cell = frontier[i];
             
-            if (this.checkContradictionOptimized(visibleGrid, flags, width, height, cell, true)) {
+            if (this.checkContradiction(visibleGrid, flags, width, height, cell, true)) {
                 this.simulateReveal(grid, visibleGrid, flags, width, height, cell.x, cell.y);
                 return { progress: true, flagCount, changedCell: cell };
             }
 
-            if (this.checkContradictionOptimized(visibleGrid, flags, width, height, cell, false)) {
+            if (this.checkContradiction(visibleGrid, flags, width, height, cell, false)) {
                 flags[cell.x][cell.y] = true;
                 return { progress: true, flagCount: flagCount + 1, changedCell: cell };
             }
@@ -500,7 +389,7 @@ export class MinesweeperSolver {
     /**
      * Faster contradiction check with localized propagation using sparse representation
      */
-    static checkContradictionOptimized(visibleGrid, flags, width, height, assumptionCell, assumeMine) {
+    static checkContradiction(visibleGrid, flags, width, height, assumptionCell, assumeMine) {
         const simFlags = new Map();
         const simRevealed = new Map();
         
@@ -586,108 +475,13 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Original deep contradiction check (kept for compatibility)
+     * Strategy 4: Tank Solver with flag count tracking
      */
-    static checkDeepContradiction(visibleGrid, flags, width, height, assumptionCell, assumeMine) {
-        const simGrid = visibleGrid.map(row => [...row]);
-        const simFlags = flags.map(row => [...row]);
-
-        if (assumeMine) {
-            simFlags[assumptionCell.x][assumptionCell.y] = true;
-        } else {
-            simGrid[assumptionCell.x][assumptionCell.y] = -2;
-        }
-
-        let changed = true;
-        let iterations = 0;
-        const maxIterations = width * height;
-
-        while (changed && iterations < maxIterations) {
-            changed = false;
-            iterations++;
-
-            for (let x = 0; x < width; x++) {
-                for (let y = 0; y < height; y++) {
-                    const val = simGrid[x][y];
-                    if (val < 0) continue;
-
-                    const neighbors = this.getNeighbors(x, y, width, height);
-                    const hidden = neighbors.filter(n => simGrid[n.x][n.y] === -1 && !simFlags[n.x][n.y]);
-                    const flagged = neighbors.filter(n => simFlags[n.x][n.y]);
-
-                    if (flagged.length > val) return true;
-                    if (flagged.length + hidden.length < val) return true;
-
-                    if (hidden.length > 0) {
-                        if (flagged.length === val) {
-                            hidden.forEach(n => { simGrid[n.x][n.y] = -2; });
-                            changed = true;
-                        } else if (flagged.length + hidden.length === val) {
-                            hidden.forEach(n => { simFlags[n.x][n.y] = true; });
-                            changed = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Strategy 4: Tank Solver (original version)
-     */
-    static tankSolver(grid, visibleGrid, flags, width, height, bombCount) {
+    static tankSolver(grid, visibleGrid, flags, width, height, bombCount, flagCount) {
         const frontier = this.getFrontier(visibleGrid, flags, width, height);
-        if (frontier.length === 0) return false;
-
-        const regions = this.groupFrontierRegions(frontier, visibleGrid, width, height);
-
-        let progress = false;
-
-        for (const region of regions) {
-            if (region.length > this.MAX_REGION_SIZE) continue;
-
-            const constraints = this.getRegionConstraints(region, visibleGrid, flags, width, height);
-            if (constraints.length === 0) continue;
-
-            const totalFlags = this.countFlags(flags, width, height);
-            const remainingMines = bombCount - totalFlags;
-
-            const validConfigs = this.enumerateConfigurations(region, constraints, remainingMines);
-
-            if (validConfigs.length === 0) continue;
-
-            const { definiteMines, definiteSafes } = this.analyzeConfigurations(region, validConfigs);
-
-            for (const cell of definiteMines) {
-                if (!flags[cell.x][cell.y]) {
-                    flags[cell.x][cell.y] = true;
-                    progress = true;
-                }
-            }
-
-            for (const cell of definiteSafes) {
-                if (visibleGrid[cell.x][cell.y] === -1) {
-                    this.simulateReveal(grid, visibleGrid, flags, width, height, cell.x, cell.y);
-                    progress = true;
-                }
-            }
-
-            if (progress) return true;
-        }
-
-        return progress;
-    }
-
-    /**
-     * Optimized Tank Solver with flag count tracking
-     */
-    static tankSolverOptimized(grid, visibleGrid, flags, width, height, bombCount, flagCount) {
-        const frontier = this.getFrontierOptimized(visibleGrid, flags, width, height);
         if (frontier.length === 0) return { progress: false, flagCount, changedCells: [] };
 
-        const regions = this.groupFrontierRegionsOptimized(frontier, visibleGrid, width, height);
+        const regions = this.groupFrontierRegions(frontier, visibleGrid, width, height);
         regions.sort((a, b) => a.length - b.length);
 
         const changedCells = [];
@@ -695,12 +489,12 @@ export class MinesweeperSolver {
         for (const region of regions) {
             if (region.length > this.MAX_REGION_SIZE) continue;
 
-            const constraints = this.getRegionConstraintsOptimized(region, visibleGrid, flags, width, height);
+            const constraints = this.getRegionConstraints(region, visibleGrid, flags, width, height);
             if (constraints.length === 0) continue;
 
             const remainingMines = bombCount - flagCount;
 
-            const validConfigs = this.enumerateConfigurationsOptimized(region, constraints, remainingMines);
+            const validConfigs = this.enumerateConfigurations(region, constraints, remainingMines);
             if (validConfigs.length === 0) continue;
 
             const { definiteMines, definiteSafes } = this.analyzeConfigurations(region, validConfigs);
@@ -731,27 +525,9 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Get frontier cells (original version)
+     * Get frontier cells using cached neighbors
      */
     static getFrontier(visibleGrid, flags, width, height) {
-        const frontier = [];
-        for (let x = 0; x < width; x++) {
-            for (let y = 0; y < height; y++) {
-                if (visibleGrid[x][y] === -1 && !flags[x][y]) {
-                    const neighbors = this.getNeighbors(x, y, width, height);
-                    if (neighbors.some(n => visibleGrid[n.x][n.y] > 0)) {
-                        frontier.push({ x, y });
-                    }
-                }
-            }
-        }
-        return frontier;
-    }
-
-    /**
-     * Optimized frontier detection using cached neighbors
-     */
-    static getFrontierOptimized(visibleGrid, flags, width, height) {
         const frontier = [];
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
@@ -770,54 +546,9 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Group frontier cells into connected regions (original version)
+     * Group frontier cells into connected regions using bit-packed keys and cached neighbors
      */
     static groupFrontierRegions(frontier, visibleGrid, width, height) {
-        if (frontier.length === 0) return [];
-
-        const regions = [];
-        const visited = new Set();
-
-        for (const startCell of frontier) {
-            const key = `${startCell.x},${startCell.y}`;
-            if (visited.has(key)) continue;
-
-            const region = [];
-            const queue = [startCell];
-
-            while (queue.length > 0) {
-                const cell = queue.shift();
-                const cellKey = `${cell.x},${cell.y}`;
-                if (visited.has(cellKey)) continue;
-                visited.add(cellKey);
-                region.push(cell);
-
-                const cellNeighbors = this.getNeighbors(cell.x, cell.y, width, height);
-                const constraintCells = cellNeighbors.filter(n => visibleGrid[n.x][n.y] > 0);
-
-                for (const constraint of constraintCells) {
-                    const constraintNeighbors = this.getNeighbors(constraint.x, constraint.y, width, height);
-                    for (const n of constraintNeighbors) {
-                        const nKey = `${n.x},${n.y}`;
-                        if (!visited.has(nKey) && frontier.some(f => f.x === n.x && f.y === n.y)) {
-                            queue.push(n);
-                        }
-                    }
-                }
-            }
-
-            if (region.length > 0) {
-                regions.push(region);
-            }
-        }
-
-        return regions;
-    }
-
-    /**
-     * Optimized region grouping using bit-packed keys and cached neighbors
-     */
-    static groupFrontierRegionsOptimized(frontier, visibleGrid, width, height) {
         if (frontier.length === 0) return [];
 
         const regions = [];
@@ -870,48 +601,9 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Get region constraints (original version)
+     * Get region constraints with pre-computed indices
      */
     static getRegionConstraints(region, visibleGrid, flags, width, height) {
-        const constraintSet = new Set();
-        const constraints = [];
-
-        for (const cell of region) {
-            const neighbors = this.getNeighbors(cell.x, cell.y, width, height);
-            for (const n of neighbors) {
-                const key = `${n.x},${n.y}`;
-                if (visibleGrid[n.x][n.y] > 0 && !constraintSet.has(key)) {
-                    constraintSet.add(key);
-
-                    const constraintNeighbors = this.getNeighbors(n.x, n.y, width, height);
-                    const flaggedCount = constraintNeighbors.filter(cn => flags[cn.x][cn.y]).length;
-                    const hiddenInRegion = constraintNeighbors.filter(cn =>
-                        region.some(r => r.x === cn.x && r.y === cn.y)
-                    );
-                    const hiddenOutsideRegion = constraintNeighbors.filter(cn =>
-                        visibleGrid[cn.x][cn.y] === -1 && !flags[cn.x][cn.y] &&
-                        !region.some(r => r.x === cn.x && r.y === cn.y)
-                    );
-
-                    constraints.push({
-                        x: n.x,
-                        y: n.y,
-                        value: visibleGrid[n.x][n.y],
-                        remaining: visibleGrid[n.x][n.y] - flaggedCount,
-                        cellsInRegion: hiddenInRegion,
-                        cellsOutside: hiddenOutsideRegion
-                    });
-                }
-            }
-        }
-
-        return constraints;
-    }
-
-    /**
-     * Optimized constraint gathering with pre-computed indices
-     */
-    static getRegionConstraintsOptimized(region, visibleGrid, flags, width, height) {
         const constraintSet = new Set();
         const constraints = [];
         
@@ -982,37 +674,9 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Enumerate configurations (original version)
+     * Enumerate configurations using pre-computed indices
      */
     static enumerateConfigurations(region, constraints, maxMines) {
-        const validConfigs = [];
-        const totalCombinations = 1 << region.length;
-
-        if (totalCombinations > this.MAX_CONFIGURATIONS) {
-            return [];
-        }
-
-        for (let mask = 0; mask < totalCombinations; mask++) {
-            const mineCount = this.countBits(mask);
-            if (mineCount > maxMines) continue;
-
-            const config = [];
-            for (let i = 0; i < region.length; i++) {
-                config.push((mask >> i) & 1 ? true : false);
-            }
-
-            if (this.isValidConfiguration(region, config, constraints)) {
-                validConfigs.push(config);
-            }
-        }
-
-        return validConfigs;
-    }
-
-    /**
-     * Optimized enumeration using pre-computed indices
-     */
-    static enumerateConfigurationsOptimized(region, constraints, maxMines) {
         const validConfigs = [];
         const totalCombinations = 1 << region.length;
 
@@ -1113,43 +777,9 @@ export class MinesweeperSolver {
     }
 
     /**
-     * Strategy 5: Global mine counting (original version)
+     * Strategy 5: Global mine counting using tracked flag count
      */
-    static applyGlobalMineCount(grid, visibleGrid, flags, width, height, bombCount) {
-        let totalHiddenCells = [];
-        let totalFlagsCount = 0;
-
-        for (let x = 0; x < width; x++) {
-            for (let y = 0; y < height; y++) {
-                if (visibleGrid[x][y] === -1 && !flags[x][y]) {
-                    totalHiddenCells.push({ x, y });
-                }
-                if (flags[x][y]) totalFlagsCount++;
-            }
-        }
-
-        const remainingMinesCount = bombCount - totalFlagsCount;
-        let progress = false;
-
-        if (totalHiddenCells.length > 0) {
-            if (remainingMinesCount === totalHiddenCells.length) {
-                totalHiddenCells.forEach(n => { flags[n.x][n.y] = true; });
-                progress = true;
-            } else if (remainingMinesCount === 0) {
-                totalHiddenCells.forEach(n => {
-                    this.simulateReveal(grid, visibleGrid, flags, width, height, n.x, n.y);
-                });
-                progress = true;
-            }
-        }
-
-        return progress;
-    }
-
-    /**
-     * Optimized global mine counting using tracked flag count
-     */
-    static applyGlobalMineCountOptimized(grid, visibleGrid, flags, width, height, bombCount, flagCount) {
+    static applyGlobalMineCount(grid, visibleGrid, flags, width, height, bombCount, flagCount) {
         const totalHiddenCells = [];
 
         for (let x = 0; x < width; x++) {

@@ -1,18 +1,48 @@
 import express from 'express';
 // Use yt-dlp service which is more reliable than ytdl-core
 import { getVideoInfo, createVideoStream, validateVideo, getStreamFormat, getDirectUrl } from '../services/ytdlpService.js';
-import { extractVideoId } from '../utils/urlParser.js';
+import { extractVideoId, sanitizeUrl, isAllowedPlatform } from '../utils/urlParser.js';
 import { streamLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
 /**
+ * Middleware to validate and sanitize URL inputs
+ */
+function validateUrlInput(req, res, next) {
+    const url = req.query.url || req.query.v;
+    
+    if (url) {
+        const sanitized = sanitizeUrl(url);
+        if (!sanitized) {
+            return res.status(400).json({
+                error: 'Invalid URL format',
+                code: 'INVALID_URL'
+            });
+        }
+        
+        // For full URLs, validate platform
+        if (sanitized.includes('://') && !isAllowedPlatform(sanitized)) {
+            return res.status(400).json({
+                error: 'URL not from supported video platform',
+                code: 'UNSUPPORTED_PLATFORM'
+            });
+        }
+        
+        // Store sanitized URL for downstream use
+        req.sanitizedUrl = sanitized;
+    }
+    
+    next();
+}
+
+/**
  * GET /api/youtube/validate?url=...
  * Validate a YouTube URL and check if it can be streamed
  */
-router.get('/validate', async (req, res, next) => {
+router.get('/validate', validateUrlInput, async (req, res, next) => {
     try {
-        const { url } = req.query;
+        const url = req.sanitizedUrl || req.query.url;
         if (!url) {
             return res.status(400).json({
                 valid: false,
@@ -32,9 +62,9 @@ router.get('/validate', async (req, res, next) => {
  * GET /api/youtube/info?url=...
  * Get detailed video metadata
  */
-router.get('/info', async (req, res, next) => {
+router.get('/info', validateUrlInput, async (req, res, next) => {
     try {
-        const { url } = req.query;
+        const url = req.sanitizedUrl || req.query.url;
         if (!url) {
             return res.status(400).json({ error: 'URL parameter required' });
         }
@@ -52,10 +82,10 @@ router.get('/info', async (req, res, next) => {
  * Stream video content - main endpoint for video texture
  * Supports YouTube, Vimeo, Dailymotion, and other yt-dlp supported platforms
  */
-router.get('/stream', streamLimiter, async (req, res, next) => {
+router.get('/stream', validateUrlInput, streamLimiter, async (req, res, next) => {
     try {
-        // Support both video ID (for YouTube) and full URL (for other platforms)
-        let videoIdOrUrl = req.query.url || req.query.v;
+        // Use sanitized URL from middleware or fall back to query params
+        let videoIdOrUrl = req.sanitizedUrl || req.query.url || req.query.v;
         const quality = req.query.q || 'auto';
 
         // If v= parameter looks like a YouTube ID, use it directly
@@ -140,9 +170,9 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
  * Get direct video URL that the browser can load directly
  * This avoids proxy overhead but URLs expire after some time
  */
-router.get('/direct', async (req, res, next) => {
+router.get('/direct', validateUrlInput, async (req, res, next) => {
     try {
-        const videoId = req.query.v || extractVideoId(req.query.url);
+        const videoId = req.query.v || extractVideoId(req.sanitizedUrl || req.query.url);
         const quality = req.query.q || 'auto';
 
         if (!videoId) {

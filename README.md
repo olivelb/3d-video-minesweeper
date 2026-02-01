@@ -2,6 +2,11 @@
 
 Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les dernières technologies WebGL via Three.js r160.
 
+## 🎮 Play Now
+
+- **GitHub Pages**: [https://yourusername.github.io/3d-video-minesweeper](https://yourusername.github.io/3d-video-minesweeper)
+- **Local**: Clone and serve with any HTTP server
+
 ## Fonctionnalités
 
 ### Gameplay
@@ -21,22 +26,51 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 
 ### Technique
 - **Stack Moderne** : Three.js r160, Proxy Server Node/Express pour le streaming.
-- **Architecture MVC** : Séparation logique (`Game.js`), rendu (`Renderer.js`) et streaming (`YouTubeManager.js`).
-- **Détection Auto** : Le jeu détecte et se connecte automatiquement au meilleur serveur disponible (Local vs Cloud).
+- **Architecture Modulaire** : Séparation logique (`Game.js`), rendu (`Renderer.js` + modules), streaming (`YouTubeManager.js`).
+- **Détection Auto** : Le jeu détecte automatiquement l'environnement (local vs GitHub Pages) et se connecte au bon serveur.
 
-Le projet nécessite un serveur proxy pour le streaming vidéo extérieur :
+---
 
-### 1. Lancer le Serveur Proxy
+## Quick Start
+
+### Option 1: Play Online (GitHub Pages)
+Just visit the GitHub Pages URL. Video streaming requires a running proxy server.
+
+### Option 2: Local Development
+
 ```bash
+# Clone the repository
+git clone https://github.com/yourusername/3d-video-minesweeper.git
+cd 3d-video-minesweeper
+
+# Setup local config (optional, for custom server URLs)
+cp servers-local.json.example servers-local.json
+
+# Start the proxy server
 cd server
 npm install
 npm start
-```
-*Le serveur tourne par défaut sur `http://localhost:3001`.*
 
-### 2. Lancer le Jeu (Client)
-Utilisez un serveur HTTP local (Python, Node serve, ou Live Server) pour ouvrir `index.html`.
-*Le client se connectera automatiquement au proxy local.*
+# Serve the frontend (in another terminal)
+cd ..
+npx serve .
+```
+
+Open `http://localhost:3000` in your browser.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [TECHNICAL_DOCS.md](TECHNICAL_DOCS.md) | Deep dive into the architecture, algorithms, and rendering pipeline |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Complete deployment guide for local, Raspberry Pi, and GitHub Pages |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and changes |
+| [SENSITIVITY_ANALYSIS.md](SENSITIVITY_ANALYSIS.md) | Analysis of gameplay parameters |
+| [server/README.md](server/README.md) | Proxy server setup and API documentation |
+
+---
 
 ## Contrôles
 
@@ -55,25 +89,69 @@ Utilisez un serveur HTTP local (Python, Node serve, ou Live Server) pour ouvrir 
 - **Statut Serveur** : Un indicateur visuel (vert/rouge) montre l'état de la connexion au proxy.
 - **Hover Helper** : Activez l'animation de pulsation lors du survol.
 
-## Architecture Fichiers
+---
+
+## Architecture
 
 ```
 /
-├── index.html              # Interface, menu et loop principal
-├── server/                 # Serveur Proxy (Node.js/Express)
+├── index.html              # Main interface and game loop
+├── server/                 # Proxy Server (Node.js/Express on Raspberry Pi)
 ├── css/
-│   └── style.css           # Design Glassmorphism
+│   └── style.css           # Glassmorphism design
 ├── javascripts/
-│   ├── Game.js             # Logique de jeu
-│   ├── Renderer.js         # Moteur de rendu Three.js
-│   ├── YouTubeManager.js   # Gestionnaire de streaming
-│   ├── config.js           # Configuration et détection serveur
-│   ├── MinesweeperSolver.js# IA de résolution
-│   └── ScoreManager.js     # Profils, Scores et Analytics
-└── images/                 # Assets (Textures, Vidéos)
+│   ├── config.js           # 🆕 Environment detection & server config
+│   ├── Game.js             # Pure game logic (no DOM/Three.js)
+│   ├── Renderer.js         # Three.js orchestration
+│   ├── GridRenderer.js     # 🆕 Instanced mesh grid cells
+│   ├── FlagRenderer.js     # 🆕 Flag visuals (particle/3D)
+│   ├── VideoTextureManager.js # 🆕 Video/image texture loading
+│   ├── YouTubeManager.js   # Video streaming coordination
+│   ├── MinesweeperSolver.js# AI solver (cleaned & optimized)
+│   ├── ScoreManager.js     # Profiles, scores, analytics
+│   └── UIManager.js        # DOM interactions
+├── servers-local.json.example # Template for local config
+└── images/                 # Assets (textures, default video)
 ```
 
-## Améliorations Futures Possibles
+🆕 = New or significantly modified in v2.0
+
+---
+
+## Configuration
+
+The game auto-detects its environment:
+
+| Environment | Detection | Server Priority |
+|-------------|-----------|-----------------|
+| **Local** | localhost, 127.0.0.1, file:// | localhost → LAN → Cloud |
+| **GitHub Pages** | *.github.io | Cloud only |
+| **Other hosted** | Other domains | All servers |
+
+### Custom Server Configuration
+
+For local development, create `servers-local.json`:
+```json
+{
+    "local": "http://localhost:3001",
+    "raspberryLocal": "http://raspberrol:3001",
+    "raspberryLAN": "http://192.168.1.232:3001",
+    "raspberryCloud": "https://your-tunnel.trycloudflare.com"
+}
+```
+
+For GitHub Pages, set in `index.html` before other scripts:
+```html
+<script>
+  window.MINESWEEPER_SERVERS = {
+    raspberryCloud: 'https://your-tunnel.trycloudflare.com'
+  };
+</script>
+```
+
+---
+
+## Améliorations Futures
 
 - **Modes de Jeu** : Challenge chronométré, mode puzzle.
 - **Accessibilité** : Thèmes daltoniens, contrôles clavier.
@@ -82,10 +160,18 @@ Utilisez un serveur HTTP local (Python, Node serve, ou Live Server) pour ouvrir 
 
 ---
 
-## Changelog Récent
+## Changelog
 
-### v1.1 – Style de Drapeaux Configurable
-- Ajout d'un bouton en jeu pour basculer entre drapeaux particules et drapeaux 2D
-- Les drapeaux 2D sont stylisés (fanion rouge avec bordure blanche) et moins agressifs visuellement
-- Animation des drapeaux lors du survol de leur cube
-- Correction : les drapeaux disparaissent correctement lors de la victoire/défaite
+See [CHANGELOG.md](CHANGELOG.md) for full version history.
+
+### v2.0 – Professional Optimization
+- 🔒 Security hardening (URL validation, CORS, no hardcoded secrets)
+- 🧹 Code cleanup (~370 lines removed from solver)
+- 🏗️ Modular architecture (3 new rendering modules)
+- ⚙️ Auto-configuration for local vs cloud environments
+- 📝 Comprehensive documentation
+
+### v1.1 – Configurable Flag Style
+- Flag style toggle (particles vs 2D)
+- Stylized 2D flags with hover animation
+- Fixed flag cleanup on game end
