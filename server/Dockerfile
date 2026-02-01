@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp with dependencies for --impersonate
-RUN pip3 install --break-system-packages yt-dlp brotli certifi websockets
+# curl-cffi is CRITICAL for impersonation support
+RUN pip3 install --break-system-packages yt-dlp brotli certifi websockets curl_cffi
 
 # Create app directory
 WORKDIR /app
