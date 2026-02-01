@@ -34,6 +34,7 @@ async function checkServer(url) {
         clearTimeout(timeoutId);
         return response.ok;
     } catch (error) {
+        console.warn(`[Config] Connection failed to ${url}:`, error.message);
         return false;
     }
 }
@@ -43,20 +44,37 @@ async function checkServer(url) {
  * @returns {Promise<string>} The URL of the available server
  */
 async function detectServer() {
-    // Try local server first
-    const localAvailable = await checkServer(SERVERS.local);
+    console.log('[Config] Detecting best server...');
+
+    // Try local server (localhost)
+    console.log(`[Config] Checking local server at ${SERVERS.local}...`);
+    let localAvailable = await checkServer(SERVERS.local);
 
     if (localAvailable) {
+        console.log('[Config] ✅ Local server found (localhost)');
         return SERVERS.local;
     }
 
-    // Fall back to Koyeb
+    // Try local server (127.0.0.1) - Fallback for some Windows logic/Node versions
+    const localIP = SERVERS.local.replace('localhost', '127.0.0.1');
+    console.log(`[Config] Checking local server at ${localIP}...`);
+    localAvailable = await checkServer(localIP);
+
+    if (localAvailable) {
+        console.log('[Config] ✅ Local server found (127.0.0.1)');
+        return localIP;
+    }
+
+    // Checking Production
+    console.log(`[Config] Checking production server at ${SERVERS.production}...`);
     const koyebAvailable = await checkServer(SERVERS.production);
 
     if (koyebAvailable) {
+        console.log('[Config] ☁️ Production server available');
         return SERVERS.production;
     }
 
+    console.warn('[Config] ⚠️ No server found. Defaulting to production.');
     // Both unavailable - return Koyeb anyway (might come online later)
     return SERVERS.production;
 }
