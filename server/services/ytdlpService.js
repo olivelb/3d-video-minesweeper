@@ -8,6 +8,10 @@ import os from 'os';
 const COOKIES_PATH = path.join(os.tmpdir(), 'youtube_cookies.txt');
 let hasCookies = false;
 
+// Simple in-memory cache
+const urlCache = new Map();
+const CACHE_TTL = 3600 * 1000; // 1 hour
+
 // Initialize cookies from environment variable if present
 if (process.env.YOUTUBE_COOKIES) {
     try {
@@ -86,8 +90,10 @@ const QUALITY_FORMATS = {
     medium: 'best[height<=480][vcodec!=none][acodec!=none][ext=mp4]/best[height<=480][vcodec!=none][acodec!=none]',
     high: 'best[height<=720][vcodec!=none][acodec!=none][ext=mp4]/best[height<=720][vcodec!=none][acodec!=none]',
     highest: 'best[height<=1080][vcodec!=none][acodec!=none][ext=mp4]/best[height<=1080][vcodec!=none][acodec!=none]',
-    // auto uses 720p combined format (good balance of quality and compatibility)
-    auto: 'best[height<=720][vcodec!=none][acodec!=none][ext=mp4]/best[height<=720][vcodec!=none][acodec!=none]'
+    // Auto: Force 360p MP4 (pre-muxed) for Pi performance. 
+    // Fallback to any pre-muxed 360p. 
+    // Avoids ffmpeg usage completely.
+    auto: 'best[height<=360][ext=mp4]/best[height<=360]'
 };
 
 // Find yt-dlp executable path
@@ -149,6 +155,15 @@ export async function getVideoInfo(urlOrId) {
     const targetUrl = resolveTargetUrl(urlOrId);
     const videoId = extractVideoId(urlOrId) || urlOrId;
 
+    // Check cache
+    if (urlCache.has(videoId)) {
+        const cached = urlCache.get(videoId);
+        if (Date.now() - cached.timestamp < CACHE_TTL) {
+            console.log(`[Cache] Hit for ${videoId}`);
+            return cached.data;
+        }
+    }
+
     try {
         const commonArgs = getCommonArgs();
         const args = [
@@ -178,7 +193,7 @@ export async function getVideoInfo(urlOrId) {
             }))
             .sort((a, b) => (b.height || 0) - (a.height || 0));
 
-        return {
+        const result = {
             videoId: resolvedId,
             title: info.title,
             author: info.uploader || info.channel || info.creator || 'Unknown',
@@ -192,6 +207,10 @@ export async function getVideoInfo(urlOrId) {
             originalUrl: targetUrl,
             availableQualities: videoFormats
         };
+
+        // Cache the result
+        urlCache.set(videoId, { timestamp: Date.now(), data: result });
+        return result;
     } catch (error) {
         throw error;
     }
@@ -206,6 +225,15 @@ export async function getVideoInfo(urlOrId) {
  */
 export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
     const targetUrl = resolveTargetUrl(videoIdOrUrl);
+
+    // Direct URL cache key includes quality
+    const cacheKey = `direct_${videoIdOrUrl}_${quality}`;
+    if (urlCache.has(cacheKey)) {
+        const cached = urlCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < CACHE_TTL) {
+            return cached.data;
+        }
+    }
 
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
 
@@ -236,7 +264,7 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
         const fps = parseInt(lines[5]) || 0;
         const filesize = parseInt(lines[6]) || 0;
 
-        return {
+        const result = {
             url,
             format: {
                 itag: formatId,
@@ -249,6 +277,10 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
                 height
             }
         };
+
+        urlCache.set(cacheKey, { timestamp: Date.now(), data: result });
+        return result;
+
     } catch (error) {
         throw error;
     }
