@@ -1,5 +1,45 @@
 import { spawn, execSync } from 'child_process';
 import { extractVideoId, getYouTubeUrl } from '../utils/urlParser.js';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+
+// Setup cookies handling
+const COOKIES_PATH = path.join(os.tmpdir(), 'youtube_cookies.txt');
+let hasCookies = false;
+
+// Initialize cookies from environment variable if present
+if (process.env.YOUTUBE_COOKIES) {
+    try {
+        // Clean up formatting issues that might occur with copy-pasting into env vars
+        const cookieContent = process.env.YOUTUBE_COOKIES.replace(/\\n/g, '\n');
+        fs.writeFileSync(COOKIES_PATH, cookieContent);
+        hasCookies = true;
+        console.log('[yt-dlp] ✅ Cookies loaded from environment variable');
+    } catch (error) {
+        console.error('[yt-dlp] ❌ Failed to write cookies file:', error.message);
+    }
+}
+
+/**
+ * Get common arguments for yt-dlp including cookies if available
+ * @returns {string[]} Array of arguments
+ */
+function getCommonArgs() {
+    const args = [
+        '--no-playlist',
+        '--no-warnings',
+        '--no-check-certificates',
+        '--geo-bypass',
+        '--force-ipv4'
+    ];
+
+    if (hasCookies) {
+        args.push('--cookies', COOKIES_PATH);
+    }
+
+    return args;
+}
 
 // Quality format strings for yt-dlp
 // Use combined video+audio formats for browser playback WITH SOUND
@@ -91,15 +131,14 @@ export async function getVideoInfo(urlOrId) {
     }
 
     try {
-        const output = await execYtdlp([
+        const commonArgs = getCommonArgs();
+        const args = [
             '--dump-json',
-            '--no-playlist',
-            '--no-warnings',
-            '--force-ipv4',
-            '--geo-bypass',
-            '--no-check-certificates',
+            ...commonArgs,
             fullUrl
-        ]);
+        ];
+
+        const output = await execYtdlp(args);
 
         const info = JSON.parse(output);
 
@@ -159,7 +198,8 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
 
     try {
         // Get URL and basic format info in one call using --print
-        const output = await execYtdlp([
+        const commonArgs = getCommonArgs();
+        const args = [
             '-f', formatSpec,
             '--print', 'url',
             '--print', 'ext',
@@ -168,13 +208,11 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
             '--print', 'height',
             '--print', 'fps',
             '--print', 'filesize_approx',
-            '--no-playlist',
-            '--no-warnings',
-            '--force-ipv4',
-            '--geo-bypass',
-            '--no-check-certificates',
+            ...commonArgs,
             fullUrl
-        ]);
+        ];
+
+        const output = await execYtdlp(args);
 
         const lines = output.trim().split('\n');
         const url = lines[0];
@@ -220,21 +258,21 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
     }
 
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
+    const commonArgs = getCommonArgs();
 
-    const proc = spawn(YT_DLP_PATH, [
+    // Setup args respecting potential cookies
+    const args = [
         '-f', formatSpec,
         '-o', '-',  // Output to stdout
-        '--no-playlist',
-        '--no-warnings',
-        // Options to avoid errors and improve reliability
+        // Standard retries options
         '--retries', '3',
         '--fragment-retries', '3',
         '--extractor-retries', '3',
-        '--force-ipv4',
-        '--no-check-certificates',
-        '--geo-bypass',
+        ...commonArgs,
         fullUrl
-    ], {
+    ];
+
+    const proc = spawn(YT_DLP_PATH, args, {
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -281,7 +319,8 @@ export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
 
     try {
         // Use --print to get specific fields instead of full JSON
-        const output = await execYtdlp([
+        const commonArgs = getCommonArgs();
+        const args = [
             '-f', formatSpec,
             '--print', 'ext',
             '--print', 'format_id',
@@ -289,13 +328,11 @@ export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
             '--print', 'height',
             '--print', 'fps',
             '--print', 'filesize_approx',
-            '--no-playlist',
-            '--no-warnings',
-            '--force-ipv4',
-            '--geo-bypass',
-            '--no-check-certificates',
+            ...commonArgs,
             fullUrl
-        ]);
+        ];
+
+        const output = await execYtdlp(args);
 
         const lines = output.trim().split('\n');
         const ext = lines[0] || 'mp4';

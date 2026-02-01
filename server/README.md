@@ -38,6 +38,22 @@ npm start
 
 The server will start on `http://localhost:3001` by default.
 
+## ☁️ Déploiement Cloud & Blocage YouTube (Erreur 503)
+
+Les hébergeurs Cloud (Koyeb, Heroku, AWS...) sont souvent bloqués par YouTube qui détecte leurs IPs comme des bots.
+
+### Solution : Utiliser des Cookies
+Pour contourner cela, vous pouvez fournir vos cookies YouTube au serveur via une variable d'environnement.
+
+1. Installez l'extension **"Get cookies.txt LOCALLY"** (Chrome/Firefox).
+2. Connectez-vous à YouTube.
+3. Exportez les cookies (format Netscape).
+4. Sur votre hébergeur (ex: Koyeb), ajoutez une Variable d'Environnement :
+   - **Nom** : `YOUTUBE_COOKIES`
+   - **Valeur** : Collez tout le contenu du fichier `cookies.txt`
+
+Le serveur détectera automatiquement cette variable au démarrage et l'utilisera pour authentifier les requêtes `yt-dlp`.
+
 ### API Endpoints
 
 | Endpoint | Description |
