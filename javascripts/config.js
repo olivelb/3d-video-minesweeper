@@ -27,19 +27,16 @@ let serverCheckPromise = null;
 async function checkServer(url) {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for tunnels
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-        // Simple health check or root fetch
-        // Note: Your server doesn't have /health yet, but we can try root or a simple GET
-        // We'll try /api/youtube/formats which is lightweight, or just catch the 404 from root
-        // Using HEAD request to be fast
-        const response = await fetch(`${url}/api/youtube/validate?url=https://google.com`, {
+        // Simple health check
+        const response = await fetch(`${url}/health`, {
             method: 'GET',
             signal: controller.signal
         });
 
         clearTimeout(timeoutId);
-        return true; // If we get a response (even 400/404), the server is up
+        return response.ok;
     } catch (error) {
         // console.warn(`[Config] Connection failed to ${url}`);
         return false;
