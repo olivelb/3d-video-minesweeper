@@ -42,12 +42,17 @@ if (process.env.YOUTUBE_COOKIES) {
  * @returns {string[]} Array of arguments
  */
 const INVIDIOUS_INSTANCES = [
-    'https://invidious.fdn.fr',      // France - Very reliable (FDN)
-    'https://yewtu.be',              // Netherlands - High capacity
-    'https://invidious.projectsegfau.lt', // Lithuania - Good alternative
-    'https://invidious.privacydev.net', // France - Stable
-    'https://vid.puffyan.us',        // USA - Popular
-    'https://inv.nadeko.net'         // Global - Good reputation
+    'https://invidious.fdn.fr',
+    'https://yewtu.be',
+    'https://vid.puffyan.us',
+    'https://invidious.projectsegfau.lt',
+    'https://invidious.privacydev.net',
+    'https://inv.nadeko.net',
+    'https://invidious.jing.rocks',
+    'https://yt.artemislena.eu',
+    'https://iv.ggtyler.dev',
+    'https://invidious.drg.li',
+    'https://inv.tux.pizza'
 ];
 
 /**
@@ -205,7 +210,7 @@ async function fetchInvidiousInfo(videoId) {
         try {
             console.log(`[Invidious API] Trying ${instance}...`);
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 5000);
+            const timeout = setTimeout(() => controller.abort(), 6000); // 6s timeout
 
             const response = await fetch(`${instance}/api/v1/videos/${videoId}`, {
                 signal: controller.signal
@@ -213,8 +218,26 @@ async function fetchInvidiousInfo(videoId) {
             clearTimeout(timeout);
 
             if (response.ok) {
-                console.log(`[Invidious API] ✅ Success with ${instance}`);
-                return await response.json();
+                // Critical check: Ensure response is actually JSON and not an HTML error page
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.warn(`[Invidious API] Invalid content-type ${contentType} from ${instance}`);
+                    continue;
+                }
+
+                try {
+                    const data = await response.json();
+                    if (data.error) {
+                        console.warn(`[Invidious API] API Error from ${instance}: ${data.error}`);
+                        continue;
+                    }
+
+                    console.log(`[Invidious API] ✅ Success with ${instance}`);
+                    return data;
+                } catch (jsonError) {
+                    console.warn(`[Invidious API] JSON Parse error from ${instance}: ${jsonError.message}`);
+                    continue;
+                }
             } else {
                 console.warn(`[Invidious API] HTTP ${response.status} from ${instance}`);
             }
