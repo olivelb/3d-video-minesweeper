@@ -1,11 +1,11 @@
 /**
  * VideoManager - Handles video integration from multiple sources
  * 
- * IMPORTANT: Platform support varies based on server location:
+ * Platform support:
  * - Direct URLs (.mp4, .webm) - Work everywhere, no server needed
  * - Internet Archive - Works on any server (open access)
- * - YouTube/Dailymotion/Vimeo - ONLY work with LOCAL server (yt-dlp required)
- *   These platforms block cloud server IPs and require updated yt-dlp
+ * - YouTube - Works on LOCAL and CLOUD servers (via Plan C / Invidious API)
+ * - Dailymotion/Vimeo - Only work with LOCAL server (yt-dlp required, cloud IPs blocked)
  */
 import { YOUTUBE_SERVER_URL, getServerUrl } from './config.js';
 
@@ -39,7 +39,7 @@ const PLATFORMS = {
             /(?:youtube\.com|youtu\.be|music\.youtube\.com)/i
         ],
         needsServer: true,
-        needsLocalServer: true  // Only works with local server
+        needsLocalServer: false  // Works on cloud via Plan C (Invidious API)
     },
     dailymotion: {
         name: 'Dailymotion',

@@ -80,8 +80,8 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         try {
             formatInfo = await getStreamFormat(videoIdOrUrl, quality);
         } catch (e) {
-            console.error(`[STREAM] Could not get format info for ${videoIdOrUrl}:`, e.message);
-            // Could not get format info, continue without it
+            // Format info is optional - Plan C (Invidious) may not provide it
+            console.warn(`[STREAM] Format info unavailable for ${videoIdOrUrl}: ${e.message}`);
         }
 
         // Determine content type - prefer mp4
@@ -108,7 +108,7 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         });
 
         stream.on('error', (error) => {
-            console.error(`[STREAM ERROR] ${videoId}:`, error.message);
+            console.error(`[STREAM ERROR] ${videoIdOrUrl}:`, error.message);
             if (!res.headersSent) {
                 res.status(500).json({ error: 'Stream failed', message: error.message });
             } else {
