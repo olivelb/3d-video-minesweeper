@@ -5,11 +5,12 @@ FROM node:20-slim
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
+    python3-cryptography \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp
-RUN pip3 install --break-system-packages yt-dlp
+# Install yt-dlp with dependencies for --impersonate
+RUN pip3 install --break-system-packages yt-dlp brotli certifi websockets
 
 # Create app directory
 WORKDIR /app
