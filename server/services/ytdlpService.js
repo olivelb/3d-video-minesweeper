@@ -42,11 +42,12 @@ if (process.env.YOUTUBE_COOKIES) {
  * @returns {string[]} Array of arguments
  */
 const INVIDIOUS_INSTANCES = [
-    'https://yewtu.be',
-    'https://vid.puffyan.us',
-    'https://invidious.drg.li',
-    'https://inv.tux.pizza',
-    'https://invidious.fdn.fr'
+    'https://invidious.fdn.fr',      // France - Very reliable (FDN)
+    'https://yewtu.be',              // Netherlands - High capacity
+    'https://invidious.projectsegfau.lt', // Lithuania - Good alternative
+    'https://invidious.privacydev.net', // France - Stable
+    'https://vid.puffyan.us',        // USA - Popular
+    'https://inv.nadeko.net'         // Global - Good reputation
 ];
 
 /**
