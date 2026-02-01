@@ -66,6 +66,10 @@ export class UIManager {
 
     async checkServerStatus() {
         if (!this.youTubeManager) return;
+        
+        // Wait for server URL to be resolved before checking health
+        await this.youTubeManager.waitForServerReady();
+        
         const isOnline = await this.youTubeManager.checkServerHealth();
         this.updateServerStatusUI(isOnline, this.youTubeManager.serverUrl, this.youTubeManager.isLocalServer);
     }

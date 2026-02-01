@@ -73,22 +73,28 @@ const PLATFORMS = {
 
 export class YouTubeManager {
     constructor(options = {}) {
-        // Initial value (likely local default)
+        // Initial value - will be updated asynchronously
         this.serverUrl = options.serverUrl || YOUTUBE_SERVER_URL;
+        this._serverReady = false;
+        this._serverReadyPromise = null;
 
-        // Asynchronously update to the demonstrated best server
+        // Asynchronously update to the best available server
         if (!options.serverUrl) {
-            getServerUrl().then(url => {
+            this._serverReadyPromise = getServerUrl().then(url => {
                 if (url !== this.serverUrl) {
                     console.log(`[YouTubeManager] Updating server URL to: ${url}`);
                     this.serverUrl = url;
-                    // Trigger a health check with new URL and notify
-                    this.checkServerHealth().then(() => this._notifyConnectionStatus());
-                } else {
-                    // Update listeners even if URL didn't change (might have gone offline/online)
-                    this.checkServerHealth().then(() => this._notifyConnectionStatus());
                 }
+                this._serverReady = true;
+                // Trigger a health check with correct URL and notify
+                return this.checkServerHealth().then(() => {
+                    this._notifyConnectionStatus();
+                    return url;
+                });
             });
+        } else {
+            this._serverReady = true;
+            this._serverReadyPromise = Promise.resolve(this.serverUrl);
         }
 
         this.onStatusChange = options.onStatusChange || (() => { });
@@ -103,6 +109,17 @@ export class YouTubeManager {
         this.serverCapabilities = {}; // What platforms the server can handle
 
         this.onConnectionStatusChange = null; // Callback for UI updates
+    }
+
+    /**
+     * Wait for server URL to be resolved (call before checkServerHealth for accurate results)
+     * @returns {Promise<string>} The resolved server URL
+     */
+    async waitForServerReady() {
+        if (this._serverReadyPromise) {
+            await this._serverReadyPromise;
+        }
+        return this.serverUrl;
     }
 
     /**
