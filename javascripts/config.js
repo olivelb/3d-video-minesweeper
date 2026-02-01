@@ -12,10 +12,7 @@ const SERVERS = {
     raspberryLocal: 'http://192.168.1.232:3001',
 
     // Raspberry Pi via Cloudflare (Works from anywhere)
-    raspberryCloud: 'https://clearly-exhaust-cove-sword.trycloudflare.com',
-
-    // Old Production server (Fallback)
-    production: 'https://flaky-caroline-visionova-sas-d785f85f.koyeb.app'
+    raspberryCloud: 'https://clearly-exhaust-cove-sword.trycloudflare.com'
 };
 
 // Will be set after detecting available server
@@ -30,7 +27,7 @@ let serverCheckPromise = null;
 async function checkServer(url) {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for tunnels
 
         // Simple health check or root fetch
         // Note: Your server doesn't have /health yet, but we can try root or a simple GET
@@ -69,14 +66,16 @@ async function detectServer() {
     }
 
     // 3. Try Raspberry Pi Cloud
+    // Even if check fails (e.g. CORS on options), we might want to fall back to it
+    // But let's try to verify it first.
     if (await checkServer(SERVERS.raspberryCloud)) {
         console.log('[Config] ✅ Using Raspberry Pi (Cloudflare)');
         return SERVERS.raspberryCloud;
     }
 
-    // 4. Fallback
-    console.warn('[Config] ⚠️ No custom servers found. Using Fallback.');
-    return SERVERS.production;
+    // 4. Fallback - Default to Cloudflare Pi if everything else fails
+    console.warn('[Config] ⚠️ No reachable server found. Defaulting to Raspberry Pi (Cloudflare).');
+    return SERVERS.raspberryCloud;
 }
 
 /**
