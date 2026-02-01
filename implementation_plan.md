@@ -28,10 +28,11 @@ Ce document retrace l'évolution du projet "Démineur 3D" depuis la codebase leg
 - ✅ **Management Audio** : Son off par défaut, gestion simplifiée.
 - ✅ **Interface Modernisée** : Glassmorphism, boutique d'indices, leaderboard.
 
-## Phase 5 : Documentation ✅ COMPLÉTÉ
-- ✅ `README.md` mis à jour.
-- ✅ `TECHNICAL_DOCS.md` détaillé.
-- ✅ Code nettoyé et commenté (JSDoc).
+## Phase 6 : Intégration Serveur & Streaming ✅ COMPLÉTÉ
+- ✅ **Proxy Server (Node/Express)** : Déploiement d'un serveur pour contourner les limitations CORS de YouTube/Dailymotion.
+- ✅ **YouTubeManager** : Gestionnaire robuste pour le streaming de multiples plateformes (YouTube, Dailymotion, Archive.org, Vimeo).
+- ✅ **Aperçu Dynamique** : Miniature vidéo temps réel dans le menu de configuration avec posters instantanés (UX Turbo).
+- ✅ **Détection Auto** : Basculement intelligent entre serveur local (Full support) et serveur cloud (Limites YouTube).
 
 ---
 
@@ -44,9 +45,10 @@ Ce document retrace l'évolution du projet "Démineur 3D" depuis la codebase leg
 │   ├── Game.js            # Logique Pure
 │   ├── MinesweeperSolver.js # IA et Logique Avancée
 │   ├── Renderer.js        # Moteur Three.js
-│   ├── ScoreManager.js    # Leaderboard et Calculs
-│   ├── SoundManager.js    # Audio
-│   └── ParticleSystem.js  # FX visuels
+│   ├── ScoreManager.js    # Leaderboard, Joueurs & Analytics
+│   ├── YouTubeManager.js  # Streaming Video (Proxy helper)
+│   └── config.js          # Configuration globale & Détection Serveur
+├── server/                 # Proxy Server (Node.js)
 ```
 
 ## État Final

@@ -1,6 +1,6 @@
-# YouTube Proxy Server for 3D Minesweeper
+# YouTube & Media Proxy Server for 3D Minesweeper
 
-This server provides a proxy for streaming YouTube videos as textures in the 3D Minesweeper game.
+This server provides a high-performance proxy for streaming content from YouTube, Dailymotion, Archive.org, and more as WebGL textures.
 
 ## ⚠️ Legal Notice
 

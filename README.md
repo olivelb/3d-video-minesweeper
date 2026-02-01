@@ -13,27 +13,30 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 - **Détection GPU** : Ajustement automatique des limites de la grille selon la puissance de votre matériel.
 
 ### Visuels
-- **Moteur 3D Performant** : `InstancedMesh` pour rendre jusqu'à 30 000 cubes avec un seul draw call
-- **Texture Vidéo** : Vidéo par défaut, upload local, ou flux webcam mappé sur toute la grille via shader custom
-- **Drapeaux Configurables** : Basculez en jeu entre particules scintillantes (par défaut) et drapeaux 2D stylisés plus reposants pour les yeux
-- **Particules** : Drapeaux animés (émetteurs continus) et feux d'artifice sur victoire (bursts)
-- **Texte 3D Billboard** : Messages "BRAVO !"/"PERDU !" toujours face caméra
-- **Explosion Dynamique** : Cubes qui volent en éclats avec rotation et trajectoires aléatoires
+- **Moteur 3D Performant** : `InstancedMesh` pour rendre jusqu'à 30 000 cubes avec un seul draw call.
+- **Dynamic Backgrounds** : Vidéo par défaut, upload local, webcam, ou **Streaming (YouTube, Dailymotion, Archive.org)** mappé via shader custom.
+- **Aperçu Instantané** : Miniature vidéo dynamique dans le menu avec pré-chargement intelligent (UX Turbo).
+- **Drapeaux Configurables** : Basculez entre particules scintillantes et drapeaux 2D stylisés.
+- **Explosion Dynamique** : Cubes qui volent en éclats avec trajectoires aléatoires.
 
 ### Technique
-- **Code Moderne** : ES6+ Modules, Classes, Async/Await
-- **Architecture MVC** : Séparation stricte entre logique (`Game.js`) et rendu (`Renderer.js`)
-- **Zero Build** : Pas de bundler, modules ES natifs chargés depuis CDN
-- **Gestion Mémoire** : Disposal propre des géométries/matériaux et révocation des blob URLs
+- **Stack Moderne** : Three.js r160, Proxy Server Node/Express pour le streaming.
+- **Architecture MVC** : Séparation logique (`Game.js`), rendu (`Renderer.js`) et streaming (`YouTubeManager.js`).
+- **Détection Auto** : Le jeu détecte et se connecte automatiquement au meilleur serveur disponible (Local vs Cloud).
 
-## Installation & Lancement
+Le projet nécessite un serveur proxy pour le streaming vidéo extérieur :
 
-1. Ce projet ne nécessite pas de compilation.
-2. Il utilise des **ES Modules** → nécessite un serveur HTTP local (CORS):
-   - Python: `python -m http.server`
-   - Node: `npx serve`
-   - VS Code: Extension "Live Server"
-3. Ouvrez `index.html` dans votre navigateur.
+### 1. Lancer le Serveur Proxy
+```bash
+cd server
+npm install
+npm start
+```
+*Le serveur tourne par défaut sur `http://localhost:3001`.*
+
+### 2. Lancer le Jeu (Client)
+Utilisez un serveur HTTP local (Python, Node serve, ou Live Server) pour ouvrir `index.html`.
+*Le client se connectera automatiquement au proxy local.*
 
 ## Contrôles
 
@@ -48,33 +51,26 @@ Une version modernisée et optimisée du jeu de Démineur en 3D, utilisant les d
 
 - **Grille & Bombes** : Ajustez la difficulté selon vos préférences.
 - **Mode Pas de Hasard** : Activez pour garantir une résolution 100% logique.
+- **Lien Direct / YouTube** : Collez une URL et cliquez sur ▶ pour voir l'aperçu instantané.
+- **Statut Serveur** : Un indicateur visuel (vert/rouge) montre l'état de la connexion au proxy.
 - **Hover Helper** : Activez l'animation de pulsation lors du survol.
-- **Vidéo de fond** :
-  - Fichier local (MP4/WEBM/OGG) avec audio.
-  - Webcam en direct (vidéo + audio si autorisé).
-  - Défaut: `storm_render.mp4`.
 
 ## Architecture Fichiers
 
 ```
 /
-├── index.html              # Point d'entrée + logique menu
-├── README.md               # Ce fichier
-├── TECHNICAL_DOCS.md       # Documentation technique approfondie
-├── implementation_plan.md  # Plan de refactoring (historique)
+├── index.html              # Interface, menu et loop principal
+├── server/                 # Serveur Proxy (Node.js/Express)
 ├── css/
-│   └── style.css          # Styles glassmorphism modernes
+│   └── style.css           # Design Glassmorphism
 ├── javascripts/
-│   ├── Game.js            # Logique de jeu (mines, flood fill, flags)
-│   ├── MinesweeperSolver.js # IA de résolution & validation No Guess
-│   ├── Renderer.js        # Moteur Three.js (instances, particules, texte)
-│   ├── ScoreManager.js    # Calcul des scores et LEADERBOARD
-│   └── SoundManager.js    # Gestion des ressources audio
-└── images/
-    ├── storm_render.mp4   # Vidéo par défaut
-    ├── j1.png - j8.png    # Textures numéros
-    ├── star.png           # Texture drapeau
-    └── flare.png          # Texture particule
+│   ├── Game.js             # Logique de jeu
+│   ├── Renderer.js         # Moteur de rendu Three.js
+│   ├── YouTubeManager.js   # Gestionnaire de streaming
+│   ├── config.js           # Configuration et détection serveur
+│   ├── MinesweeperSolver.js# IA de résolution
+│   └── ScoreManager.js     # Profils, Scores et Analytics
+└── images/                 # Assets (Textures, Vidéos)
 ```
 
 ## Améliorations Futures Possibles

@@ -9,11 +9,16 @@ Le projet utilise une architecture **MVC-like** adaptée au web moderne :
 │  index.html │─────▶│   Game.js    │◀────▶│  Renderer.js  │
 │   (View)    │      │   (Model)    │      │ (View/Three)  │
 └─────────────┘      └──────────────┘      └───────────────┘
-     │                      │                       │
-     │                      │                       │
-  DOM Menu            Pure Logic              WebGL/GPU
-  GPU Detection       Flood Fill              Instancing
-  Video Source        Mine Placement          Particles
+      │                      │                       │
+      ▼                      │                       │
+┌──────────────┐             │                   Instancing
+│ YouTubeMgr   │◀────────────┘                   Particles
+└──────────────┘
+      │
+      ▼
+┌──────────────┐
+│ Proxy Server │ (Node.js/Express)
+└──────────────┘
 ```
 
 ---
@@ -322,34 +327,25 @@ const LIMITS = {
 
 ---
 
-## 4. Sources Vidéo
+## 4. Sources Vidéo & Streaming
 
-### Fichier Local
-```javascript
-const blob = URL.createObjectURL(file);
-video.src = blob;
-video.muted = false;  // Audio activé
-```
+Le projet supporte désormais une large gamme de sources vidéo, gérées par le `YouTubeManager.js`.
 
-### Webcam
-```javascript
-const stream = await navigator.mediaDevices.getUserMedia({ 
-  video: true, audio: true 
-});
-video.srcObject = stream;
-video.muted = false;
-```
+### 4.1 Streaming via Proxy
+Comme les plateformes comme YouTube ou Dailymotion interdisent l'accès direct aux flux (CORS), le projet utilise un **Serveur Proxy Node.js**.
+- **YouTubeManager** : Extrait les IDs et communique avec le proxy.
+- **Proxy Server** : Récupère l'URL du flux brut via `yt-dlp`.
 
-**Nettoyage** :
-```javascript
-stream.getTracks().forEach(t => t.stop());
-URL.revokeObjectURL(blob);
-```
+### 4.2 Optimisation UX Turbo
+- **Miniature Instantanée** : Affichage via les CDNs officiels (Google/Archive.org).
+- **Aperçu Temps Réel** : Une vidéo de prévisualisation se charge dans le menu.
 
-### Limitation YouTube
-**YouTube ne peut PAS être utilisé comme texture** car :
-- Pas de CORS → canvas "tainted" → WebGL refuse de lire
-- IFrame API ne donne pas accès aux frames raw
+### 4.3 Détection de Serveur Auto
+Le fichier `config.js` teste plusieurs points d'entrée (Localhost 8000, 3001, etc.).
+
+### 4.4 Webcam et Fichiers Locaux
+- **Webcam** : `navigator.mediaDevices.getUserMedia` avec flux audio.
+- **Fichiers Locaux** : Création de `Blob URLs` révoqués proprement.
 
 ---
 
