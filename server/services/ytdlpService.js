@@ -41,6 +41,18 @@ if (process.env.YOUTUBE_COOKIES) {
  * Get common arguments for yt-dlp including cookies if available
  * @returns {string[]} Array of arguments
  */
+const INVIDIOUS_INSTANCES = [
+    'https://yewtu.be',
+    'https://vid.puffyan.us',
+    'https://invidious.drg.li',
+    'https://inv.tux.pizza',
+    'https://invidious.fdn.fr'
+];
+
+/**
+ * Get common arguments for yt-dlp including cookies if available
+ * @returns {string[]} Array of arguments
+ */
 function getCommonArgs() {
     const args = [
         '--no-playlist',
@@ -52,7 +64,21 @@ function getCommonArgs() {
         '--extractor-args', 'youtube:player_client=android'
     ];
 
+    // Detect if we're running on cloud (Koyeb)
+    const isCloudServer = process.env.KOYEB_APP_ID ||
+        process.env.RAILWAY_ENVIRONMENT ||
+        process.env.RENDER_EXTERNAL_URL ||
+        process.env.HEROKU_APP_ID;
+
+    // If on cloud, ALWAYS use Invidious proxy to bypass IP blocks
+    if (isCloudServer) {
+        const instance = INVIDIOUS_INSTANCES[Math.floor(Math.random() * INVIDIOUS_INSTANCES.length)];
+        console.log(`[yt-dlp] ☁️ Cloud environment detected. Using Invidious proxy: ${instance}`);
+        args.push('--extractor-args', `youtube:invidious_instance=${instance}`);
+    }
+
     // Only add cookies if the file exists and was written successfully
+    // (Note: cookies might interfere with Invidious, but we keep logic just in case)
     if (hasCookies && fs.existsSync(COOKIES_PATH)) {
         args.push('--cookies', COOKIES_PATH);
     }
@@ -96,7 +122,8 @@ try {
 function execYtdlp(args) {
     return new Promise((resolve, reject) => {
         const proc = spawn(YT_DLP_PATH, args, {
-            windowsHide: true
+            windowsHide: true,
+            env: { ...process.env, LC_ALL: 'en_US.UTF-8' } // Force English for error parsing
         });
 
         let stdout = '';
