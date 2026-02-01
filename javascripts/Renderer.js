@@ -137,11 +137,11 @@ export class MinesweeperRenderer {
             // Default to video texture
             this.mediaType = 'video';
 
-            // Check if this is a YouTube stream (cross-origin video that needs to load)
-            // Works with both localhost and production Koyeb server
-            const isYouTubeStream = video.src && (video.src.includes('localhost:3001') || video.src.includes('.koyeb.app') || video.src.includes('/api/youtube/'));
+            // Check if this is a streaming video (network source)
+            // Includes: Localhost proxy, Koyeb proxy, Direct YouTube (googlevideo), and generic HTTPS
+            const isNetworkStream = video.src && (video.src.startsWith('http') || video.src.startsWith('blob:'));
 
-            if (isYouTubeStream) {
+            if (isNetworkStream) {
                 // Create a placeholder texture (solid color) until video loads
                 const canvas = document.createElement('canvas');
                 canvas.width = 64;
@@ -341,9 +341,9 @@ export class MinesweeperRenderer {
             // Create a video texture
             this.mediaTexture = new THREE.VideoTexture(source);
 
-            // Check if this is a YouTube stream (localhost or production)
-            const isYouTubeStream = source.src && (source.src.includes('localhost:3001') || source.src.includes('.koyeb.app') || source.src.includes('/api/youtube/'));
-            if (isYouTubeStream) {
+            // Check if this is a streaming video (network source)
+            const isNetworkStream = source.src && (source.src.startsWith('http') || source.src.startsWith('blob:'));
+            if (isNetworkStream) {
                 this.setupVideoTextureUpdater(source);
             }
         }

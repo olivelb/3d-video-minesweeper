@@ -144,20 +144,26 @@ export class UIManager {
             if (this.thumbnailVideo && this.thumbnailContainer) {
                 this.thumbnailVideo.src = streamUrl;
                 this.thumbnailContainer.style.display = 'flex';
+                // Hide title overlay so video is clearly visible
+                if (this.thumbnailTitle) this.thumbnailTitle.style.display = 'none';
+                this.thumbnailVideo.play().catch(e => console.warn("Thumbnail autoplay prevented", e));
             }
 
-            // Main game video
+            // Main game video - Start loading immediately for pre-buffering
             this.videoElement.src = streamUrl;
             this.videoElement.crossOrigin = 'anonymous';
             this.videoElement.load();
 
             try {
+                // Play muted initially to allow buffering without noise
+                this.videoElement.muted = true;
                 await this.videoElement.play();
             } catch (e) {
                 console.warn("Auto-play prevented", e);
             }
-
-            this.videoElement.muted = false;
+            
+            // We will unmute only when game starts
+            // this.videoElement.muted = false;
 
             // Notify Renderer
             if (this.renderer && this.renderer.updateMediaTexture) {
@@ -175,6 +181,8 @@ export class UIManager {
                 this.thumbnailVideo.src = '';
                 this.thumbnailVideo.poster = '';
             }
+            // Show title again in case it was hidden
+            if (this.thumbnailTitle) this.thumbnailTitle.style.display = 'block';
 
             alert(`Erreur de chargement: ${error.message}`);
         } finally {
