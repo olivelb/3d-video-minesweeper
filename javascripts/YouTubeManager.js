@@ -563,8 +563,17 @@ export class YouTubeManager {
                 throw new Error('Les streams en direct ne sont pas supportés');
             }
 
-            // Set video source to stream URL
-            const streamUrl = this.getStreamUrl(null, quality);
+            // TRY DIRECT URL FIRST (Performance Optimization)
+            // This avoids routing video traffic through the Pi
+            let streamUrl;
+            try {
+                console.log('[YouTubeManager] Attempting to resolve direct URL...');
+                streamUrl = await this.getDirectUrl(null, quality);
+                console.log('[YouTubeManager] Using direct URL:', streamUrl.substring(0, 50) + '...');
+            } catch (e) {
+                console.warn('[YouTubeManager] Direct URL failed, falling back to proxy:', e);
+                streamUrl = this.getStreamUrl(null, quality);
+            }
 
             return new Promise((resolve, reject) => {
                 const onCanPlay = () => {
@@ -575,6 +584,9 @@ export class YouTubeManager {
                 };
 
                 const onError = (e) => {
+                    // If Direct URL fails (CORS or 403), we could try falling back to proxy here
+                    // But for now, just report error
+                    console.error('[YouTubeManager] Video Error:', videoElement.error);
                     cleanup();
                     this.isLoading = false;
                     const error = new Error('Échec du chargement du flux vidéo');
