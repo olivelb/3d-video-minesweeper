@@ -60,17 +60,20 @@ Le serveur détectera automatiquement cette variable au démarrage et l'utiliser
 |----------|-------------|
 | `GET /health` | Health check - returns server status |
 | `GET /api/youtube/validate?url=...` | Validate a YouTube URL |
-| `GET /api/youtube/info?url=...` | Get video metadata (title, duration, etc.) |
-| `GET /api/youtube/stream?v=VIDEO_ID&q=QUALITY` | Stream video content |
+| `GET /api/youtube/info?url=...` | Get video metadata (title, duration, etc.) + pre-caches stream URL |
+| `GET /api/youtube/stream?v=VIDEO_ID&q=QUALITY` | Stream video content (instant if URL pre-cached) |
+| `GET /api/youtube/direct?v=VIDEO_ID&q=QUALITY` | Get direct CDN URL (for advanced use) |
 | `GET /api/youtube/thumbnail?v=VIDEO_ID` | Get video thumbnail |
 | `GET /api/youtube/formats?v=VIDEO_ID` | List available video formats |
 
 ### Quality Options
 
-- `auto` - Lowest quality (best for performance, default)
+- `auto` - 480p (default, good balance of quality and speed)
 - `low` - 360p
 - `medium` - 480p  
 - `high` - 720p
+- `highest` - 1080p
+- `lowest` - Smallest available
 
 ### Example URLs
 
@@ -131,11 +134,11 @@ The server allows requests from:
 server/
 ├── index.js              # Entry point
 ├── package.json          # Dependencies
-├── .env                  # Configuration
 ├── routes/
 │   └── youtube.js        # API routes
 ├── services/
-│   └── youtubeService.js # YouTube streaming logic
+│   ├── ytdlpService.js   # yt-dlp streaming & URL extraction
+│   └── youtubeService.js # Legacy YouTube service
 ├── middleware/
 │   ├── cors.js           # CORS configuration
 │   ├── rateLimit.js      # Rate limiting
@@ -143,6 +146,23 @@ server/
 └── utils/
     └── urlParser.js      # URL parsing utilities
 ```
+
+## Performance Optimizations
+
+The server implements several optimizations for faster video loading:
+
+### URL Pre-caching
+When `/api/youtube/info` is called, the server extracts and caches the direct video URL from the same yt-dlp call. This means subsequent `/api/youtube/stream` requests can start instantly without waiting for URL extraction.
+
+### Fast Stream Mode
+`createFastVideoStream()` uses cached direct URLs to stream video via HTTP instead of spawning a new yt-dlp process. This reduces stream start time from ~11s to <1s for cached videos.
+
+### Timing Breakdown
+| Phase | Duration | Notes |
+|-------|----------|-------|
+| URL extraction (yt-dlp) | ~11s | YouTube's anti-bot measures, unavoidable |
+| Stream start (cached) | <1s | Uses pre-cached direct URL |
+| Stream start (uncached) | ~11s | Falls back to yt-dlp |
 
 ## Running with the Game
 
