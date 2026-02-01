@@ -37,10 +37,7 @@ if (process.env.YOUTUBE_COOKIES) {
     }
 }
 
-/**
- * Get common arguments for yt-dlp including cookies if available
- * @returns {string[]} Array of arguments
- */
+// Reliable Invidious instances for Plan C (Cloud YouTube bypass)
 const INVIDIOUS_INSTANCES = [
     'https://invidious.fdn.fr',
     'https://yewtu.be',
@@ -55,10 +52,6 @@ const INVIDIOUS_INSTANCES = [
     'https://inv.tux.pizza'
 ];
 
-/**
- * Get common arguments for yt-dlp including cookies if available
- * @returns {string[]} Array of arguments
- */
 /**
  * Get common arguments for yt-dlp including cookies if available
  * @returns {string[]} Array of arguments
@@ -145,8 +138,8 @@ const QUALITY_FORMATS = {
     medium: 'best[height<=480][vcodec!=none][acodec!=none][ext=mp4]/best[height<=480][vcodec!=none][acodec!=none]',
     high: 'best[height<=720][vcodec!=none][acodec!=none][ext=mp4]/best[height<=720][vcodec!=none][acodec!=none]',
     highest: 'best[height<=1080][vcodec!=none][acodec!=none][ext=mp4]/best[height<=1080][vcodec!=none][acodec!=none]',
-    // auto uses best available combined format (format 18/360p is most reliable for streaming)
-    auto: 'best[height<=360][vcodec!=none][acodec!=none][ext=mp4]/best[vcodec!=none][acodec!=none][ext=mp4]/best'
+    // auto uses 720p combined format (good balance of quality and compatibility)
+    auto: 'best[height<=720][vcodec!=none][acodec!=none][ext=mp4]/best[height<=720][vcodec!=none][acodec!=none]'
 };
 
 // Find yt-dlp executable path
@@ -465,8 +458,10 @@ export async function createVideoStream(videoIdOrUrl, quality = 'auto') {
                     stdio: ['ignore', 'pipe', 'pipe']
                 });
 
-                // Handle stderr for debug
-                proc.stderr.on('data', d => { });
+                // Log curl errors for debugging
+                proc.stderr.on('data', (chunk) => {
+                    console.warn(`[Plan C curl stderr] ${chunk.toString().trim()}`);
+                });
 
                 return {
                     stream: proc.stdout,
