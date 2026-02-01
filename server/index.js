@@ -68,10 +68,11 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         serverType: serverType,
         capabilities: {
-            // With Plan C (Invidious API), YouTube now works on cloud servers
-            youtube: true,
-            dailymotion: serverType === 'local', // Still requires local for now
-            vimeo: serverType === 'local',       // Still requires local for now
+            // YouTube/Dailymotion/Vimeo require local server (cloud IPs are blocked)
+            // Plan C (Invidious) is too unstable for production use
+            youtube: serverType === 'local',
+            dailymotion: serverType === 'local',
+            vimeo: serverType === 'local',
             archive: true,  // Internet Archive works everywhere
             peertube: true, // Open platforms work
             direct: true    // Direct URLs always work

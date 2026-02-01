@@ -258,8 +258,10 @@ export async function getVideoInfo(urlOrId) {
     let isYoutube = !urlOrId.includes('://') || urlOrId.includes('youtube.com') || urlOrId.includes('youtu.be');
     let videoId = extractVideoId(urlOrId) || (isYoutube && !urlOrId.includes('://') ? urlOrId : null);
 
-    // PLAN C: If Cloud + YouTube -> Direct Invidious API call (Bypass yt-dlp)
-    if (isCloudServer && isYoutube && videoId) {
+    // PLAN C: DISABLED - Public Invidious instances are too unstable (Feb 2026)
+    // Keeping code for potential future use if situation improves
+    const PLAN_C_ENABLED = false;
+    if (PLAN_C_ENABLED && isCloudServer && isYoutube && videoId) {
         try {
             console.log(`[Plan C] ☁️ Cloud detected. Fetching info via Invidious API for ${videoId}...`);
             const data = await fetchInvidiousInfo(videoId);
@@ -427,8 +429,9 @@ export async function createVideoStream(videoIdOrUrl, quality = 'auto') {
     let videoId = extractVideoId(videoIdOrUrl);
     const isYoutube = !videoIdOrUrl.includes('://') || videoIdOrUrl.includes('youtube') || videoIdOrUrl.includes('youtu.be');
 
-    // PLAN C: Cloud + YouTube -> Get URL via API and stream with curl
-    if (isCloudServer && isYoutube && videoId) {
+    // PLAN C: DISABLED - Public Invidious instances are too unstable (Feb 2026)
+    const PLAN_C_ENABLED = false;
+    if (PLAN_C_ENABLED && isCloudServer && isYoutube && videoId) {
         try {
             console.log(`[Plan C] ☁️ Stream requested for ${videoId}. resolving direct URL via Invidious...`);
             const info = await fetchInvidiousInfo(videoId);

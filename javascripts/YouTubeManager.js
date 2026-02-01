@@ -4,8 +4,8 @@
  * Platform support:
  * - Direct URLs (.mp4, .webm) - Work everywhere, no server needed
  * - Internet Archive - Works on any server (open access)
- * - YouTube - Works on LOCAL and CLOUD servers (via Plan C / Invidious API)
- * - Dailymotion/Vimeo - Only work with LOCAL server (yt-dlp required, cloud IPs blocked)
+ * - YouTube/Dailymotion/Vimeo - ONLY work with LOCAL server
+ *   Cloud IPs are blocked by these platforms
  */
 import { YOUTUBE_SERVER_URL, getServerUrl } from './config.js';
 
@@ -39,7 +39,7 @@ const PLATFORMS = {
             /(?:youtube\.com|youtu\.be|music\.youtube\.com)/i
         ],
         needsServer: true,
-        needsLocalServer: false  // Works on cloud via Plan C (Invidious API)
+        needsLocalServer: true  // Cloud IPs are blocked by YouTube
     },
     dailymotion: {
         name: 'Dailymotion',
