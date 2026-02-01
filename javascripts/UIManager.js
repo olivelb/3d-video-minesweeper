@@ -1,8 +1,9 @@
 export class UIManager {
-    constructor(game, renderer, scoreManager) {
+    constructor(game, renderer, scoreManager, youTubeManager) {
         this.game = game;
         this.renderer = renderer;
         this.scoreManager = scoreManager;
+        this.youTubeManager = youTubeManager;
 
         // UI Elements
         this.menuOverlay = document.getElementById('menu-overlay');
@@ -22,6 +23,13 @@ export class UIManager {
         this.hintBtn = document.getElementById('hint-btn');
         this.flagStyleBtn = document.getElementById('flag-style-btn');
         this.replayBtn = document.getElementById('replay-btn');
+        this.videoUrlInput = document.getElementById('video-url-input');
+        this.loadUrlBtn = document.getElementById('load-url-btn');
+        this.serverStatusDot = document.querySelector('.status-dot');
+        this.serverStatusText = document.querySelector('.status-text');
+        this.thumbnailContainer = document.getElementById('video-thumbnail-container');
+        this.thumbnailVideo = document.getElementById('video-preview');
+        this.thumbnailTitle = document.getElementById('video-preview-title');
 
         // Difficulty Presets
         this.createDifficultyButtons();
@@ -44,6 +52,135 @@ export class UIManager {
         this.detectGpuTier();
         this.displayPlayerInfo();
         this.bindDragAndDropEvents();
+
+        // Initial server check
+        this.checkServerStatus();
+
+        // Listen for async server updates (e.g. when better server is found)
+        if (this.youTubeManager && this.youTubeManager.setConnectionStatusListener) {
+            this.youTubeManager.setConnectionStatusListener((isOnline, url, isLocal) => {
+                this.updateServerStatusUI(isOnline, url, isLocal);
+            });
+        }
+    }
+
+    async checkServerStatus() {
+        if (!this.youTubeManager) return;
+        const isOnline = await this.youTubeManager.checkServerHealth();
+        this.updateServerStatusUI(isOnline, this.youTubeManager.serverUrl, this.youTubeManager.isLocalServer);
+    }
+
+    updateServerStatusUI(isOnline, serverUrl, isLocal) {
+        if (this.serverStatusDot && this.serverStatusText) {
+            if (isOnline) {
+                this.serverStatusDot.style.background = '#00ff00';
+                this.serverStatusText.textContent = isLocal ? `Local: ${serverUrl}` : 'Serveur Cloud Connecté';
+                this.serverStatusText.style.color = '#aaffaa';
+                this.serverStatusText.title = `Connecté à ${serverUrl}`;
+            } else {
+                this.serverStatusDot.style.background = '#ff0000';
+                this.serverStatusText.textContent = 'Serveur Déconnecté';
+                this.serverStatusText.style.color = '#ffaaaa';
+                this.serverStatusText.title = `Tentative sur: ${serverUrl}. Vérifiez que le serveur tourne.`;
+            }
+        }
+    }
+
+    async handleUrlLoad() {
+        const url = this.videoUrlInput.value.trim();
+        if (!url) return;
+
+        // UI Feedback
+        const originalContent = this.loadUrlBtn.innerHTML;
+        this.loadUrlBtn.innerHTML = '⏳';
+        this.loadUrlBtn.disabled = true;
+        this.videoFilename.textContent = 'Chargement vidéo...';
+        this.videoFilename.classList.add('custom-video');
+
+        try {
+            // 1. INSTANT FEEDBACK: Show thumbnail from CDN immediately
+            const platform = this.youTubeManager.detectPlatform(url);
+            const videoId = platform ? this.youTubeManager.extractId(url) : null;
+
+            if (platform && videoId && this.thumbnailContainer && this.thumbnailVideo) {
+                const thumbUrl = this.youTubeManager.getThumbnailUrl(videoId, platform.key);
+                if (thumbUrl) {
+                    this.thumbnailVideo.poster = thumbUrl;
+                    this.thumbnailContainer.style.display = 'flex';
+                    if (this.thumbnailTitle) this.thumbnailTitle.textContent = "Récupération des infos...";
+                }
+            }
+
+            // 2. FETCH INFO (Includes validation)
+            const info = await this.youTubeManager.getVideoInfo(url);
+
+            if (info.isLive) {
+                throw new Error("Les flux en direct ne sont pas supportés");
+            }
+
+            // 3. Update UI
+            this.videoFilename.textContent = `[${info.platform}] ${info.title}`;
+            this.videoFilename.classList.add('custom-video');
+            if (this.thumbnailTitle) {
+                this.thumbnailTitle.textContent = info.title;
+                this.thumbnailTitle.title = info.title;
+            }
+
+            // Cleanup previous
+            this.stopWebcam();
+            this.useWebcamCheckbox.checked = false;
+            this.clearPresetHighlights();
+            if (this.customVideoUrl && this.customVideoUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(this.customVideoUrl);
+            }
+
+            this.mediaType = 'video';
+
+            // 4. Update video elements
+            const streamUrl = this.youTubeManager.getStreamUrl();
+            this.customVideoUrl = streamUrl;
+
+            // Preview video
+            if (this.thumbnailVideo && this.thumbnailContainer) {
+                this.thumbnailVideo.src = streamUrl;
+                this.thumbnailContainer.style.display = 'flex';
+            }
+
+            // Main game video
+            this.videoElement.src = streamUrl;
+            this.videoElement.crossOrigin = 'anonymous';
+            this.videoElement.load();
+
+            try {
+                await this.videoElement.play();
+            } catch (e) {
+                console.warn("Auto-play prevented", e);
+            }
+
+            this.videoElement.muted = false;
+
+            // Notify Renderer
+            if (this.renderer && this.renderer.updateMediaTexture) {
+                this.renderer.updateMediaTexture('video', this.videoElement);
+            }
+
+        } catch (error) {
+            console.error(error);
+            this.videoFilename.textContent = `Erreur: ${error.message}`;
+            this.videoFilename.classList.add('custom-video');
+
+            // Hide preview on error
+            if (this.thumbnailContainer) this.thumbnailContainer.style.display = 'none';
+            if (this.thumbnailVideo) {
+                this.thumbnailVideo.src = '';
+                this.thumbnailVideo.poster = '';
+            }
+
+            alert(`Erreur de chargement: ${error.message}`);
+        } finally {
+            this.loadUrlBtn.innerHTML = originalContent;
+            this.loadUrlBtn.disabled = false;
+        }
     }
 
     displayPlayerInfo() {
@@ -194,6 +331,15 @@ export class UIManager {
 
         this.videoUpload.addEventListener('change', (e) => this.handleVideoUpload(e));
         this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
+
+        if (this.loadUrlBtn) {
+            this.loadUrlBtn.addEventListener('click', () => this.handleUrlLoad());
+        }
+        if (this.videoUrlInput) {
+            this.videoUrlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.handleUrlLoad();
+            });
+        }
 
         // Visual Preset Selector Logic
         const presetItems = document.querySelectorAll('.preset-item');
@@ -376,6 +522,16 @@ export class UIManager {
             };
             img.src = path;
         }
+
+        // Clear URL input
+        if (this.videoUrlInput) this.videoUrlInput.value = '';
+
+        // Hide streaming thumbnail
+        if (this.thumbnailContainer) this.thumbnailContainer.style.display = 'none';
+        if (this.thumbnailVideo) {
+            this.thumbnailVideo.src = '';
+            this.thumbnailVideo.poster = '';
+        }
     }
 
     handleVideoUpload(e) {
@@ -389,6 +545,13 @@ export class UIManager {
         this.stopWebcam();
         this.useWebcamCheckbox.checked = false;
         this.clearPresetHighlights();
+
+        // Hide streaming thumbnail when using local file
+        if (this.thumbnailContainer) this.thumbnailContainer.style.display = 'none';
+        if (this.thumbnailVideo) {
+            this.thumbnailVideo.src = '';
+            this.thumbnailVideo.poster = '';
+        }
 
         let fileToProcess = file;
 
@@ -591,6 +754,11 @@ export class UIManager {
         if (e.target.checked) {
             this.videoUpload.value = '';
             this.clearPresetHighlights();
+            if (this.thumbnailContainer) this.thumbnailContainer.style.display = 'none';
+            if (this.thumbnailVideo) {
+                this.thumbnailVideo.src = '';
+                this.thumbnailVideo.poster = '';
+            }
             if (this.customVideoUrl) {
                 URL.revokeObjectURL(this.customVideoUrl);
                 this.customVideoUrl = null;

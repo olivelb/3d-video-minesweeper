@@ -7,7 +7,7 @@
 const SERVERS = {
     // Local development server (priority)
     local: 'http://localhost:3001',
-    
+
     // Production server on Koyeb (fallback)
     production: 'https://flaky-caroline-visionova-sas-d785f85f.koyeb.app'
 };
@@ -24,13 +24,13 @@ let serverCheckPromise = null;
 async function checkServer(url) {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
-        
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout for cold starts
+
         const response = await fetch(`${url}/health`, {
             method: 'GET',
             signal: controller.signal
         });
-        
+
         clearTimeout(timeoutId);
         return response.ok;
     } catch (error) {
@@ -45,18 +45,18 @@ async function checkServer(url) {
 async function detectServer() {
     // Try local server first
     const localAvailable = await checkServer(SERVERS.local);
-    
+
     if (localAvailable) {
         return SERVERS.local;
     }
-    
+
     // Fall back to Koyeb
     const koyebAvailable = await checkServer(SERVERS.production);
-    
+
     if (koyebAvailable) {
         return SERVERS.production;
     }
-    
+
     // Both unavailable - return Koyeb anyway (might come online later)
     return SERVERS.production;
 }
@@ -69,14 +69,14 @@ export async function getServerUrl() {
     if (activeServerUrl) {
         return activeServerUrl;
     }
-    
+
     if (!serverCheckPromise) {
         serverCheckPromise = detectServer().then(url => {
             activeServerUrl = url;
             return url;
         });
     }
-    
+
     return serverCheckPromise;
 }
 

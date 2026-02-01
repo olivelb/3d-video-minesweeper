@@ -122,6 +122,37 @@
                     </label>
                     <span id="video-filename" class="video-filename">Utilise le préréglage ci-dessus</span>
                 </div>
+
+                <!-- HTTPS URL Input -->
+                <div class="input-group" style="margin-top: 15px;">
+                    <label>Lien Direct / YouTube / Dailymotion</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="video-url-input" placeholder="Collez un lien https://..."
+                            style="flex: 1;">
+                        <button id="load-url-btn" type="button" class="video-upload-btn"
+                            style="width: auto; padding: 0 15px;" title="Charger la vidéo">
+                            <span class="upload-icon">▶</span>
+                        </button>
+                    </div>
+                    <div id="server-status"
+                        style="font-size: 0.75em; margin-top: 5px; color: rgba(255,255,255,0.7); display: flex; align-items: center; gap: 6px;">
+                        <span class="status-dot"
+                            style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #666;"></span>
+                        <span class="status-text">Connexion serveur...</span>
+                    </div>
+                    <div id="video-thumbnail-container"
+                        style="display: none; margin-top: 15px; flex-direction: column; align-items: center; gap: 8px;">
+                        <label
+                            style="font-size: 0.7em; text-transform: uppercase; opacity: 0.8; letter-spacing: 1px;">Aperçu
+                            du Flux</label>
+                        <div class="preset-item active"
+                            style="width: 100px; height: 100px; cursor: default; transform: none;">
+                            <video id="video-preview" muted loop playsinline autoplay style="opacity: 1;"></video>
+                            <span id="video-preview-title"
+                                style="transform: translateY(0); background: rgba(240, 147, 251, 0.8);">Flux Live</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="video-webcam">
                     <label class="webcam-label"><input type="checkbox" id="use-webcam"> Utiliser la webcam si
                         disponible</label>
@@ -170,14 +201,16 @@
         import { MinesweeperRenderer } from './javascripts/Renderer.js';
         import { ScoreManager } from './javascripts/ScoreManager.js';
         import { UIManager } from './javascripts/UIManager.js';
+        import { YouTubeManager } from './javascripts/YouTubeManager.js';
 
         let game, renderer;
         const scoreManager = new ScoreManager();
+        const youTubeManager = new YouTubeManager();
         let uiManager;
 
         document.addEventListener('DOMContentLoaded', () => {
             // Initialize UI
-            uiManager = new UIManager(null, null, scoreManager);
+            uiManager = new UIManager(null, null, scoreManager, youTubeManager);
 
             uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines) => {
                 startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines);
