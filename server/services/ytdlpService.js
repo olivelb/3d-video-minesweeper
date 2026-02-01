@@ -53,37 +53,67 @@ const INVIDIOUS_INSTANCES = [
  * Get common arguments for yt-dlp including cookies if available
  * @returns {string[]} Array of arguments
  */
+/**
+ * Get common arguments for yt-dlp including cookies if available
+ * @returns {string[]} Array of arguments
+ */
 function getCommonArgs() {
     const args = [
         '--no-playlist',
         '--no-warnings',
         '--no-check-certificates',
         '--geo-bypass',
-        '--force-ipv4',
-        // Use Android client API which is less strict about bot detection than the web client
-        '--extractor-args', 'youtube:player_client=android'
+        '--force-ipv4'
     ];
 
-    // Detect if we're running on cloud (Koyeb)
-    const isCloudServer = process.env.KOYEB_APP_ID ||
-        process.env.RAILWAY_ENVIRONMENT ||
-        process.env.RENDER_EXTERNAL_URL ||
-        process.env.HEROKU_APP_ID;
-
-    // If on cloud, ALWAYS use Invidious proxy to bypass IP blocks
-    if (isCloudServer) {
-        const instance = INVIDIOUS_INSTANCES[Math.floor(Math.random() * INVIDIOUS_INSTANCES.length)];
-        console.log(`[yt-dlp] ☁️ Cloud environment detected. Using Invidious proxy: ${instance}`);
-        args.push('--extractor-args', `youtube:invidious_instance=${instance}`);
-    }
-
     // Only add cookies if the file exists and was written successfully
-    // (Note: cookies might interfere with Invidious, but we keep logic just in case)
+    // Cookies are generally not needed for Invidious, but kept for local execution
     if (hasCookies && fs.existsSync(COOKIES_PATH)) {
         args.push('--cookies', COOKIES_PATH);
     }
 
     return args;
+}
+
+/**
+ * Determine the best URL to use for yt-dlp
+ * On Cloud: Transforms YouTube URLs to Invidious URLs to bypass IP blocks
+ * On Local: Uses original YouTube URLs
+ * @param {string} videoIdOrUrl - The video ID or URL
+ * @returns {string} The resolved URL to pass to yt-dlp
+ */
+function resolveTargetUrl(videoIdOrUrl) {
+    // Detect if we're running on cloud (Koyeb/Heroku/Railway/Render)
+    const isCloudServer = process.env.KOYEB_APP_ID ||
+        process.env.RAILWAY_ENVIRONMENT ||
+        process.env.RENDER_EXTERNAL_URL ||
+        process.env.HEROKU_APP_ID;
+
+    let fullUrl;
+    let isYoutube = false;
+
+    // Check if it's a YouTube URL or ID
+    if (videoIdOrUrl.includes('://')) {
+        fullUrl = videoIdOrUrl;
+        isYoutube = fullUrl.includes('youtube.com') || fullUrl.includes('youtu.be');
+    } else {
+        // It's an ID, assume YouTube
+        isYoutube = true;
+        fullUrl = getYouTubeUrl(videoIdOrUrl);
+    }
+
+    // If we are on cloud AND it is YouTube, rewrite to Invidious
+    if (isCloudServer && isYoutube) {
+        const videoId = extractVideoId(fullUrl) || videoIdOrUrl;
+        if (videoId && !videoId.includes('://')) {
+            const instance = INVIDIOUS_INSTANCES[Math.floor(Math.random() * INVIDIOUS_INSTANCES.length)];
+            const invidiousUrl = `${instance}/watch?v=${videoId}`;
+            console.log(`[yt-dlp] ☁️ Cloud detected: Rewriting YouTube URL -> ${invidiousUrl}`);
+            return invidiousUrl;
+        }
+    }
+
+    return fullUrl;
 }
 
 // Quality format strings for yt-dlp
@@ -158,22 +188,15 @@ function execYtdlp(args) {
  * @returns {Promise<Object>} Video information
  */
 export async function getVideoInfo(urlOrId) {
-    // Determine if it's a YouTube ID or a full URL
-    let fullUrl;
-    let videoId;
+    // Determine best URL to use (Youtube vs Invidious)
+    const targetUrl = resolveTargetUrl(urlOrId);
 
-    // If it looks like a URL (has ://)
+    // Extract ID for metadata purposes (even if we use Invidious URL)
+    let videoId;
     if (urlOrId.includes('://')) {
-        fullUrl = urlOrId;
-        // Try to extract YouTube ID if it's a YouTube URL
         videoId = extractVideoId(urlOrId) || urlOrId;
     } else {
-        // Assume it's a YouTube video ID
         videoId = extractVideoId(urlOrId);
-        if (!videoId) {
-            throw new Error('Invalid YouTube URL or video ID');
-        }
-        fullUrl = getYouTubeUrl(videoId);
     }
 
     try {
@@ -181,7 +204,7 @@ export async function getVideoInfo(urlOrId) {
         const args = [
             '--dump-json',
             ...commonArgs,
-            fullUrl
+            targetUrl
         ];
 
         const output = await execYtdlp(args);
@@ -216,7 +239,7 @@ export async function getVideoInfo(urlOrId) {
             isPrivate: false,
             viewCount: info.view_count || 0,
             platform: info.extractor || 'unknown',
-            originalUrl: fullUrl,
+            originalUrl: targetUrl,
             availableQualities: videoFormats
         };
     } catch (error) {
@@ -232,13 +255,7 @@ export async function getVideoInfo(urlOrId) {
  * @returns {Promise<Object>} Stream URL and format info
  */
 export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
-    // Determine if it's a URL or a YouTube ID
-    let fullUrl;
-    if (videoIdOrUrl.includes('://')) {
-        fullUrl = videoIdOrUrl;
-    } else {
-        fullUrl = getYouTubeUrl(videoIdOrUrl);
-    }
+    const targetUrl = resolveTargetUrl(videoIdOrUrl);
 
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
 
@@ -255,7 +272,7 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
             '--print', 'fps',
             '--print', 'filesize_approx',
             ...commonArgs,
-            fullUrl
+            targetUrl
         ];
 
         const output = await execYtdlp(args);
@@ -295,13 +312,7 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
  * @returns {Object} Object with stream and format info
  */
 export function createVideoStream(videoIdOrUrl, quality = 'auto') {
-    // Determine if it's a URL or a YouTube ID
-    let fullUrl;
-    if (videoIdOrUrl.includes('://')) {
-        fullUrl = videoIdOrUrl;
-    } else {
-        fullUrl = getYouTubeUrl(videoIdOrUrl);
-    }
+    const targetUrl = resolveTargetUrl(videoIdOrUrl);
 
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
     const commonArgs = getCommonArgs();
@@ -315,7 +326,7 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
         '--fragment-retries', '3',
         '--extractor-retries', '3',
         ...commonArgs,
-        fullUrl
+        targetUrl
     ];
 
     const proc = spawn(YT_DLP_PATH, args, {
@@ -353,13 +364,7 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
  * @returns {Promise<Object>} Format information
  */
 export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
-    // Determine if it's a URL or a YouTube ID
-    let fullUrl;
-    if (videoIdOrUrl.includes('://')) {
-        fullUrl = videoIdOrUrl;
-    } else {
-        fullUrl = getYouTubeUrl(videoIdOrUrl);
-    }
+    const targetUrl = resolveTargetUrl(videoIdOrUrl);
 
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
 
@@ -375,7 +380,7 @@ export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
             '--print', 'fps',
             '--print', 'filesize_approx',
             ...commonArgs,
-            fullUrl
+            targetUrl
         ];
 
         const output = await execYtdlp(args);
