@@ -11,13 +11,29 @@ let hasCookies = false;
 // Initialize cookies from environment variable if present
 if (process.env.YOUTUBE_COOKIES) {
     try {
+        let cookieContent = process.env.YOUTUBE_COOKIES.trim();
+
+        // Check if it's Base64 encoded (doesn't start with # and is likely base64)
+        if (!cookieContent.startsWith('#') && !cookieContent.includes('\n')) {
+            try {
+                const decoded = Buffer.from(cookieContent, 'base64').toString('utf-8');
+                if (decoded.includes('Netscape')) {
+                    cookieContent = decoded;
+                    console.log('[yt-dlp] 📦 Detected Base64 cookies, decoding...');
+                }
+            } catch (e) {
+                // Not base64, continue with plain text
+            }
+        }
+
         // Clean up formatting issues that might occur with copy-pasting into env vars
-        const cookieContent = process.env.YOUTUBE_COOKIES.replace(/\\n/g, '\n');
+        cookieContent = cookieContent.replace(/\\n/g, '\n');
+
         fs.writeFileSync(COOKIES_PATH, cookieContent);
         hasCookies = true;
-        console.log('[yt-dlp] ✅ Cookies loaded from environment variable');
+        console.log('[yt-dlp] ✅ Cookies loaded and verified');
     } catch (error) {
-        console.error('[yt-dlp] ❌ Failed to write cookies file:', error.message);
+        console.error('[yt-dlp] ❌ Failed to process cookies:', error.message);
     }
 }
 
