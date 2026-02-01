@@ -67,6 +67,17 @@ function getCommonArgs() {
         '--force-ipv4'
     ];
 
+    // Detect if we're running on cloud (Koyeb/Heroku/Railway/Render)
+    const isCloudServer = process.env.KOYEB_APP_ID ||
+        process.env.RAILWAY_ENVIRONMENT ||
+        process.env.RENDER_EXTERNAL_URL ||
+        process.env.HEROKU_APP_ID;
+
+    // Use Android client API only for direct YouTube access (Local)
+    // On Cloud, we use Invidious URLs so this argument is irrelevant/harmful
+    if (!isCloudServer) {
+        args.push('--extractor-args', 'youtube:player_client=android');
+    }
     // Only add cookies if the file exists and was written successfully
     // Cookies are generally not needed for Invidious, but kept for local execution
     if (hasCookies && fs.existsSync(COOKIES_PATH)) {
