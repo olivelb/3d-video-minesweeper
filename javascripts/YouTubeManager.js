@@ -224,7 +224,10 @@ export class YouTubeManager {
                 try {
                     const data = await response.json();
                     this.serverCapabilities = data.capabilities || {};
-                    this.isLocalServer = data.serverType === 'local';
+                    // Trust serverType but also verify URL pattern (fixes issues if server thinks it's cloud due to env vars)
+                    this.isLocalServer = data.serverType === 'local' ||
+                        this.serverUrl.includes('localhost') ||
+                        this.serverUrl.includes('127.0.0.1');
                 } catch (e) {
                     // Fallback: check URL pattern
                     this.isLocalServer = this.serverUrl.includes('localhost') ||

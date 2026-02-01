@@ -5,14 +5,16 @@ import { extractVideoId, getYouTubeUrl } from '../utils/urlParser.js';
 // Use combined video+audio formats for browser playback WITH SOUND
 // Prioritize H.264 (avc1) codecs for maximum browser compatibility
 // "best" selects pre-muxed video+audio, "bestvideo+bestaudio" would require ffmpeg remuxing
+// Use pre-muxed formats (vcodec!=none and acodec!=none) for direct streaming to stdout
+// Merging separate streams (DASH) to stdout is often problematic/impossible in real-time
 const QUALITY_FORMATS = {
-    // Combined formats (video+audio) - these have sound
-    low: 'best[height<=360][vcodec^=avc1][ext=mp4]/best[height<=360][ext=mp4]/best[height<=360]/worst[ext=mp4]/worst',
-    medium: 'best[height<=480][vcodec^=avc1][ext=mp4]/best[height<=480][ext=mp4]/best[height<=480]/best[height<=360]',
-    high: 'best[height<=720][vcodec^=avc1][ext=mp4]/best[height<=720][ext=mp4]/best[height<=720]/best[height<=480]',
-    highest: 'best[height<=1080][vcodec^=avc1][ext=mp4]/best[height<=1080][ext=mp4]/best[height<=1080]/best',
-    // auto uses best available combined format for compatibility
-    auto: 'best[vcodec^=avc1][ext=mp4]/best[ext=mp4]/best'
+    // Combined formats (video+audio) - these have sound and don't require merging
+    low: 'best[height<=360][vcodec!=none][acodec!=none][ext=mp4]/best[height<=360][vcodec!=none][acodec!=none]',
+    medium: 'best[height<=480][vcodec!=none][acodec!=none][ext=mp4]/best[height<=480][vcodec!=none][acodec!=none]',
+    high: 'best[height<=720][vcodec!=none][acodec!=none][ext=mp4]/best[height<=720][vcodec!=none][acodec!=none]',
+    highest: 'best[height<=1080][vcodec!=none][acodec!=none][ext=mp4]/best[height<=1080][vcodec!=none][acodec!=none]',
+    // auto uses best available combined format (format 18/360p is most reliable for streaming)
+    auto: 'best[height<=360][vcodec!=none][acodec!=none][ext=mp4]/best[vcodec!=none][acodec!=none][ext=mp4]/best'
 };
 
 // Find yt-dlp executable path
@@ -37,18 +39,18 @@ function execYtdlp(args) {
         const proc = spawn(YT_DLP_PATH, args, {
             windowsHide: true
         });
-        
+
         let stdout = '';
         let stderr = '';
-        
+
         proc.stdout.on('data', (data) => {
             stdout += data.toString();
         });
-        
+
         proc.stderr.on('data', (data) => {
             stderr += data.toString();
         });
-        
+
         proc.on('close', (code) => {
             if (code === 0) {
                 resolve(stdout.trim());
@@ -56,7 +58,7 @@ function execYtdlp(args) {
                 reject(new Error(stderr || `yt-dlp exited with code ${code}`));
             }
         });
-        
+
         proc.on('error', (err) => {
             reject(err);
         });
@@ -73,7 +75,7 @@ export async function getVideoInfo(urlOrId) {
     // Determine if it's a YouTube ID or a full URL
     let fullUrl;
     let videoId;
-    
+
     // If it looks like a URL (has ://)
     if (urlOrId.includes('://')) {
         fullUrl = urlOrId;
@@ -87,7 +89,7 @@ export async function getVideoInfo(urlOrId) {
         }
         fullUrl = getYouTubeUrl(videoId);
     }
-    
+
     try {
         const output = await execYtdlp([
             '--dump-json',
@@ -98,12 +100,12 @@ export async function getVideoInfo(urlOrId) {
             '--no-check-certificates',
             fullUrl
         ]);
-        
+
         const info = JSON.parse(output);
-        
+
         // Use yt-dlp's ID or the URL itself as the identifier
         const resolvedId = info.id || videoId;
-        
+
         // Get available video-only formats (limit to essential fields)
         const videoFormats = (info.formats || [])
             .filter(f => f.vcodec !== 'none' && f.acodec === 'none')
@@ -117,7 +119,7 @@ export async function getVideoInfo(urlOrId) {
                 height: f.height
             }))
             .sort((a, b) => (b.height || 0) - (a.height || 0));
-        
+
         return {
             videoId: resolvedId,
             title: info.title,
@@ -152,9 +154,9 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
     } else {
         fullUrl = getYouTubeUrl(videoIdOrUrl);
     }
-    
+
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
-    
+
     try {
         // Get URL and basic format info in one call using --print
         const output = await execYtdlp([
@@ -173,7 +175,7 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
             '--no-check-certificates',
             fullUrl
         ]);
-        
+
         const lines = output.trim().split('\n');
         const url = lines[0];
         const ext = lines[1] || 'mp4';
@@ -182,7 +184,7 @@ export async function getDirectUrl(videoIdOrUrl, quality = 'auto') {
         const height = parseInt(lines[4]) || 0;
         const fps = parseInt(lines[5]) || 0;
         const filesize = parseInt(lines[6]) || 0;
-        
+
         return {
             url,
             format: {
@@ -216,9 +218,9 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
     } else {
         fullUrl = getYouTubeUrl(videoIdOrUrl);
     }
-    
+
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
-    
+
     const proc = spawn(YT_DLP_PATH, [
         '-f', formatSpec,
         '-o', '-',  // Output to stdout
@@ -236,23 +238,23 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe']
     });
-    
+
     let stderrData = '';
-    
+
     proc.stderr.on('data', (data) => {
         stderrData += data.toString();
     });
-    
+
     proc.on('error', (err) => {
         console.error(`[yt-dlp] Error: ${err.message}`);
     });
-    
+
     proc.on('close', (code) => {
         if (code !== 0 && stderrData) {
             console.error(`[yt-dlp] Exit ${code}: ${stderrData.slice(0, 200)}`);
         }
     });
-    
+
     return {
         stream: proc.stdout,
         process: proc
@@ -274,9 +276,9 @@ export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
     } else {
         fullUrl = getYouTubeUrl(videoIdOrUrl);
     }
-    
+
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
-    
+
     try {
         // Use --print to get specific fields instead of full JSON
         const output = await execYtdlp([
@@ -294,7 +296,7 @@ export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
             '--no-check-certificates',
             fullUrl
         ]);
-        
+
         const lines = output.trim().split('\n');
         const ext = lines[0] || 'mp4';
         const formatId = lines[1] || 'unknown';
@@ -302,7 +304,7 @@ export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
         const height = parseInt(lines[3]) || 0;
         const fps = parseInt(lines[4]) || 0;
         const filesize = parseInt(lines[5]) || 0;
-        
+
         return {
             itag: formatId,
             mimeType: `video/${ext}`,
@@ -326,7 +328,7 @@ export async function getStreamFormat(videoIdOrUrl, quality = 'auto') {
 export async function validateVideo(urlOrId) {
     try {
         const info = await getVideoInfo(urlOrId);
-        
+
         return {
             valid: true,
             videoId: info.videoId,

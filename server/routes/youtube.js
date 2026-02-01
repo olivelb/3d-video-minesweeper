@@ -14,13 +14,13 @@ router.get('/validate', async (req, res, next) => {
     try {
         const { url } = req.query;
         if (!url) {
-            return res.status(400).json({ 
-                valid: false, 
+            return res.status(400).json({
+                valid: false,
                 error: 'URL parameter required',
                 code: 'MISSING_URL'
             });
         }
-        
+
         const result = await validateVideo(url);
         res.json(result);
     } catch (error) {
@@ -38,7 +38,7 @@ router.get('/info', async (req, res, next) => {
         if (!url) {
             return res.status(400).json({ error: 'URL parameter required' });
         }
-        
+
         const info = await getVideoInfo(url);
         res.json(info);
     } catch (error) {
@@ -57,7 +57,7 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         // Support both video ID (for YouTube) and full URL (for other platforms)
         let videoIdOrUrl = req.query.url || req.query.v;
         const quality = req.query.q || 'auto';
-        
+
         // If v= parameter looks like a YouTube ID, use it directly
         // Otherwise, try to extract from url parameter or use as-is
         if (req.query.v && !req.query.v.includes('://')) {
@@ -65,47 +65,48 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
         } else if (req.query.url) {
             videoIdOrUrl = req.query.url;
         }
-        
+
         if (!videoIdOrUrl) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: 'Video URL required. Use ?url=VIDEO_URL or ?v=VIDEO_ID',
                 code: 'MISSING_VIDEO_URL'
             });
         }
-        
+
         console.log(`[STREAM] ${videoIdOrUrl}, quality: ${quality}`);
-        
+
         // Get format info for headers
         let formatInfo;
         try {
             formatInfo = await getStreamFormat(videoIdOrUrl, quality);
         } catch (e) {
+            console.error(`[STREAM] Could not get format info for ${videoIdOrUrl}:`, e.message);
             // Could not get format info, continue without it
         }
-        
+
         // Determine content type - prefer mp4
         const contentType = formatInfo?.container === 'webm' ? 'video/webm' : 'video/mp4';
-        
+
         // Set response headers for video streaming
         // DON'T set Content-Length - we're streaming and size may vary
         res.setHeader('Content-Type', contentType);
         res.setHeader('Accept-Ranges', 'bytes');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Transfer-Encoding', 'chunked');
-        
+
         // Create the stream using yt-dlp
         const { stream, process: ytdlpProc } = createVideoStream(videoIdOrUrl, quality);
-        
+
         let bytesSent = 0;
         let hasStarted = false;
-        
+
         stream.on('data', (chunk) => {
             if (!hasStarted) {
                 hasStarted = true;
             }
             bytesSent += chunk.length;
         });
-        
+
         stream.on('error', (error) => {
             console.error(`[STREAM ERROR] ${videoId}:`, error.message);
             if (!res.headersSent) {
@@ -114,21 +115,21 @@ router.get('/stream', streamLimiter, async (req, res, next) => {
                 res.end();
             }
         });
-        
+
         stream.on('end', () => {
             // Stream completed
         });
-        
+
         // Pipe to response
         stream.pipe(res);
-        
+
         // Clean up on client disconnect
         req.on('close', () => {
             if (ytdlpProc && !ytdlpProc.killed) {
                 ytdlpProc.kill();
             }
         });
-        
+
     } catch (error) {
         next(error);
     }
@@ -143,18 +144,18 @@ router.get('/direct', async (req, res, next) => {
     try {
         const videoId = req.query.v || extractVideoId(req.query.url);
         const quality = req.query.q || 'auto';
-        
+
         if (!videoId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: 'Video ID required',
                 code: 'MISSING_VIDEO_ID'
             });
         }
-        
+
         console.log(`[DIRECT] Getting URL for: ${videoId}`);
-        
+
         const result = await getDirectUrl(videoId, quality);
-        
+
         const response = {
             videoId,
             url: result.url,
@@ -162,9 +163,9 @@ router.get('/direct', async (req, res, next) => {
             // URLs typically expire in ~6 hours
             expiresIn: '~6 hours'
         };
-        
+
         res.json(response);
-        
+
     } catch (error) {
         console.error(`[DIRECT] Error for ${req.query.v}:`, error.message);
         next(error);
@@ -180,16 +181,16 @@ router.get('/thumbnail', (req, res) => {
     if (!videoId) {
         return res.status(400).json({ error: 'Video ID required' });
     }
-    
+
     // Use high quality thumbnail
     const quality = req.query.q || 'mq'; // mq, hq, sd, maxres
     const qualityMap = {
         'mq': 'mqdefault',
-        'hq': 'hqdefault', 
+        'hq': 'hqdefault',
         'sd': 'sddefault',
         'maxres': 'maxresdefault'
     };
-    
+
     const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/${qualityMap[quality] || 'mqdefault'}.jpg`;
     res.redirect(thumbnailUrl);
 });
@@ -204,7 +205,7 @@ router.get('/formats', async (req, res, next) => {
         if (!videoId) {
             return res.status(400).json({ error: 'Video ID required' });
         }
-        
+
         const info = await getVideoInfo(videoId);
         res.json({
             videoId: info.videoId,
