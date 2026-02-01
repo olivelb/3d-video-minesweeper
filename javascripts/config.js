@@ -1,6 +1,6 @@
 /**
  * Application configuration
- * Tries local server first, falls back to Koyeb if unavailable
+ * Smartly switches between Localhost, Raspberry Pi (LAN), and Raspberry Pi (Cloudflare)
  */
 
 // Server URLs
@@ -44,7 +44,7 @@ async function checkServer(url) {
 }
 
 /**
- * Detect the best available server (local first, then Koyeb)
+ * Detect the best available server
  * @returns {Promise<string>} The URL of the available server
  */
 async function detectServer() {

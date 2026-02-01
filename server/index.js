@@ -47,13 +47,9 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// Detect if we're running on a cloud platform (Koyeb, etc.) or locally
-const isCloudServer = process.env.KOYEB_APP_ID ||
-    process.env.RAILWAY_ENVIRONMENT ||
-    process.env.RENDER_EXTERNAL_URL ||
-    process.env.FLY_APP_NAME ||
-    process.env.HEROKU_APP_ID;
-const serverType = isCloudServer ? 'cloud' : 'local';
+// Server type is local (Raspberry Pi/Home Server)
+// This enables YouTube/Dailymotion support which is often blocked on datacenter IPs
+const serverType = process.env.SERVER_TYPE || 'local';
 
 // Health check - before CORS to allow all origins
 // Also returns server capabilities so client knows what's supported
