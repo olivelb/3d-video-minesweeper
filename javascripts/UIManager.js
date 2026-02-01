@@ -30,6 +30,9 @@ export class UIManager {
         this.thumbnailContainer = document.getElementById('video-thumbnail-container');
         this.thumbnailVideo = document.getElementById('video-preview');
         this.thumbnailTitle = document.getElementById('video-preview-title');
+        this.videoLoadingOverlay = document.getElementById('video-loading-overlay');
+        this.videoProgressBar = document.getElementById('video-progress-bar');
+        this.videoProgressText = document.getElementById('video-progress-text');
 
         // Difficulty Presets
         this.createDifficultyButtons();
@@ -62,6 +65,142 @@ export class UIManager {
                 this.updateServerStatusUI(isOnline, url, isLocal);
             });
         }
+
+        // Video loading progress tracking
+        this._setupVideoProgressTracking();
+    }
+
+    /**
+     * Setup video loading progress tracking for both preview and main video
+     */
+    _setupVideoProgressTracking() {
+        // Track loading progress for thumbnail preview - using interval-based tracking now
+        // Events are less reliable for streamed video, so we'll handle progress in _updateThumbnailProgress()
+        if (this.thumbnailVideo) {
+            // Show loading on error only
+            this.thumbnailVideo.addEventListener('error', () => this._showVideoLoading(false));
+        }
+
+        // Also track main video for renderer progress callback
+        if (this.videoElement) {
+            this.videoElement.addEventListener('canplaythrough', () => {
+                if (this.renderer && this.renderer.setLoadingProgress) {
+                    this.renderer.setLoadingProgress(100);
+                }
+            });
+        }
+    }
+
+    /**
+     * Show/hide video loading overlay
+     */
+    _showVideoLoading(show) {
+        if (this.videoLoadingOverlay) {
+            this.videoLoadingOverlay.style.opacity = show ? '1' : '0';
+        }
+    }
+
+    /**
+     * Calculate buffer progress percentage
+     */
+    _calculateBufferProgress(video) {
+        if (!video || !video.buffered || video.buffered.length === 0) return 0;
+        
+        const duration = video.duration || 0;
+        if (duration === 0) return 0;
+        
+        // Get the buffered end closest to current time
+        let bufferedEnd = 0;
+        for (let i = 0; i < video.buffered.length; i++) {
+            if (video.buffered.start(i) <= video.currentTime) {
+                bufferedEnd = Math.max(bufferedEnd, video.buffered.end(i));
+            }
+        }
+        
+        // For streaming, we consider "loaded" when we have at least 10 seconds buffered
+        // or the percentage of total duration
+        const minBuffer = Math.min(10, duration); // 10 seconds or full video if shorter
+        const bufferProgress = Math.min(100, (bufferedEnd / minBuffer) * 100);
+        
+        return Math.round(bufferProgress);
+    }
+
+    /**
+     * Update video progress display (called by event)
+     */
+    _updateVideoProgress(video) {
+        const progress = this._calculateBufferProgress(video);
+        this._setThumbnailProgress(progress);
+    }
+    
+    /**
+     * Set thumbnail progress bar value
+     */
+    _setThumbnailProgress(progress) {
+        if (this.videoProgressBar) {
+            this.videoProgressBar.style.width = `${progress}%`;
+        }
+        if (this.videoProgressText) {
+            this.videoProgressText.textContent = `${Math.round(progress)}%`;
+        }
+        
+        // Hide overlay when video is ready to play
+        if (progress >= 100) {
+            this._showVideoLoading(false);
+            if (this._thumbnailProgressInterval) {
+                clearInterval(this._thumbnailProgressInterval);
+                this._thumbnailProgressInterval = null;
+            }
+        }
+    }
+    
+    /**
+     * Continuously update thumbnail progress (time-based + buffer-based)
+     * Tracks MAIN video element so progress is shared with game cubes
+     */
+    _updateThumbnailProgress() {
+        // Clear any existing interval
+        if (this._thumbnailProgressInterval) {
+            clearInterval(this._thumbnailProgressInterval);
+        }
+        
+        this._thumbnailProgressInterval = setInterval(() => {
+            // Check if MAIN video has ACTUAL frames (not just metadata)
+            if (this.videoElement && this.videoElement.readyState >= 2 && 
+                this.videoElement.videoWidth > 0 && this.videoElement.videoHeight > 0) {
+                this._setThumbnailProgress(100);
+                this._videoLoadingComplete = true;
+                return;
+            }
+            
+            // Time-based progress simulation - fast 3s curve
+            const elapsed = (Date.now() - this._videoLoadStart) / 1000;
+            // Fast curve: 80% at 2s, 95% at 3s
+            const timeProgress = Math.min(95, 100 * (1 - Math.exp(-elapsed / 1)));
+            
+            // Check actual buffer on MAIN video
+            let bufferProgress = 0;
+            if (this.videoElement && this.videoElement.buffered && this.videoElement.buffered.length > 0) {
+                const duration = this.videoElement.duration || 30;
+                const buffered = this.videoElement.buffered.end(this.videoElement.buffered.length - 1);
+                bufferProgress = Math.min(95, (buffered / Math.min(10, duration)) * 100);
+            }
+            
+            this._currentLoadProgress = Math.max(timeProgress, bufferProgress);
+            this._setThumbnailProgress(this._currentLoadProgress);
+        }, 100);
+    }
+    
+    /**
+     * Get the current video loading state for Renderer to use
+     * @returns {Object} Loading state with startTime, progress, and isComplete
+     */
+    getVideoLoadingState() {
+        return {
+            startTime: this._videoLoadStart || null,
+            progress: this._currentLoadProgress || 0,
+            isComplete: this._videoLoadingComplete || false
+        };
     }
 
     async checkServerStatus() {
@@ -141,11 +280,21 @@ export class UIManager {
             this.mediaType = 'video';
 
             // 4. Update video elements
+            // Note: We use the proxy stream URL because direct googlevideo URLs
+            // don't support CORS which is required for WebGL textures.
+            // The server now uses cached direct URLs internally for fast streaming!
             const streamUrl = this.youTubeManager.getStreamUrl();
             this.customVideoUrl = streamUrl;
 
-            // Preview video
+            // Preview video with loading progress
             if (this.thumbnailVideo && this.thumbnailContainer) {
+                // Show loading overlay
+                this._showVideoLoading(true);
+                this._videoLoadStart = Date.now(); // Track when loading started (shared with Renderer)
+                this._videoLoadingComplete = false;
+                this._currentLoadProgress = 0;
+                this._updateThumbnailProgress(); // Start progress updates on MAIN video
+                
                 this.thumbnailVideo.src = streamUrl;
                 this.thumbnailContainer.style.display = 'flex';
                 // Hide title overlay so video is clearly visible

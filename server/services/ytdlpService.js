@@ -3,6 +3,8 @@ import { extractVideoId, getYouTubeUrl } from '../utils/urlParser.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import https from 'https';
+import http from 'http';
 
 // Setup cookies handling
 const COOKIES_PATH = path.join(os.tmpdir(), 'youtube_cookies.txt');
@@ -86,14 +88,13 @@ function resolveTargetUrl(videoIdOrUrl) {
 // Merging separate streams (DASH) to stdout is often problematic/impossible in real-time
 const QUALITY_FORMATS = {
     // Combined formats (video+audio) - these have sound and don't require merging
+    lowest: 'worst[ext=mp4]/worst',  // Fastest possible - smallest file
     low: 'best[height<=360][vcodec!=none][acodec!=none][ext=mp4]/best[height<=360][vcodec!=none][acodec!=none]',
     medium: 'best[height<=480][vcodec!=none][acodec!=none][ext=mp4]/best[height<=480][vcodec!=none][acodec!=none]',
     high: 'best[height<=720][vcodec!=none][acodec!=none][ext=mp4]/best[height<=720][vcodec!=none][acodec!=none]',
     highest: 'best[height<=1080][vcodec!=none][acodec!=none][ext=mp4]/best[height<=1080][vcodec!=none][acodec!=none]',
-    // Auto: Force 360p MP4 (pre-muxed) for Pi performance. 
-    // Fallback to any pre-muxed 360p. 
-    // Avoids ffmpeg usage completely.
-    auto: 'best[height<=360][ext=mp4]/best[height<=360]'
+    // Auto: Use 480p for good quality - Pi bandwidth is sufficient
+    auto: 'best[height<=480][vcodec!=none][acodec!=none][ext=mp4]/best[height<=480][ext=mp4]/best[height<=360][ext=mp4]/worst'
 };
 
 // Find yt-dlp executable path
@@ -166,8 +167,10 @@ export async function getVideoInfo(urlOrId) {
 
     try {
         const commonArgs = getCommonArgs();
+        const formatStr = QUALITY_FORMATS['auto'] || QUALITY_FORMATS['medium'];
         const args = [
             '--dump-json',
+            '-f', formatStr, // Get the format we'll use for streaming
             ...commonArgs,
             targetUrl
         ];
@@ -210,6 +213,30 @@ export async function getVideoInfo(urlOrId) {
 
         // Cache the result
         urlCache.set(videoId, { timestamp: Date.now(), data: result });
+        
+        // PRE-WARM: Cache the direct URL from this response (no extra yt-dlp call!)
+        // The --dump-json output includes .url when a format is selected
+        if (info.url) {
+            const directCacheKey = `direct_${urlOrId}_auto`;
+            const directResult = {
+                videoId: resolvedId,
+                url: info.url,
+                format: {
+                    itag: info.format_id,
+                    mimeType: info.ext ? `video/${info.ext}` : 'video/mp4',
+                    contentLength: info.filesize || info.filesize_approx,
+                    quality: info.format_note || (info.height ? `${info.height}p` : 'unknown'),
+                    fps: info.fps,
+                    container: info.ext,
+                    width: info.width,
+                    height: info.height
+                },
+                expiresIn: '~6 hours'
+            };
+            urlCache.set(directCacheKey, { timestamp: Date.now(), data: directResult });
+            console.log(`[PreWarm] Direct URL cached from info response for ${videoId}`);
+        }
+        
         return result;
     } catch (error) {
         throw error;
@@ -298,14 +325,20 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
     const formatSpec = QUALITY_FORMATS[quality] || QUALITY_FORMATS.auto;
     const commonArgs = getCommonArgs();
 
-    // Setup args respecting potential cookies
+    // Setup args for FAST streaming - prioritize speed over quality
     const args = [
         '-f', formatSpec,
         '-o', '-',  // Output to stdout
-        // Standard retries options
-        '--retries', '3',
-        '--fragment-retries', '3',
-        '--extractor-retries', '3',
+        // AGGRESSIVE speed optimizations
+        '--buffer-size', '4K',      // Tiny buffer = data flows immediately
+        '--no-part',                 // Don't wait for segments
+        '--no-mtime',                // Skip file time ops
+        '--no-cache-dir',            // No disk cache overhead
+        '--socket-timeout', '10',    // Fail fast on slow connections
+        // Minimal retries for speed
+        '--retries', '1',
+        '--fragment-retries', '1',
+        '--extractor-retries', '1',
         ...commonArgs,
         targetUrl
     ];
@@ -334,6 +367,81 @@ export function createVideoStream(videoIdOrUrl, quality = 'auto') {
     return {
         stream: proc.stdout,
         process: proc
+    };
+}
+
+/**
+ * Create a FAST video stream using cached direct URL (no yt-dlp delay!)
+ * Falls back to yt-dlp streaming if no cached URL available
+ * @param {string} videoIdOrUrl - YouTube video ID or full URL
+ * @param {string} quality - Quality preset
+ * @returns {Promise<Object>} Object with stream and cleanup function
+ */
+export async function createFastVideoStream(videoIdOrUrl, quality = 'auto') {
+    // Check if we have a cached direct URL
+    const cacheKey = `direct_${videoIdOrUrl}_${quality}`;
+    const cached = urlCache.get(cacheKey);
+    
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+        console.log(`[FastStream] Using cached direct URL for instant streaming`);
+        const directUrl = cached.data.url;
+        
+        return new Promise((resolve, reject) => {
+            const protocol = directUrl.startsWith('https') ? https : http;
+            const request = protocol.get(directUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            }, (response) => {
+                // Handle redirects
+                if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                    console.log(`[FastStream] Following redirect...`);
+                    const redirectProtocol = response.headers.location.startsWith('https') ? https : http;
+                    redirectProtocol.get(response.headers.location, (redirectResponse) => {
+                        resolve({
+                            stream: redirectResponse,
+                            contentType: redirectResponse.headers['content-type'] || 'video/mp4',
+                            contentLength: redirectResponse.headers['content-length'],
+                            cleanup: () => { request.destroy(); }
+                        });
+                    }).on('error', reject);
+                    return;
+                }
+                
+                if (response.statusCode !== 200) {
+                    console.warn(`[FastStream] Direct URL returned ${response.statusCode}, falling back to yt-dlp`);
+                    reject(new Error(`HTTP ${response.statusCode}`));
+                    return;
+                }
+                
+                resolve({
+                    stream: response,
+                    contentType: response.headers['content-type'] || 'video/mp4',
+                    contentLength: response.headers['content-length'],
+                    cleanup: () => { request.destroy(); }
+                });
+            });
+            
+            request.on('error', (err) => {
+                console.warn(`[FastStream] Direct fetch failed: ${err.message}, falling back to yt-dlp`);
+                reject(err);
+            });
+            
+            // Timeout for direct connection
+            request.setTimeout(5000, () => {
+                request.destroy();
+                reject(new Error('Direct URL timeout'));
+            });
+        });
+    }
+    
+    // No cached URL - fall back to yt-dlp (slower but works)
+    console.log(`[FastStream] No cached URL, falling back to yt-dlp streaming`);
+    const { stream, process: proc } = createVideoStream(videoIdOrUrl, quality);
+    return {
+        stream,
+        contentType: 'video/mp4',
+        cleanup: () => { proc.kill('SIGTERM'); }
     };
 }
 

@@ -153,10 +153,21 @@
                             style="font-size: 0.7em; text-transform: uppercase; opacity: 0.8; letter-spacing: 1px;">Aperçu
                             du Flux</label>
                         <div class="preset-item active"
-                            style="width: 100px; height: 100px; cursor: default; transform: none;">
+                            style="width: 100px; height: 100px; cursor: default; transform: none; position: relative;">
                             <video id="video-preview" muted loop playsinline autoplay style="opacity: 1;"></video>
                             <span id="video-preview-title"
                                 style="transform: translateY(0); background: rgba(240, 147, 251, 0.8);">Flux Live</span>
+                            <!-- Loading overlay -->
+                            <div id="video-loading-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
+                                background: rgba(0,0,0,0.7); display: flex; flex-direction: column; justify-content: center; 
+                                align-items: center; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none;">
+                                <div style="color: #fff; font-size: 0.6em; margin-bottom: 5px;">Chargement...</div>
+                                <div style="width: 70%; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;">
+                                    <div id="video-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #f093fb, #f5576c); 
+                                        transition: width 0.2s; border-radius: 2px;"></div>
+                                </div>
+                                <div id="video-progress-text" style="color: #aaa; font-size: 0.5em; margin-top: 3px;">0%</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -218,6 +229,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             // Initialize UI
             uiManager = new UIManager(null, null, scoreManager, youTubeManager);
+            // Expose for Renderer to access loading state
+            window._minesweeperUIManager = uiManager;
 
             uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines) => {
                 startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines);

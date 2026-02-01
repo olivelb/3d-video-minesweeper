@@ -142,82 +142,132 @@ export class MinesweeperRenderer {
             const isNetworkStream = video.src && (video.src.startsWith('http') || video.src.startsWith('blob:'));
 
             if (isNetworkStream) {
-                // Create a placeholder texture (solid color) until video loads
-                const canvas = document.createElement('canvas');
-                canvas.width = 64;
-                canvas.height = 64;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#1a1a2e';  // Dark blue placeholder
-                ctx.fillRect(0, 0, 64, 64);
-                this.mediaTexture = new THREE.CanvasTexture(canvas);
-                this.placeholderTexture = this.mediaTexture;
-
-                // Function to check if video has actual frames (not just audio)
-                const hasVideoFrames = () => {
-                    return video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
-                };
-
-                // When video is ready with actual frames, switch to video texture
-                const switchToVideoTexture = () => {
-                    if (this.videoTextureReady) return; // Already switched
-
-                    // Dispose placeholder texture
-                    if (this.mediaTexture) {
-                        this.mediaTexture.dispose();
-                    }
-
-                    this.videoTextureReady = true;
+                // Check if UIManager already has loading state (video pre-buffered)
+                const uiManager = window._minesweeperUIManager;
+                const loadingState = uiManager?.getVideoLoadingState?.() || null;
+                
+                // Only skip placeholder if video has ACTUAL visible frames (dimensions > 0)
+                const videoHasFrames = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
+                
+                if (videoHasFrames) {
+                    // Video already has frames - use it directly
                     this.mediaTexture = new THREE.VideoTexture(video);
                     this.mediaTexture.minFilter = THREE.LinearFilter;
                     this.mediaTexture.magFilter = THREE.LinearFilter;
                     this.mediaTexture.colorSpace = THREE.SRGBColorSpace;
+                    this.videoTextureReady = true;
                     this.videoTexture = this.mediaTexture;
-                    this.updateCubeMaterial();
-                };
+                    this.setupVideoTextureUpdater(video);
+                    video.play().catch(() => {});
+                } else {
+                    // Create a high-quality placeholder canvas for loading animation
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 512;
+                    canvas.height = 512;
+                    this._placeholderCanvas = canvas;
+                    this._placeholderCtx = canvas.getContext('2d');
+                    
+                    // Continue from UIManager's progress if available
+                    this._loadingProgress = loadingState?.progress || 0;
+                    this._loadingStartTime = loadingState?.startTime || Date.now();
+                    this._drawLoadingPlaceholder(this._loadingProgress);
+                    this.mediaTexture = new THREE.CanvasTexture(canvas);
+                    this.mediaTexture.minFilter = THREE.LinearFilter;
+                    this.mediaTexture.magFilter = THREE.LinearFilter;
+                    this.placeholderTexture = this.mediaTexture;
 
-                const onVideoReady = () => {
+                    // Function to check if video has ACTUAL visible frames
+                    const hasVideoFrames = () => {
+                        // Must have both data (readyState >= 2) AND dimensions
+                        return video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
+                    };
+
+                    // When video is ready with actual frames, switch to video texture
+                    const switchToVideoTexture = () => {
+                        if (this.videoTextureReady) return; // Already switched
+
+                        // Dispose placeholder texture immediately
+                        if (this.mediaTexture) {
+                            this.mediaTexture.dispose();
+                        }
+                        this._placeholderCanvas = null;
+                        this._placeholderCtx = null;
+
+                        this.videoTextureReady = true;
+                        this.mediaTexture = new THREE.VideoTexture(video);
+                        this.mediaTexture.minFilter = THREE.LinearFilter;
+                        this.mediaTexture.magFilter = THREE.LinearFilter;
+                        this.mediaTexture.colorSpace = THREE.SRGBColorSpace;
+                        this.videoTexture = this.mediaTexture;
+                        this.setupVideoTextureUpdater(video);
+                        this.updateCubeMaterial();
+                    };
+
+                    const onVideoReady = () => {
+                        if (hasVideoFrames()) {
+                            switchToVideoTexture();
+                            video.removeEventListener('loadeddata', onVideoReady);
+                            video.removeEventListener('canplay', onVideoReady);
+                            video.removeEventListener('playing', onVideoReady);
+                            if (this.videoCheckInterval) {
+                                clearInterval(this.videoCheckInterval);
+                                this.videoCheckInterval = null;
+                            }
+                        }
+                    };
+                    
+                    // Track loading progress - realistic curve for ~12s total (11s extraction + streaming)
+                    const updateProgress = () => {
+                        const elapsed = (Date.now() - this._loadingStartTime) / 1000;
+                        // Realistic curve: 50% at 5s, 80% at 10s, 95% at 12s
+                        const simulatedProgress = Math.min(95, 100 * (1 - Math.exp(-elapsed / 5)));
+                        
+                        // Also check actual buffer if available
+                        let bufferProgress = 0;
+                        if (video.buffered && video.buffered.length > 0 && video.duration > 0) {
+                            const buffered = video.buffered.end(video.buffered.length - 1);
+                            bufferProgress = Math.min(95, (buffered / Math.min(10, video.duration)) * 100);
+                        }
+                        
+                        // Use the higher of simulated or actual
+                        this.setLoadingProgress(Math.max(simulatedProgress, bufferProgress));
+                    };
+
+                    // Check if already ready (for replay with same video)
                     if (hasVideoFrames()) {
                         switchToVideoTexture();
-                        video.removeEventListener('loadeddata', onVideoReady);
-                        video.removeEventListener('canplay', onVideoReady);
-                        video.removeEventListener('playing', onVideoReady);
-                        if (this.videoCheckInterval) {
-                            clearInterval(this.videoCheckInterval);
-                            this.videoCheckInterval = null;
-                        }
+                    } else {
+                        // Listen for events
+                        video.addEventListener('loadeddata', onVideoReady);
+                        video.addEventListener('canplay', onVideoReady);
+                        video.addEventListener('playing', onVideoReady);
+
+                        // Also poll periodically in case events are missed (some browsers/streams)
+                        this.videoCheckInterval = setInterval(() => {
+                            if (hasVideoFrames()) {
+                                onVideoReady();
+                            }
+                            // Update progress and animate
+                            updateProgress();
+                            this._animateLoadingPlaceholder();
+                        }, 100);
+
+                        // Timeout after 15 seconds - realistic for yt-dlp extraction
+                        setTimeout(() => {
+                            if (this.videoCheckInterval) {
+                                clearInterval(this.videoCheckInterval);
+                                this.videoCheckInterval = null;
+                            }
+                            // Force switch if video has ANY data
+                            if (!this.videoTextureReady && video.readyState >= 1) {
+                                switchToVideoTexture();
+                            }
+                        }, 15000);
                     }
-                };
 
-                // Check if already ready (for replay with same video)
-                if (hasVideoFrames()) {
-                    switchToVideoTexture();
-                } else {
-                    // Listen for events
-                    video.addEventListener('loadeddata', onVideoReady);
-                    video.addEventListener('canplay', onVideoReady);
-                    video.addEventListener('playing', onVideoReady);
-
-                    // Also poll periodically in case events are missed (some browsers/streams)
-                    this.videoCheckInterval = setInterval(() => {
-                        if (hasVideoFrames()) {
-                            onVideoReady();
-                        }
-                    }, 100);
-
-                    // Timeout after 10 seconds - give up on video frames
-                    setTimeout(() => {
-                        if (this.videoCheckInterval) {
-                            clearInterval(this.videoCheckInterval);
-                            this.videoCheckInterval = null;
-                        }
-                        if (!this.videoTextureReady && video.readyState >= 2) {
-                            switchToVideoTexture();
-                        }
-                    }, 10000);
-                }
-
-                // Try to play
-                video.play().catch(() => { });
+                    // Try to play
+                    video.play().catch(() => { });
+                } // End of placeholder else block
             } else {
                 this.mediaTexture = new THREE.VideoTexture(video);
             }
@@ -316,6 +366,148 @@ export class MinesweeperRenderer {
             this.gridMesh.material[videoMaterialIndex].map = this.mediaTexture;
             this.gridMesh.material[videoMaterialIndex].needsUpdate = true;
         }
+    }
+
+    /**
+     * Draw the loading placeholder with progress indicator on cubes
+     * @param {number} progress - Loading progress 0-100
+     */
+    _drawLoadingPlaceholder(progress) {
+        if (!this._placeholderCtx) return;
+        
+        const ctx = this._placeholderCtx;
+        const w = 512, h = 512;
+        const scale = 4; // Scale factor from 128 to 512
+        
+        // Dark background with subtle gradient
+        const time = Date.now() / 1000;
+        const bgGrad = ctx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w * 0.7);
+        bgGrad.addColorStop(0, '#2a2a4e');
+        bgGrad.addColorStop(1, '#1a1a2e');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, w, h);
+        
+        // Animated color wave in background
+        const waveGrad = ctx.createLinearGradient(0, 0, w, h);
+        const hue1 = (time * 20) % 360;
+        waveGrad.addColorStop(0, `hsla(${hue1}, 60%, 20%, 0.3)`);
+        waveGrad.addColorStop(0.5, `hsla(${(hue1 + 40) % 360}, 60%, 15%, 0.2)`);
+        waveGrad.addColorStop(1, `hsla(${(hue1 + 80) % 360}, 60%, 20%, 0.3)`);
+        ctx.fillStyle = waveGrad;
+        ctx.fillRect(0, 0, w, h);
+        
+        // Large spinning ring
+        const cx = w / 2;
+        const cy = h * 0.38;
+        const radius = 60 * scale / 4;
+        
+        // Outer glow
+        ctx.shadowColor = '#f093fb';
+        ctx.shadowBlur = 20;
+        
+        // Background circle
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Progress arc (shows actual progress)
+        const progressAngle = (progress / 100) * Math.PI * 2;
+        if (progress > 0) {
+            const progGrad = ctx.createLinearGradient(cx - radius, cy, cx + radius, cy);
+            progGrad.addColorStop(0, '#f093fb');
+            progGrad.addColorStop(1, '#f5576c');
+            ctx.strokeStyle = progGrad;
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + progressAngle);
+            ctx.stroke();
+        }
+        
+        // Spinning highlight arc
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, time * 4, time * 4 + Math.PI * 0.3);
+        ctx.stroke();
+        
+        ctx.shadowBlur = 0;
+        
+        // Percentage in center of ring
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${48}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${Math.round(progress)}%`, cx, cy);
+        
+        // Progress bar below
+        const barY = h * 0.65;
+        const barH = 16;
+        const barW = w * 0.6;
+        const barX = (w - barW) / 2;
+        const barRadius = 8;
+        
+        // Bar background
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barW, barH, barRadius);
+        ctx.fill();
+        
+        // Bar fill
+        const fillW = Math.max(barRadius * 2, barW * (progress / 100));
+        if (progress > 0) {
+            const fillGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+            fillGrad.addColorStop(0, '#f093fb');
+            fillGrad.addColorStop(1, '#f5576c');
+            ctx.fillStyle = fillGrad;
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, fillW, barH, barRadius);
+            ctx.fill();
+            
+            // Shine effect on bar
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, fillW, barH / 2, [barRadius, barRadius, 0, 0]);
+            ctx.fill();
+        }
+        
+        // Loading text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${28}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText('Chargement vidéo...', w / 2, barY - 20);
+        
+        // Animated dots
+        const dots = Math.floor(time * 2) % 4;
+        ctx.fillStyle = '#aaaaaa';
+        ctx.font = `${24}px Arial`;
+        ctx.fillText('.'.repeat(dots), w / 2 + 120, barY - 20);
+    }
+
+    /**
+     * Animate the loading placeholder
+     */
+    _animateLoadingPlaceholder() {
+        if (!this._placeholderCtx || this.videoTextureReady) return;
+        
+        this._drawLoadingPlaceholder(this._loadingProgress);
+        
+        if (this.mediaTexture && this.mediaTexture.isCanvasTexture) {
+            this.mediaTexture.needsUpdate = true;
+        }
+    }
+
+    /**
+     * Set loading progress externally (called by UIManager)
+     * @param {number} progress - 0-100
+     */
+    setLoadingProgress(progress) {
+        this._loadingProgress = Math.max(0, Math.min(100, progress));
+        this._animateLoadingPlaceholder();
     }
 
     /**

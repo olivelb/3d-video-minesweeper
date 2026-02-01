@@ -1,6 +1,6 @@
 import express from 'express';
 // Use yt-dlp service which is more reliable than ytdl-core
-import { getVideoInfo, createVideoStream, validateVideo, getStreamFormat, getDirectUrl } from '../services/ytdlpService.js';
+import { getVideoInfo, createVideoStream, createFastVideoStream, validateVideo, getStreamFormat, getDirectUrl } from '../services/ytdlpService.js';
 import { extractVideoId, sanitizeUrl, isAllowedPlatform } from '../utils/urlParser.js';
 import { streamLimiter } from '../middleware/rateLimit.js';
 
@@ -105,6 +105,50 @@ router.get('/stream', validateUrlInput, streamLimiter, async (req, res, next) =>
 
         console.log(`[STREAM] ${videoIdOrUrl}, quality: ${quality}`);
 
+        // TRY FAST STREAM FIRST (uses cached direct URL - INSTANT!)
+        try {
+            const fastStream = await createFastVideoStream(videoIdOrUrl, quality);
+            
+            // Set response headers
+            res.setHeader('Content-Type', fastStream.contentType || 'video/mp4');
+            res.setHeader('Accept-Ranges', 'bytes');
+            res.setHeader('Cache-Control', 'no-cache');
+            if (fastStream.contentLength) {
+                res.setHeader('Content-Length', fastStream.contentLength);
+            } else {
+                res.setHeader('Transfer-Encoding', 'chunked');
+            }
+
+            let bytesSent = 0;
+            fastStream.stream.on('data', (chunk) => {
+                bytesSent += chunk.length;
+            });
+
+            fastStream.stream.on('error', (error) => {
+                console.error(`[STREAM ERROR] ${videoIdOrUrl}:`, error.message);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: 'Stream failed', message: error.message });
+                } else {
+                    res.end();
+                }
+            });
+
+            // Pipe to response
+            fastStream.stream.pipe(res);
+
+            // Clean up on client disconnect
+            req.on('close', () => {
+                if (fastStream.cleanup) {
+                    fastStream.cleanup();
+                }
+            });
+            
+            return; // Done!
+        } catch (fastStreamError) {
+            console.warn(`[STREAM] Fast stream failed, falling back to yt-dlp: ${fastStreamError.message}`);
+        }
+
+        // FALLBACK: Use yt-dlp streaming (slower but reliable)
         // Get format info for headers
         let formatInfo;
         try {
