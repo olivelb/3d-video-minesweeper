@@ -1,9 +1,13 @@
+import { networkManager } from './NetworkManager.js';
+
+// Configuration: Dedicated server URL (Raspberry Pi)
+const DEDICATED_SERVER_URL = 'http://192.168.1.232:3002';
+
 export class UIManager {
-    constructor(game, renderer, scoreManager, youTubeManager) {
+    constructor(game, renderer, scoreManager) {
         this.game = game;
         this.renderer = renderer;
         this.scoreManager = scoreManager;
-        this.youTubeManager = youTubeManager;
 
         // UI Elements
         this.menuOverlay = document.getElementById('menu-overlay');
@@ -23,16 +27,6 @@ export class UIManager {
         this.hintBtn = document.getElementById('hint-btn');
         this.flagStyleBtn = document.getElementById('flag-style-btn');
         this.replayBtn = document.getElementById('replay-btn');
-        this.videoUrlInput = document.getElementById('video-url-input');
-        this.loadUrlBtn = document.getElementById('load-url-btn');
-        this.serverStatusDot = document.querySelector('.status-dot');
-        this.serverStatusText = document.querySelector('.status-text');
-        this.thumbnailContainer = document.getElementById('video-thumbnail-container');
-        this.thumbnailVideo = document.getElementById('video-preview');
-        this.thumbnailTitle = document.getElementById('video-preview-title');
-        this.videoLoadingOverlay = document.getElementById('video-loading-overlay');
-        this.videoProgressBar = document.getElementById('video-progress-bar');
-        this.videoProgressText = document.getElementById('video-progress-text');
 
         // Difficulty Presets
         this.createDifficultyButtons();
@@ -44,8 +38,10 @@ export class UIManager {
         this.customVideoUrl = null;
         this.webcamStream = null;
         this.isMuted = false;
-        this.mediaType = 'video'; // 'video' | 'image' | 'webcam'
+        this.mediaType = 'video';
         this.imageElement = null;
+        this.dedicatedServerUrl = null;
+        this.isReady = false;
 
         this.bindEvents();
         this.updateLeaderboard();
@@ -56,993 +52,584 @@ export class UIManager {
         this.displayPlayerInfo();
         this.bindDragAndDropEvents();
 
-        // Initial server check
-        this.checkServerStatus();
-
-        // Listen for async server updates (e.g. when better server is found)
-        if (this.youTubeManager && this.youTubeManager.setConnectionStatusListener) {
-            this.youTubeManager.setConnectionStatusListener((isOnline, url, isLocal) => {
-                this.updateServerStatusUI(isOnline, url, isLocal);
-            });
-        }
-
-        // Video loading progress tracking
-        this._setupVideoProgressTracking();
-    }
-
-    /**
-     * Setup video loading progress tracking for both preview and main video
-     */
-    _setupVideoProgressTracking() {
-        // Track loading progress for thumbnail preview - using interval-based tracking now
-        // Events are less reliable for streamed video, so we'll handle progress in _updateThumbnailProgress()
-        if (this.thumbnailVideo) {
-            // Show loading on error only
-            this.thumbnailVideo.addEventListener('error', () => this._showVideoLoading(false));
-        }
-
-        // Also track main video for renderer progress callback
-        if (this.videoElement) {
-            this.videoElement.addEventListener('canplaythrough', () => {
-                if (this.renderer && this.renderer.setLoadingProgress) {
-                    this.renderer.setLoadingProgress(100);
-                }
-            });
-        }
-    }
-
-    /**
-     * Show/hide video loading overlay
-     */
-    _showVideoLoading(show) {
-        if (this.videoLoadingOverlay) {
-            this.videoLoadingOverlay.style.opacity = show ? '1' : '0';
-        }
-    }
-
-    /**
-     * Calculate buffer progress percentage
-     */
-    _calculateBufferProgress(video) {
-        if (!video || !video.buffered || video.buffered.length === 0) return 0;
-        
-        const duration = video.duration || 0;
-        if (duration === 0) return 0;
-        
-        // Get the buffered end closest to current time
-        let bufferedEnd = 0;
-        for (let i = 0; i < video.buffered.length; i++) {
-            if (video.buffered.start(i) <= video.currentTime) {
-                bufferedEnd = Math.max(bufferedEnd, video.buffered.end(i));
-            }
-        }
-        
-        // For streaming, we consider "loaded" when we have at least 10 seconds buffered
-        // or the percentage of total duration
-        const minBuffer = Math.min(10, duration); // 10 seconds or full video if shorter
-        const bufferProgress = Math.min(100, (bufferedEnd / minBuffer) * 100);
-        
-        return Math.round(bufferProgress);
-    }
-
-    /**
-     * Update video progress display (called by event)
-     */
-    _updateVideoProgress(video) {
-        const progress = this._calculateBufferProgress(video);
-        this._setThumbnailProgress(progress);
-    }
-    
-    /**
-     * Set thumbnail progress bar value
-     */
-    _setThumbnailProgress(progress) {
-        if (this.videoProgressBar) {
-            this.videoProgressBar.style.width = `${progress}%`;
-        }
-        if (this.videoProgressText) {
-            this.videoProgressText.textContent = `${Math.round(progress)}%`;
-        }
-        
-        // Hide overlay when video is ready to play
-        if (progress >= 100) {
-            this._showVideoLoading(false);
-            if (this._thumbnailProgressInterval) {
-                clearInterval(this._thumbnailProgressInterval);
-                this._thumbnailProgressInterval = null;
-            }
-        }
-    }
-    
-    /**
-     * Continuously update thumbnail progress (time-based + buffer-based)
-     * Tracks MAIN video element so progress is shared with game cubes
-     */
-    _updateThumbnailProgress() {
-        // Clear any existing interval
-        if (this._thumbnailProgressInterval) {
-            clearInterval(this._thumbnailProgressInterval);
-        }
-        
-        this._thumbnailProgressInterval = setInterval(() => {
-            // Check if MAIN video has ACTUAL frames (not just metadata)
-            if (this.videoElement && this.videoElement.readyState >= 2 && 
-                this.videoElement.videoWidth > 0 && this.videoElement.videoHeight > 0) {
-                this._setThumbnailProgress(100);
-                this._videoLoadingComplete = true;
-                return;
-            }
-            
-            // Time-based progress simulation - fast 3s curve
-            const elapsed = (Date.now() - this._videoLoadStart) / 1000;
-            // Fast curve: 80% at 2s, 95% at 3s
-            const timeProgress = Math.min(95, 100 * (1 - Math.exp(-elapsed / 1)));
-            
-            // Check actual buffer on MAIN video
-            let bufferProgress = 0;
-            if (this.videoElement && this.videoElement.buffered && this.videoElement.buffered.length > 0) {
-                const duration = this.videoElement.duration || 30;
-                const buffered = this.videoElement.buffered.end(this.videoElement.buffered.length - 1);
-                bufferProgress = Math.min(95, (buffered / Math.min(10, duration)) * 100);
-            }
-            
-            this._currentLoadProgress = Math.max(timeProgress, bufferProgress);
-            this._setThumbnailProgress(this._currentLoadProgress);
-        }, 100);
-    }
-    
-    /**
-     * Get the current video loading state for Renderer to use
-     * @returns {Object} Loading state with startTime, progress, and isComplete
-     */
-    getVideoLoadingState() {
-        return {
-            startTime: this._videoLoadStart || null,
-            progress: this._currentLoadProgress || 0,
-            isComplete: this._videoLoadingComplete || false
-        };
-    }
-
-    async checkServerStatus() {
-        if (!this.youTubeManager) return;
-        
-        // Wait for server URL to be resolved before checking health
-        await this.youTubeManager.waitForServerReady();
-        
-        const isOnline = await this.youTubeManager.checkServerHealth();
-        this.updateServerStatusUI(isOnline, this.youTubeManager.serverUrl, this.youTubeManager.isLocalServer);
-    }
-
-    updateServerStatusUI(isOnline, serverUrl, isLocal) {
-        if (this.serverStatusDot && this.serverStatusText) {
-            if (isOnline) {
-                this.serverStatusDot.style.background = '#00ff00';
-                this.serverStatusText.textContent = isLocal ? `Local: ${serverUrl}` : 'Serveur Cloud Connecté';
-                this.serverStatusText.style.color = '#aaffaa';
-                this.serverStatusText.title = `Connecté à ${serverUrl}`;
-            } else {
-                this.serverStatusDot.style.background = '#ff0000';
-                this.serverStatusText.textContent = 'Serveur Déconnecté';
-                this.serverStatusText.style.color = '#ffaaaa';
-                this.serverStatusText.title = `Tentative sur: ${serverUrl}. Vérifiez que le serveur tourne.`;
-            }
-        }
-    }
-
-    async handleUrlLoad() {
-        const url = this.videoUrlInput.value.trim();
-        if (!url) return;
-
-        // UI Feedback
-        const originalContent = this.loadUrlBtn.innerHTML;
-        this.loadUrlBtn.innerHTML = '⏳';
-        this.loadUrlBtn.disabled = true;
-        this.videoFilename.textContent = 'Chargement vidéo...';
-        this.videoFilename.classList.add('custom-video');
-
-        try {
-            // 1. INSTANT FEEDBACK: Show thumbnail from CDN immediately
-            const platform = this.youTubeManager.detectPlatform(url);
-            const videoId = platform ? this.youTubeManager.extractId(url) : null;
-
-            if (platform && videoId && this.thumbnailContainer && this.thumbnailVideo) {
-                const thumbUrl = this.youTubeManager.getThumbnailUrl(videoId, platform.key);
-                if (thumbUrl) {
-                    this.thumbnailVideo.poster = thumbUrl;
-                    this.thumbnailContainer.style.display = 'flex';
-                    if (this.thumbnailTitle) this.thumbnailTitle.textContent = "Récupération des infos...";
-                }
-            }
-
-            // 2. FETCH INFO (Includes validation)
-            const info = await this.youTubeManager.getVideoInfo(url);
-
-            if (info.isLive) {
-                throw new Error("Les flux en direct ne sont pas supportés");
-            }
-
-            // 3. Update UI
-            this.videoFilename.textContent = `[${info.platform}] ${info.title}`;
-            this.videoFilename.classList.add('custom-video');
-            if (this.thumbnailTitle) {
-                this.thumbnailTitle.textContent = info.title;
-                this.thumbnailTitle.title = info.title;
-            }
-
-            // Cleanup previous
-            this.stopWebcam();
-            this.useWebcamCheckbox.checked = false;
-            this.clearPresetHighlights();
-            if (this.customVideoUrl && this.customVideoUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(this.customVideoUrl);
-            }
-
-            this.mediaType = 'video';
-
-            // 4. Update video elements
-            // Note: We use the proxy stream URL because direct googlevideo URLs
-            // don't support CORS which is required for WebGL textures.
-            // The server now uses cached direct URLs internally for fast streaming!
-            const streamUrl = this.youTubeManager.getStreamUrl();
-            this.customVideoUrl = streamUrl;
-
-            // Preview video with loading progress
-            if (this.thumbnailVideo && this.thumbnailContainer) {
-                // Show loading overlay
-                this._showVideoLoading(true);
-                this._videoLoadStart = Date.now(); // Track when loading started (shared with Renderer)
-                this._videoLoadingComplete = false;
-                this._currentLoadProgress = 0;
-                this._updateThumbnailProgress(); // Start progress updates on MAIN video
-                
-                this.thumbnailVideo.src = streamUrl;
-                this.thumbnailContainer.style.display = 'flex';
-                // Hide title overlay so video is clearly visible
-                if (this.thumbnailTitle) this.thumbnailTitle.style.display = 'none';
-                this.thumbnailVideo.play().catch(e => console.warn("Thumbnail autoplay prevented", e));
-            }
-
-            // Main game video - Start loading immediately for pre-buffering
-            this.videoElement.src = streamUrl;
-            this.videoElement.crossOrigin = 'anonymous';
-            this.videoElement.load();
-
-            try {
-                // Play muted initially to allow buffering without noise
-                this.videoElement.muted = true;
-                await this.videoElement.play();
-            } catch (e) {
-                console.warn("Auto-play prevented", e);
-            }
-            
-            // We will unmute only when game starts
-            // this.videoElement.muted = false;
-
-            // Notify Renderer
-            if (this.renderer && this.renderer.updateMediaTexture) {
-                this.renderer.updateMediaTexture('video', this.videoElement);
-            }
-
-        } catch (error) {
-            console.error(error);
-            this.videoFilename.textContent = `Erreur: ${error.message}`;
-            this.videoFilename.classList.add('custom-video');
-
-            // Hide preview on error
-            if (this.thumbnailContainer) this.thumbnailContainer.style.display = 'none';
-            if (this.thumbnailVideo) {
-                this.thumbnailVideo.src = '';
-                this.thumbnailVideo.poster = '';
-            }
-            // Show title again in case it was hidden
-            if (this.thumbnailTitle) this.thumbnailTitle.style.display = 'block';
-
-            alert(`Erreur de chargement: ${error.message}`);
-        } finally {
-            this.loadUrlBtn.innerHTML = originalContent;
-            this.loadUrlBtn.disabled = false;
-        }
-    }
-
-    displayPlayerInfo() {
-        const playerInfo = this.scoreManager.getPlayerInfo();
-        const container = document.getElementById('ui-container');
-        if (container) {
-            let playerBadge = document.getElementById('player-badge');
-            if (!playerBadge) {
-                playerBadge = document.createElement('div');
-                playerBadge.id = 'player-badge';
-                playerBadge.style.fontSize = '0.8em';
-                playerBadge.style.opacity = '0.7';
-                playerBadge.style.marginTop = '5px';
-                container.appendChild(playerBadge);
-            }
-            playerBadge.textContent = `👤 Joueur: ${playerInfo.codename}`;
-        }
-    }
-
-    getBackgroundName() {
-        if (this.useWebcamCheckbox.checked) return 'Webcam';
-        if (this.customVideoUrl) {
-            const fileName = this.videoFilename.textContent;
-            return `Custom: ${fileName}`;
-        }
-        // Extract name from preset value
-        const activePreset = document.querySelector('.preset-item.active');
-        return activePreset ? activePreset.querySelector('span').textContent : 'Default';
+        // Multiplayer UI init
+        this.initMultiplayerUI();
     }
 
     createDifficultyButtons() {
-        const container = document.querySelector('.menu-box');
+        const container = document.querySelector('.menu-box h2');
         if (!container) return;
 
         const presetContainer = document.createElement('div');
-        presetContainer.className = 'preset-container';
-        presetContainer.style.marginBottom = '20px';
-        presetContainer.style.display = 'flex';
-        presetContainer.style.gap = '10px';
-        presetContainer.style.justifyContent = 'center';
+        presetContainer.className = 'difficulty-presets';
 
         const presets = [
-            { name: 'Easy', w: 10, h: 10, b: 10 },
-            { name: 'Medium', w: 16, h: 16, b: 40 },
-            { name: 'Hard', w: 30, h: 16, b: 99 }
+            { name: 'Débutant', width: 9, height: 9, bombs: 10 },
+            { name: 'Intermédiaire', width: 16, height: 16, bombs: 40 },
+            { name: 'Expert', width: 30, height: 16, bombs: 99 },
+            { name: 'Géant', width: 50, height: 30, bombs: 250 }
         ];
 
-        presets.forEach(p => {
+        presets.forEach(preset => {
             const btn = document.createElement('button');
-            btn.textContent = p.name;
             btn.className = 'preset-btn';
-            btn.style.padding = '6px 12px';
-            btn.style.borderRadius = '8px';
-            btn.style.border = '1px solid rgba(255,255,255,0.3)';
-            btn.style.background = 'rgba(255,255,255,0.1)';
-            btn.style.color = 'white';
-            btn.style.cursor = 'pointer';
-            btn.style.transition = 'all 0.2s';
-
-            btn.onmouseover = () => btn.style.background = 'rgba(255,255,255,0.2)';
-            btn.onmouseout = () => btn.style.background = 'rgba(255,255,255,0.1)';
-
+            btn.textContent = preset.name;
+            btn.title = `${preset.width}×${preset.height}, ${preset.bombs} bombes`;
             btn.onclick = () => {
-                this.widthInput.value = p.w;
-                this.heightInput.value = p.h;
-                this.bombInput.value = p.b;
-                // Highlight effect
-                btn.style.background = 'rgba(255,255,255,0.4)';
-                setTimeout(() => btn.style.background = 'rgba(255,255,255,0.1)', 200);
+                this.widthInput.value = preset.width;
+                this.heightInput.value = preset.height;
+                this.bombInput.value = preset.bombs;
+                document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
             };
             presetContainer.appendChild(btn);
         });
 
-        // Insert before inputs
-        const firstDirectChild = container.querySelector('.input-row, .input-group');
-        if (firstDirectChild) {
-            container.insertBefore(presetContainer, firstDirectChild);
-        } else {
-            container.appendChild(presetContainer);
-        }
+        container.after(presetContainer);
     }
 
-    /**
-     * Check if a saved grid exists and show/hide replay button accordingly
-     */
     checkReplayAvailable() {
-        const savedGrid = localStorage.getItem('minesweeper3d_last_grid');
-        if (savedGrid && this.replayBtn) {
-            this.replayBtn.style.display = 'block';
-        } else if (this.replayBtn) {
-            this.replayBtn.style.display = 'none';
+        const savedMines = localStorage.getItem('lastMinePositions');
+        const savedConfig = localStorage.getItem('lastGameConfig');
+
+        if (savedMines && savedConfig && this.replayBtn) {
+            this.replayBtn.style.display = 'inline-block';
         }
     }
 
-    /**
-     * Handle replay button click - start game with saved mine positions
-     */
-    handleReplay() {
-        const savedGrid = localStorage.getItem('minesweeper3d_last_grid');
-        if (!savedGrid) return;
+    displayPlayerInfo() {
+        const playerInfo = document.querySelector('#ui-container > p:first-of-type');
+        if (!playerInfo) return;
 
-        const gridData = JSON.parse(savedGrid);
+        const playerName = localStorage.getItem('playerName') || this.generatePlayerName();
+        localStorage.setItem('playerName', playerName);
 
-        // Update input fields to reflect replay grid settings
-        this.widthInput.value = gridData.width;
-        this.heightInput.value = gridData.height;
-        this.bombInput.value = gridData.bombCount;
-        if (this.noGuessCheckbox) {
-            this.noGuessCheckbox.checked = gridData.noGuessMode;
-        }
+        const playerDisplay = document.createElement('p');
+        playerDisplay.style.cssText = 'margin-top: 5px; font-size: 0.8em; opacity: 0.8;';
+        playerDisplay.innerHTML = `👤 Joueur: ${playerName}`;
+        playerInfo.after(playerDisplay);
+    }
 
-        // Hide menu
-        this.menuOverlay.style.display = 'none';
-
-        // Track replay analytics
-        const bgName = this.getBackgroundName();
-        this.scoreManager.trackGameEvent({
-            type: 'replay',
-            background: bgName,
-            width: gridData.width,
-            height: gridData.height,
-            bombs: gridData.bombCount
-        });
-
-        // Start game with replay data
-        if (this.onStartGame) {
-            const useHoverHelper = this.hoverHelperCheckbox ? this.hoverHelperCheckbox.checked : true;
-            this.onStartGame(
-                gridData.width,
-                gridData.height,
-                gridData.bombCount,
-                useHoverHelper,
-                gridData.noGuessMode,
-                bgName,
-                gridData.minePositions // Pass mine positions for replay
-            );
-        }
+    generatePlayerName() {
+        const adjectives = ['Swift', 'Brave', 'Clever', 'Lucky', 'Mighty', 'Shadow', 'Golden', 'Silver', 'Crystal', 'Omega'];
+        const nouns = ['Wolf', 'Eagle', 'Tiger', 'Dragon', 'Phoenix', 'Knight', 'Mage', 'Hunter', 'Core', 'Star'];
+        const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+        const noun = nouns[Math.floor(Math.random() * nouns.length)];
+        const num = Math.floor(Math.random() * 1000);
+        return `${adj} ${noun} #${num}`;
     }
 
     bindEvents() {
-        this.startBtn.addEventListener('click', () => this.handleStart());
-        this.clearScoresBtn.addEventListener('click', () => this.handleClearScores());
+        // Start solo game
+        this.startBtn?.addEventListener('click', () => this.handleStartClick());
+
+        // Video/Image upload
+        this.videoUpload?.addEventListener('change', (e) => this.handleMediaUpload(e));
+
+        // Webcam toggle
+        this.useWebcamCheckbox?.addEventListener('change', () => this.handleWebcamToggle());
+
+        // Clear scores
+        this.clearScoresBtn?.addEventListener('click', () => this.clearScores());
+
+        // Mute toggle
+        this.muteBtn?.addEventListener('click', () => this.toggleMute());
+
+        // Flag style toggle
+        this.flagStyleBtn?.addEventListener('click', () => this.toggleFlagStyle());
 
         // Replay button
-        if (this.replayBtn) {
-            this.replayBtn.addEventListener('click', () => this.handleReplay());
-        }
+        this.replayBtn?.addEventListener('click', () => this.handleReplay());
 
-        this.videoUpload.addEventListener('change', (e) => this.handleVideoUpload(e));
-        this.useWebcamCheckbox.addEventListener('change', (e) => this.handleWebcamToggle(e));
-
-        if (this.loadUrlBtn) {
-            this.loadUrlBtn.addEventListener('click', () => this.handleUrlLoad());
-        }
-        if (this.videoUrlInput) {
-            this.videoUrlInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.handleUrlLoad();
-            });
-        }
-
-        // Visual Preset Selector Logic
-        const presetItems = document.querySelectorAll('.preset-item');
-        presetItems.forEach(item => {
-            // Ensure videos are playing
-            const v = item.querySelector('video');
-            if (v) v.play().catch(() => { });
-
+        // Background preset clicks
+        document.querySelectorAll('#background-presets-container .preset-item').forEach(item => {
             item.addEventListener('click', () => {
-                // Update UI: Remove active from others, add to this
-                presetItems.forEach(i => i.classList.remove('active'));
+                document.querySelectorAll('#background-presets-container .preset-item').forEach(i => i.classList.remove('active'));
                 item.classList.add('active');
-
-                // Update selected value
                 this.selectedPresetValue = item.dataset.value;
-
-                // When clicking a preset, we want to clear any custom upload/webcam
-                this.stopWebcam();
-                this.useWebcamCheckbox.checked = false;
-                this.videoUpload.value = ''; // Important: clear the file input
-
-                // Always reset to the selected preset (clearing custom URLs)
-                this.resetToDefaultVideo();
+                this.customVideoUrl = null;
+                this.videoFilename.textContent = 'Utilise le préréglage ci-dessus';
             });
         });
-
-        this.muteBtn.addEventListener('click', () => this.toggleMute());
-
-        // Flag style toggle (particle ↔ 3D)
-        if (this.flagStyleBtn) {
-            this.flagStyleBtn.addEventListener('click', () => this.toggleFlagStyle());
-        }
-    }
-
-    toggleFlagStyle() {
-        this.currentFlagStyle = this.currentFlagStyle === 'particle' ? '3d' : 'particle';
-        if (this.renderer) {
-            this.renderer.flagStyle = this.currentFlagStyle;
-            // Force refresh of existing flags
-            this.refreshFlags();
-        }
-        this.updateFlagStyleButton();
-    }
-
-    updateFlagStyleButton() {
-        if (!this.flagStyleBtn) return;
-        this.flagStyleBtn.textContent = this.currentFlagStyle === 'particle' ? '⭐ ÉTOILES' : '🚩 DRAPEAUX';
-        this.flagStyleBtn.title = this.currentFlagStyle === 'particle' ? 'Basculer vers les drapeaux 3D' : 'Basculer vers les étoiles scintillantes';
-    }
-
-    refreshFlags() {
-        if (!this.renderer) return;
-
-        // Collect current flag positions
-        const activeFlags = [];
-        for (let x = 0; x < this.renderer.game.width; x++) {
-            for (let y = 0; y < this.renderer.game.height; y++) {
-                if (this.renderer.game.flags[x][y]) {
-                    activeFlags.push({ x, y });
-                }
-            }
-        }
-
-        // Clear all current visuals
-        this.renderer.flagEmitters.forEach(emitter => emitter.alive = false);
-        this.renderer.flagEmitters.clear();
-
-        this.renderer.flag3DMeshes.forEach(flag => this.renderer.scene.remove(flag));
-        this.renderer.flag3DMeshes.clear();
-
-        // Recreate with new style
-        for (const { x, y } of activeFlags) {
-            this.renderer.updateFlagVisual(x, y, true);
-        }
-    }
-
-
-    async handleStart() {
-        const MIN_DIM = 10;
-        const MAX_W = parseInt(this.widthInput.max, 10) || 60;
-        const MAX_H = parseInt(this.heightInput.max, 10) || 60;
-
-        let width = parseInt(this.widthInput.value) || 30;
-        let height = parseInt(this.heightInput.value) || 20;
-        width = Math.min(Math.max(width, MIN_DIM), MAX_W);
-        height = Math.min(Math.max(height, MIN_DIM), MAX_H);
-
-        this.widthInput.value = width;
-        this.heightInput.value = height;
-
-        const bombs = parseInt(this.bombInput.value) || 50;
-
-        // Configuration de la source vidéo
-        if (this.videoUpload.files && this.videoUpload.files[0]) {
-            this.stopWebcam();
-            this.videoElement.muted = false;
-        } else if (this.useWebcamCheckbox.checked) {
-            const ok = await this.startWebcam();
-            if (!ok) {
-                this.useWebcamCheckbox.checked = false;
-                this.resetToDefaultVideo();
-            }
-        } else {
-            this.stopWebcam();
-            // Don't force reset here if we already have a valid custom URL or preset loaded
-            // But we do want to ensure sound is on if it's a video
-            if (this.mediaType === 'video') {
-                this.videoElement.muted = false;
-            }
-        }
-
-        // Only try to play if it is a video (webcam or file)
-        if (this.mediaType !== 'image') {
-            this.videoElement.play().catch(e => console.warn("Auto-lecture bloquée:", e));
-        }
-
-        this.menuOverlay.style.display = 'none';
-
-        // Track game start analytics
-        const bgName = this.getBackgroundName();
-        this.scoreManager.trackGameEvent({
-            type: 'start',
-            background: bgName,
-            width: width,
-            height: height,
-            bombs: bombs
-        });
-
-        if (this.onStartGame) {
-            const useHoverHelper = this.hoverHelperCheckbox ? this.hoverHelperCheckbox.checked : true;
-            const noGuessMode = this.noGuessCheckbox ? this.noGuessCheckbox.checked : false;
-            this.onStartGame(width, height, bombs, useHoverHelper, noGuessMode, bgName);
-        }
-    }
-
-
-    resetToDefaultVideo() {
-        if (this.customVideoUrl) {
-            URL.revokeObjectURL(this.customVideoUrl);
-            this.customVideoUrl = null;
-        }
-
-        const [type, path] = this.selectedPresetValue.split(':');
-
-        this.videoFilename.textContent = 'Utilise le préréglage sélectionné';
-        this.videoFilename.classList.remove('custom-video');
-        this.videoUpload.value = ''; // Ensure file input is cleared
-
-        if (type === 'video') {
-            this.mediaType = 'video';
-            this.imageElement = null; // Clear any image
-            const customImageElement = document.getElementById('custom-image-source');
-            if (customImageElement) customImageElement.src = '';
-
-            this.videoElement.crossOrigin = '';
-            this.videoElement.src = path;
-            this.videoElement.load();
-            this.videoElement.muted = false;
-            this.videoElement.removeAttribute('muted');
-
-            // Notify renderer
-            if (this.renderer && this.renderer.updateMediaTexture) {
-                this.renderer.updateMediaTexture('video', this.videoElement);
-            }
-        } else {
-            this.mediaType = 'image';
-            this.videoElement.pause();
-
-            // Update hidden img source
-            const customImageElement = document.getElementById('custom-image-source');
-            if (customImageElement) customImageElement.src = path;
-
-            // Load new image
-            const img = new Image();
-            img.onload = () => {
-                this.imageElement = img;
-                if (this.renderer && this.renderer.updateMediaTexture) {
-                    this.renderer.updateMediaTexture('image', img);
-                }
-            };
-            img.src = path;
-        }
-
-        // Clear URL input
-        if (this.videoUrlInput) this.videoUrlInput.value = '';
-
-        // Hide streaming thumbnail
-        if (this.thumbnailContainer) this.thumbnailContainer.style.display = 'none';
-        if (this.thumbnailVideo) {
-            this.thumbnailVideo.src = '';
-            this.thumbnailVideo.poster = '';
-        }
-    }
-
-    handleVideoUpload(e) {
-        const file = e.target.files[0];
-        if (file) this.processFile(file);
-    }
-
-    async processFile(file) {
-        if (!file) return;
-
-        this.stopWebcam();
-        this.useWebcamCheckbox.checked = false;
-        this.clearPresetHighlights();
-
-        // Hide streaming thumbnail when using local file
-        if (this.thumbnailContainer) this.thumbnailContainer.style.display = 'none';
-        if (this.thumbnailVideo) {
-            this.thumbnailVideo.src = '';
-            this.thumbnailVideo.poster = '';
-        }
-
-        let fileToProcess = file;
-
-        // HEIC Support
-        const isHEIC = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic';
-
-        if (isHEIC && typeof heic2any === 'function') {
-            try {
-                this.videoFilename.textContent = 'Conversion HEIC... ⏳';
-                this.videoFilename.classList.add('custom-video');
-
-                const convertedBlob = await heic2any({
-                    blob: file,
-                    toType: "image/jpeg",
-                    quality: 0.8
-                });
-
-                // Result can be an array if multiple images in HEIC, take first
-                const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
-                fileToProcess = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" });
-            } catch (err) {
-                console.error("Erreur conversion HEIC:", err);
-                this.videoFilename.textContent = 'Erreur conversion HEIC';
-                return;
-            }
-        }
-
-        if (this.customVideoUrl) {
-            URL.revokeObjectURL(this.customVideoUrl);
-        }
-        this.customVideoUrl = URL.createObjectURL(fileToProcess);
-
-        const isImage = fileToProcess.type.startsWith('image/');
-        const isVideo = fileToProcess.type.startsWith('video/');
-
-        if (isImage) {
-            this.handleImageFile(fileToProcess);
-        } else if (isVideo) {
-            this.handleVideoFile(fileToProcess);
-        }
     }
 
     bindDragAndDropEvents() {
-        const dropZone = this.menuOverlay;
-
-        const preventDefaults = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-        };
+        const dropZone = document.querySelector('.menu-box');
+        if (!dropZone) return;
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
         });
 
-        // Add visual indicator
-        let dragCounter = 0;
-
-        dropZone.addEventListener('dragenter', (e) => {
-            dragCounter++;
-            dropZone.classList.add('is-dragover');
-        });
-
-        dropZone.addEventListener('dragleave', (e) => {
-            dragCounter--;
-            if (dragCounter === 0) {
-                dropZone.classList.remove('is-dragover');
-            }
-        });
-
+        dropZone.addEventListener('dragenter', () => dropZone.classList.add('drag-over'));
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
         dropZone.addEventListener('drop', (e) => {
-            dragCounter = 0;
-            dropZone.classList.remove('is-dragover');
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                this.processFile(file);
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer?.files;
+            if (files?.length > 0) {
+                this.processDroppedFile(files[0]);
             }
         });
     }
 
-
-    handleImageFile(file) {
-        this.mediaType = 'image';
-        const customImageElement = document.getElementById('custom-image-source');
-        if (customImageElement) {
-            customImageElement.src = this.customVideoUrl;
+    processDroppedFile(file) {
+        if (file.type.startsWith('video/') || file.type.startsWith('image/') ||
+            file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+            const input = this.videoUpload;
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            input.files = dt.files;
+            input.dispatchEvent(new Event('change'));
         }
-        const img = new Image();
-        img.onload = () => {
-            this.imageElement = img;
-            if (this.renderer && this.renderer.updateMediaTexture) {
-                this.renderer.updateMediaTexture('image', img);
+    }
+
+    initMultiplayerUI() {
+        // Check multiplayer server availability
+        this.checkServerAvailability();
+
+        // Connect button
+        document.getElementById('btn-connect-server')?.addEventListener('click', () => {
+            this.connectToServer();
+        });
+
+        // Difficulty buttons for host
+        document.querySelectorAll('.mp-diff-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mp-diff-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        // Selected difficulty config
+        this.mpDifficulty = { easy: { w: 9, h: 9, b: 10 }, medium: { w: 16, h: 16, b: 40 }, hard: { w: 30, h: 16, b: 99 } };
+
+        // Bind Host/Guest actions here (once) to prevent duplicate listeners
+        this.bindMultiplayerActions();
+    }
+
+    bindMultiplayerActions() {
+        // Create Game (Host)
+        const createBtn = document.getElementById('btn-create-game');
+        createBtn?.addEventListener('click', () => {
+            if (createBtn.disabled) return;
+            createBtn.disabled = true; // Prevent double click
+
+            const activeBtn = document.querySelector('.mp-diff-btn.active');
+            const diff = activeBtn?.dataset.diff || 'medium';
+            const { w, h, b } = this.mpDifficulty[diff];
+
+            networkManager.createGame(w, h, b);
+
+            // Show waiting state
+            document.getElementById('host-actions')?.classList.add('hidden');
+            document.getElementById('host-waiting')?.classList.remove('hidden');
+            document.querySelectorAll('.mp-diff-btn').forEach(btn => btn.disabled = true);
+        });
+
+        // Leave Host
+        document.getElementById('btn-leave-host')?.addEventListener('click', () => {
+            this.leaveMultiplayer();
+        });
+
+        // Join Game (Guest)
+        const joinBtn = document.getElementById('btn-join-game');
+        joinBtn?.addEventListener('click', () => {
+            if (joinBtn.disabled) return;
+            joinBtn.disabled = true; // Prevent double click
+            networkManager.joinGame();
+        });
+
+        // Leave Guest
+        document.getElementById('btn-leave-guest')?.addEventListener('click', () => {
+            this.leaveMultiplayer();
+        });
+    }
+
+    async checkServerAvailability() {
+        const indicator = document.getElementById('server-indicator');
+        const statusText = document.getElementById('server-status-text');
+        const connectBtn = document.getElementById('btn-connect-server');
+
+        if (!indicator || !statusText) return;
+
+        indicator.className = 'checking';
+        statusText.textContent = 'Vérification du serveur...';
+
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3000);
+
+            const response = await fetch(`${DEDICATED_SERVER_URL}/health`, {
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (response.ok) {
+                indicator.className = 'online';
+                statusText.textContent = 'Serveur disponible';
+                this.dedicatedServerUrl = DEDICATED_SERVER_URL;
+                if (connectBtn) connectBtn.disabled = false;
+            } else {
+                throw new Error('Server error');
+            }
+        } catch (err) {
+            indicator.className = 'offline';
+            statusText.textContent = 'Serveur hors ligne';
+            this.dedicatedServerUrl = null;
+            if (connectBtn) connectBtn.disabled = true;
+        }
+    }
+
+    async connectToServer() {
+        const playerName = document.getElementById('server-name')?.value || 'Joueur';
+
+        if (!this.dedicatedServerUrl) {
+            alert('Serveur non disponible');
+            return;
+        }
+
+        try {
+            const welcomeData = await networkManager.connectToServer(this.dedicatedServerUrl, playerName);
+
+            // Hide connect panel
+            document.getElementById('mp-connect')?.classList.add('hidden');
+
+            // Show appropriate lobby based on role
+            if (networkManager.isHost) {
+                this.showHostLobby();
+            } else {
+                this.showGuestLobby();
+            }
+
+            // Setup event handlers
+            this.setupNetworkHandlers();
+
+        } catch (err) {
+            alert('Connexion au serveur échouée');
+        }
+    }
+
+    showHostLobby() {
+        document.getElementById('mp-host-lobby')?.classList.remove('hidden');
+        document.getElementById('mp-guest-lobby')?.classList.add('hidden');
+
+        // Reset button state
+        const createBtn = document.getElementById('btn-create-game');
+        if (createBtn) createBtn.disabled = false;
+
+        document.getElementById('host-actions')?.classList.remove('hidden');
+        document.getElementById('host-waiting')?.classList.add('hidden');
+        document.querySelectorAll('.mp-diff-btn').forEach(btn => btn.disabled = false);
+    }
+
+    showGuestLobby() {
+        document.getElementById('mp-guest-lobby')?.classList.remove('hidden');
+        document.getElementById('mp-host-lobby')?.classList.add('hidden');
+
+        // Reset button state
+        const joinBtn = document.getElementById('btn-join-game');
+        if (joinBtn) joinBtn.disabled = false;
+    }
+
+    setupNetworkHandlers() {
+        // Lobby updates
+        networkManager.onLobbyUpdate = (lobbyState) => {
+            console.log('[UI] Lobby update:', lobbyState);
+
+            // If game is created and we're the guest, show join button
+            if (lobbyState.gameCreated && !networkManager.isHost) {
+                document.getElementById('guest-waiting')?.classList.add('hidden');
+                document.getElementById('guest-ready')?.classList.remove('hidden');
+
+                const cfg = lobbyState.config;
+                const configEl = document.getElementById('guest-config');
+                if (configEl && cfg) {
+                    configEl.textContent = `Partie: ${cfg.width}×${cfg.height} avec ${cfg.bombCount} 💣`;
+                }
             }
         };
-        img.src = this.customVideoUrl;
-        this.videoFilename.textContent = file.name;
-        this.videoFilename.classList.add('custom-video');
-        this.videoElement.pause();
-    }
 
-    handleVideoFile(file) {
-        this.mediaType = 'video';
-        this.imageElement = null;
-        const customImageElement = document.getElementById('custom-image-source');
-        if (customImageElement) {
-            customImageElement.src = '';
-        }
-        this.videoElement.src = this.customVideoUrl;
-        this.videoElement.load();
-        this.videoFilename.textContent = file.name;
-        this.videoFilename.classList.add('custom-video');
-        this.videoElement.muted = false;
-        this.videoElement.removeAttribute('muted');
-        if (this.renderer && this.renderer.updateMediaTexture) {
-            this.renderer.updateMediaTexture('video', this.videoElement);
-        }
-    }
+        // Game created (for host, shows waiting message)
+        networkManager.onGameCreated = (data) => {
+            console.log('[UI] Game created:', data);
+        };
 
-    async startWebcam() {
-        try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
-            this.webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            this.videoElement.srcObject = this.webcamStream;
-            this.videoElement.muted = false;
-            this.videoElement.removeAttribute('muted');
-            this.mediaType = 'webcam';
-            this.imageElement = null;
-            this.videoFilename.textContent = 'Webcam active';
-            this.videoFilename.classList.add('custom-video');
-            // Notify renderer if it exists
-            if (this.renderer && this.renderer.updateMediaTexture) {
-                this.renderer.updateMediaTexture('video', this.videoElement);
-            }
-            return true;
-        } catch (err) {
-            console.warn('Webcam unavailable:', err);
-            this.stopWebcam();
-            return false;
-        }
-    }
+        // Game starts
+        networkManager.onGameStart = async (state) => {
+            console.log('[UI] Game starting with state:', state);
 
-    /**
-     * Wait for video element to be ready to play
-     * @param {HTMLVideoElement} video
-     * @returns {Promise<void>}
-     */
-    waitForVideoReady(video) {
-        return new Promise((resolve) => {
-            // If video already has enough data, resolve immediately
-            if (video.readyState >= 3) { // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
-                video.play().catch(() => { });
-                resolve();
-                return;
+            // Set multiplayer mode flag
+            networkManager._isMultiplayer = true;
+
+            await this.setupBackgroundForMultiplayer();
+            this.menuOverlay.style.display = 'none';
+
+            if (this.onStartGame) {
+                // Pass mine positions from server
+                this.onStartGame(state.width, state.height, state.bombCount, true, false, 'Multiplayer', state.minePositions);
             }
 
-            const onCanPlay = () => {
-                cleanup();
-                video.play().catch(() => { });
-                resolve();
-            };
-
-            const onError = (e) => {
-                cleanup();
-                console.warn('Video error while waiting:', e);
-                resolve(); // Continue anyway
-            };
-
-            const cleanup = () => {
-                video.removeEventListener('canplay', onCanPlay);
-                video.removeEventListener('canplaythrough', onCanPlay);
-                video.removeEventListener('loadeddata', onCanPlay);
-                video.removeEventListener('error', onError);
-            };
-
-            video.addEventListener('canplay', onCanPlay);
-            video.addEventListener('canplaythrough', onCanPlay);
-            video.addEventListener('loadeddata', onCanPlay);
-            video.addEventListener('error', onError);
-
-            // Timeout after 15 seconds
+            // Apply state sync after a short delay
             setTimeout(() => {
-                cleanup();
-                console.warn('Video load timeout, starting anyway');
-                video.play().catch(() => { });
-                resolve();
-            }, 15000);
-        });
+                if (networkManager.onStateSync) {
+                    networkManager.onStateSync(state);
+                }
+            }, 300);
+        };
+
+        // Host left
+        networkManager.onHostLeft = () => {
+            alert('L\'hôte a quitté la partie');
+            this.leaveMultiplayer();
+        };
     }
 
-    stopWebcam() {
-        if (this.webcamStream) {
-            this.webcamStream.getTracks().forEach(t => t.stop());
-            this.webcamStream = null;
+    leaveMultiplayer() {
+        networkManager.disconnect();
+        document.getElementById('mp-host-lobby')?.classList.add('hidden');
+        document.getElementById('mp-guest-lobby')?.classList.add('hidden');
+        document.getElementById('mp-connect')?.classList.remove('hidden');
+
+        // Re-enable buttons just in case
+        const createBtn = document.getElementById('btn-create-game');
+        if (createBtn) createBtn.disabled = false;
+
+        const joinBtn = document.getElementById('btn-join-game');
+        if (joinBtn) joinBtn.disabled = false;
+
+        // Reset host UI
+        document.getElementById('host-actions')?.classList.remove('hidden');
+        document.getElementById('host-waiting')?.classList.add('hidden');
+        document.querySelectorAll('.mp-diff-btn').forEach(btn => btn.disabled = false);
+
+        // Reset guest UI
+        document.getElementById('guest-waiting')?.classList.remove('hidden');
+        document.getElementById('guest-ready')?.classList.add('hidden');
+    }
+
+    async setupBackgroundForMultiplayer() {
+        const videoElement = document.getElementById('image');
+        if (videoElement) {
+            videoElement.muted = true;
+            videoElement.load();
+            await new Promise(resolve => {
+                const check = () => {
+                    if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
+                        videoElement.play().catch(() => { });
+                        resolve();
+                    } else {
+                        setTimeout(check, 50);
+                    }
+                };
+                check();
+                setTimeout(resolve, 3000);
+            });
         }
-        if (this.videoElement.srcObject) {
+    }
+
+    async handleStartClick() {
+        const width = parseInt(this.widthInput.value) || 30;
+        const height = parseInt(this.heightInput.value) || 20;
+        const bombs = parseInt(this.bombInput.value) || 50;
+        const noGuessMode = this.noGuessCheckbox?.checked || false;
+        const useHoverHelper = this.hoverHelperCheckbox?.checked ?? true;
+
+        // Setup background
+        const bgResult = await this.setupBackground();
+
+        // Hide menu and start
+        this.menuOverlay.style.display = 'none';
+
+        if (this.onStartGame) {
+            this.onStartGame(width, height, bombs, useHoverHelper, noGuessMode, bgResult);
+        }
+    }
+
+    async setupBackground() {
+        // Webcam
+        if (this.useWebcamCheckbox?.checked) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                this.webcamStream = stream;
+                this.videoElement.srcObject = stream;
+                await this.videoElement.play();
+                this.mediaType = 'webcam';
+                return 'Webcam';
+            } catch (e) {
+                console.warn('Webcam failed, using default');
+            }
+        }
+
+        // Custom uploaded file
+        if (this.customVideoUrl) {
+            this.videoElement.src = this.customVideoUrl;
+            await this.videoElement.play().catch(() => { });
+            return 'Custom Upload';
+        }
+
+        // Preset
+        if (this.selectedPresetValue) {
+            const [type, path] = this.selectedPresetValue.split(':');
+            if (type === 'video') {
+                this.videoElement.src = path;
+                await this.videoElement.play().catch(() => { });
+                this.mediaType = 'video';
+            } else if (type === 'image') {
+                const img = document.getElementById('custom-image-source');
+                if (img) {
+                    img.src = path;
+                    this.imageElement = img;
+                    this.mediaType = 'image';
+                }
+            }
+            return path.split('/').pop();
+        }
+
+        return 'Default';
+    }
+
+    handleMediaUpload(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const url = URL.createObjectURL(file);
+
+        if (file.type.startsWith('video/')) {
+            this.customVideoUrl = url;
+            this.mediaType = 'video';
+            this.videoFilename.textContent = file.name;
+        } else if (file.type.startsWith('image/') || file.name.match(/\.(heic|heif)$/i)) {
+            this.handleImageUpload(file, url);
+        }
+
+        document.querySelectorAll('#background-presets-container .preset-item').forEach(i => i.classList.remove('active'));
+    }
+
+    async handleImageUpload(file, url) {
+        const img = document.getElementById('custom-image-source');
+        if (!img) return;
+
+        if (file.name.match(/\.(heic|heif)$/i) && window.heic2any) {
+            try {
+                const blob = await heic2any({ blob: file, toType: 'image/jpeg' });
+                url = URL.createObjectURL(blob);
+            } catch (e) {
+                console.error('HEIC conversion failed:', e);
+            }
+        }
+
+        img.src = url;
+        this.imageElement = img;
+        this.mediaType = 'image';
+        this.customVideoUrl = null;
+        this.videoFilename.textContent = file.name;
+    }
+
+    handleWebcamToggle() {
+        if (!this.useWebcamCheckbox?.checked && this.webcamStream) {
+            this.webcamStream.getTracks().forEach(track => track.stop());
+            this.webcamStream = null;
             this.videoElement.srcObject = null;
         }
     }
 
-    handleWebcamToggle(e) {
-        if (e.target.checked) {
-            this.videoUpload.value = '';
-            this.clearPresetHighlights();
-            if (this.thumbnailContainer) this.thumbnailContainer.style.display = 'none';
-            if (this.thumbnailVideo) {
-                this.thumbnailVideo.src = '';
-                this.thumbnailVideo.poster = '';
+    handleReplay() {
+        const savedMines = localStorage.getItem('lastMinePositions');
+        const savedConfig = localStorage.getItem('lastGameConfig');
+
+        if (savedMines && savedConfig) {
+            const mines = JSON.parse(savedMines);
+            const config = JSON.parse(savedConfig);
+
+            this.widthInput.value = config.width;
+            this.heightInput.value = config.height;
+            this.bombInput.value = config.bombs;
+
+            this.menuOverlay.style.display = 'none';
+
+            if (this.onStartGame) {
+                this.onStartGame(
+                    config.width,
+                    config.height,
+                    config.bombs,
+                    config.hoverHelper ?? true,
+                    config.noGuess ?? false,
+                    config.bgName || 'Replay',
+                    mines
+                );
             }
-            if (this.customVideoUrl) {
-                URL.revokeObjectURL(this.customVideoUrl);
-                this.customVideoUrl = null;
-            }
-            this.startWebcam().then(ok => {
-                if (!ok) e.target.checked = false;
-            });
-        } else {
-            this.stopWebcam();
-            this.resetToDefaultVideo(); // Revert to selected preset
         }
-    }
-
-    handleClearScores() {
-        if (confirm('Are you sure you want to clear all scores?')) {
-            this.scoreManager.clearAllScores();
-            this.updateLeaderboard();
-        }
-    }
-
-    updateLeaderboard() {
-        const topScores = this.scoreManager.getTopScores(10);
-
-        if (topScores.length === 0) {
-            this.leaderboardList.innerHTML = '<p class="no-scores">No scores recorded</p>';
-            return;
-        }
-
-        this.leaderboardList.innerHTML = topScores.map((score, index) => {
-            const noGuessBadge = score.noGuessMode ? '<span class="score-badge ng">Logique</span>' : '';
-            const hintsBadge = score.hintCount > 0 ? `<span class="score-badge hints">${score.hintCount} 💡</span>` : '';
-            const retryBadge = score.retryCount > 0 ? `<span class="score-badge retry">${score.retryCount} 🔁</span>` : '';
-
-            return `
-                <div class="score-entry">
-                    <div class="score-rank">#${index + 1}</div>
-                    <div class="score-info">
-                        <div class="score-value">
-                            ${score.score.toLocaleString()} pts
-                            ${noGuessBadge}
-                            ${hintsBadge}
-                            ${retryBadge}
-                        </div>
-                        <div class="score-details">
-                            ${score.width}x${score.height} | ${score.bombs} 💣 | ${this.scoreManager.formatTime(score.time)}
-                            <br>
-                            <span class="score-bg-info">🖼️ ${score.background || 'Défaut'}</span>
-                            <span class="score-player-info">👤 ${score.codename || 'Anonyme'}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
     }
 
     toggleMute() {
         this.isMuted = !this.isMuted;
         this.muteBtn.textContent = this.isMuted ? '🔇 OFF' : '🔊 ON';
-        this.muteBtn.title = this.isMuted ? 'Activer le son' : 'Désactiver le son';
-
-        // Also mute/unmute the video element for video audio
-        if (this.videoElement) {
-            this.videoElement.muted = this.isMuted;
-        }
-
-        if (this.renderer && this.renderer.soundManager) {
+        if (this.renderer?.soundManager) {
             this.renderer.soundManager.setMute(this.isMuted);
         }
     }
 
-    showMenu() {
-        this.menuOverlay.style.display = 'flex';
-        this.hintBtn.style.display = 'none';
-        this.renderer = null; // Clear disposed renderer
+    toggleFlagStyle() {
+        this.currentFlagStyle = this.currentFlagStyle === 'particle' ? '3d' : 'particle';
+        this.updateFlagStyleButton();
+        if (this.renderer?.setFlagStyle) {
+            this.renderer.setFlagStyle(this.currentFlagStyle);
+        }
+    }
 
-        // Stop video playback when returning to menu
-        if (this.videoElement) {
-            this.videoElement.pause();
+    updateFlagStyleButton() {
+        if (this.flagStyleBtn) {
+            this.flagStyleBtn.textContent = this.currentFlagStyle === 'particle' ? '⭐ ÉTOILES' : '🚩 DRAPEAUX';
+        }
+    }
+
+    clearScores() {
+        if (confirm('Effacer tous les scores ?')) {
+            this.scoreManager.clearScores();
+            this.updateLeaderboard();
+        }
+    }
+
+    updateLeaderboard() {
+        const scores = this.scoreManager.getAllScores();
+        if (!this.leaderboardList) return;
+
+        if (scores.length === 0) {
+            this.leaderboardList.innerHTML = '<p class="no-scores">Aucun score enregistré</p>';
+            return;
         }
 
-        this.checkReplayAvailable(); // Refresh replay button visibility
-        this.updateLeaderboard();
+        this.leaderboardList.innerHTML = scores.slice(0, 10).map((s, i) => `
+            <div class="score-entry">
+                <span class="rank">#${i + 1}</span>
+                <span class="score-value">${s.score.toLocaleString()}</span>
+                <span class="score-details">${s.width}×${s.height} • ${s.time}s</span>
+            </div>
+        `).join('');
     }
 
     detectGpuTier() {
-        const gl = document.createElement('canvas').getContext('webgl');
-        if (!gl) return;
-
-        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-        const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : '';
-        const vendor = debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : '';
-        const id = `${vendor} ${renderer}`.toLowerCase();
-
-        const highPatterns = /(rtx 3|rtx 4|rx 6|rx 7|m1|m2|m3|m4)/;
-        let tier = 'medium';
-        if (highPatterns.test(id)) tier = 'high';
-
-        const lowPatterns = /(intel\s+(hd|uhd|iris))/;
-        if (lowPatterns.test(id)) tier = 'low';
-
-        const LIMITS = {
-            high: { maxW: 200, maxH: 150 },
-            medium: { maxW: 140, maxH: 100 },
-            low: { maxW: 100, maxH: 80 }
-        };
-        const { maxW, maxH } = LIMITS[tier] || LIMITS.medium;
-
-        this.widthInput.max = maxW;
-        this.heightInput.max = maxH;
-    }
-
-    setRenderer(renderer) {
-        this.renderer = renderer;
-        if (this.renderer) {
-            // Apply current style to new renderer
-            this.renderer.flagStyle = this.currentFlagStyle;
-            if (this.renderer.soundManager) {
-                this.renderer.soundManager.setMute(this.isMuted);
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (gl) {
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            if (debugInfo) {
+                const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                console.log('[UIManager] GPU:', renderer);
             }
         }
     }
 
-    clearPresetHighlights() {
-        document.querySelectorAll('.preset-item').forEach(i => i.classList.remove('active'));
+    setRenderer(renderer) {
+        this.renderer = renderer;
+    }
+
+    showMenu() {
+        this.menuOverlay.style.display = 'flex';
+        this.updateLeaderboard();
+        this.checkReplayAvailable();
     }
 }

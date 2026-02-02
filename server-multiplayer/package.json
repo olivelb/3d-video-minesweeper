@@ -1,0 +1,20 @@
+{
+  "name": "minesweeper-multiplayer-server",
+  "version": "1.0.0",
+  "description": "Multiplayer server for 3D Minesweeper (no YouTube features)",
+  "main": "multiplayer.js",
+  "type": "module",
+  "scripts": {
+    "start": "node multiplayer.js",
+    "dev": "node --watch multiplayer.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.8.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
