@@ -4,6 +4,7 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { SoundManager } from './SoundManager.js';
 import { ParticleSystem } from './ParticleSystem.js';
+import { networkManager } from './NetworkManager.js';
 
 export class MinesweeperRenderer {
     constructor(game, containerId, scoreManager = null, useHoverHelper = true, bgName = 'Unknown') {
@@ -50,6 +51,9 @@ export class MinesweeperRenderer {
 
         // State for direct instance animation
         this.lastHoveredId = -1;
+
+        // Partner cursor (multiplayer)
+        this.partnerCursor = null;
 
         // Click timing analytics
         this.clickTimestamps = [];
@@ -145,10 +149,10 @@ export class MinesweeperRenderer {
                 // Check if UIManager already has loading state (video pre-buffered)
                 const uiManager = window._minesweeperUIManager;
                 const loadingState = uiManager?.getVideoLoadingState?.() || null;
-                
+
                 // Only skip placeholder if video has ACTUAL visible frames (dimensions > 0)
                 const videoHasFrames = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
-                
+
                 if (videoHasFrames) {
                     // Video already has frames - use it directly
                     this.mediaTexture = new THREE.VideoTexture(video);
@@ -158,7 +162,7 @@ export class MinesweeperRenderer {
                     this.videoTextureReady = true;
                     this.videoTexture = this.mediaTexture;
                     this.setupVideoTextureUpdater(video);
-                    video.play().catch(() => {});
+                    video.play().catch(() => { });
                 } else {
                     // Create a high-quality placeholder canvas for loading animation
                     const canvas = document.createElement('canvas');
@@ -166,7 +170,7 @@ export class MinesweeperRenderer {
                     canvas.height = 512;
                     this._placeholderCanvas = canvas;
                     this._placeholderCtx = canvas.getContext('2d');
-                    
+
                     // Continue from UIManager's progress if available
                     this._loadingProgress = loadingState?.progress || 0;
                     this._loadingStartTime = loadingState?.startTime || Date.now();
@@ -215,20 +219,20 @@ export class MinesweeperRenderer {
                             }
                         }
                     };
-                    
+
                     // Track loading progress - realistic curve for ~12s total (11s extraction + streaming)
                     const updateProgress = () => {
                         const elapsed = (Date.now() - this._loadingStartTime) / 1000;
                         // Realistic curve: 50% at 5s, 80% at 10s, 95% at 12s
                         const simulatedProgress = Math.min(95, 100 * (1 - Math.exp(-elapsed / 5)));
-                        
+
                         // Also check actual buffer if available
                         let bufferProgress = 0;
                         if (video.buffered && video.buffered.length > 0 && video.duration > 0) {
                             const buffered = video.buffered.end(video.buffered.length - 1);
                             bufferProgress = Math.min(95, (buffered / Math.min(10, video.duration)) * 100);
                         }
-                        
+
                         // Use the higher of simulated or actual
                         this.setLoadingProgress(Math.max(simulatedProgress, bufferProgress));
                     };
@@ -374,19 +378,19 @@ export class MinesweeperRenderer {
      */
     _drawLoadingPlaceholder(progress) {
         if (!this._placeholderCtx) return;
-        
+
         const ctx = this._placeholderCtx;
         const w = 512, h = 512;
         const scale = 4; // Scale factor from 128 to 512
-        
+
         // Dark background with subtle gradient
         const time = Date.now() / 1000;
-        const bgGrad = ctx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w * 0.7);
+        const bgGrad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w * 0.7);
         bgGrad.addColorStop(0, '#2a2a4e');
         bgGrad.addColorStop(1, '#1a1a2e');
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, w, h);
-        
+
         // Animated color wave in background
         const waveGrad = ctx.createLinearGradient(0, 0, w, h);
         const hue1 = (time * 20) % 360;
@@ -395,23 +399,23 @@ export class MinesweeperRenderer {
         waveGrad.addColorStop(1, `hsla(${(hue1 + 80) % 360}, 60%, 20%, 0.3)`);
         ctx.fillStyle = waveGrad;
         ctx.fillRect(0, 0, w, h);
-        
+
         // Large spinning ring
         const cx = w / 2;
         const cy = h * 0.38;
         const radius = 60 * scale / 4;
-        
+
         // Outer glow
         ctx.shadowColor = '#f093fb';
         ctx.shadowBlur = 20;
-        
+
         // Background circle
         ctx.strokeStyle = 'rgba(255,255,255,0.1)';
         ctx.lineWidth = 8;
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
         ctx.stroke();
-        
+
         // Progress arc (shows actual progress)
         const progressAngle = (progress / 100) * Math.PI * 2;
         if (progress > 0) {
@@ -425,7 +429,7 @@ export class MinesweeperRenderer {
             ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + progressAngle);
             ctx.stroke();
         }
-        
+
         // Spinning highlight arc
         ctx.strokeStyle = 'rgba(255,255,255,0.6)';
         ctx.lineWidth = 4;
@@ -433,29 +437,29 @@ export class MinesweeperRenderer {
         ctx.beginPath();
         ctx.arc(cx, cy, radius, time * 4, time * 4 + Math.PI * 0.3);
         ctx.stroke();
-        
+
         ctx.shadowBlur = 0;
-        
+
         // Percentage in center of ring
         ctx.fillStyle = '#ffffff';
         ctx.font = `bold ${48}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${Math.round(progress)}%`, cx, cy);
-        
+
         // Progress bar below
         const barY = h * 0.65;
         const barH = 16;
         const barW = w * 0.6;
         const barX = (w - barW) / 2;
         const barRadius = 8;
-        
+
         // Bar background
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
         ctx.beginPath();
         ctx.roundRect(barX, barY, barW, barH, barRadius);
         ctx.fill();
-        
+
         // Bar fill
         const fillW = Math.max(barRadius * 2, barW * (progress / 100));
         if (progress > 0) {
@@ -466,21 +470,21 @@ export class MinesweeperRenderer {
             ctx.beginPath();
             ctx.roundRect(barX, barY, fillW, barH, barRadius);
             ctx.fill();
-            
+
             // Shine effect on bar
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
             ctx.beginPath();
             ctx.roundRect(barX, barY, fillW, barH / 2, [barRadius, barRadius, 0, 0]);
             ctx.fill();
         }
-        
+
         // Loading text
         ctx.fillStyle = '#ffffff';
         ctx.font = `bold ${28}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         ctx.fillText('Chargement vidéo...', w / 2, barY - 20);
-        
+
         // Animated dots
         const dots = Math.floor(time * 2) % 4;
         ctx.fillStyle = '#aaaaaa';
@@ -493,9 +497,9 @@ export class MinesweeperRenderer {
      */
     _animateLoadingPlaceholder() {
         if (!this._placeholderCtx || this.videoTextureReady) return;
-        
+
         this._drawLoadingPlaceholder(this._loadingProgress);
-        
+
         if (this.mediaTexture && this.mediaTexture.isCanvasTexture) {
             this.mediaTexture.needsUpdate = true;
         }
@@ -721,6 +725,13 @@ export class MinesweeperRenderer {
 
         if (intersection.length > 0) {
             this.hoveredInstanceId = intersection[0].instanceId;
+
+            // Send cursor position to partner in multiplayer
+            if (networkManager.mode) {
+                const y = this.hoveredInstanceId % this.game.height;
+                const x = Math.floor(this.hoveredInstanceId / this.game.height);
+                networkManager.sendCursor(x, y);
+            }
         } else {
             this.hoveredInstanceId = -1;
         }
@@ -745,43 +756,93 @@ export class MinesweeperRenderer {
             const x = Math.floor(instanceId / this.game.height);
 
             if (event.button === 0) {
-                // Handling Async Reveal with UI
-                if (this.game.firstClick && this.game.noGuessMode) {
-                    const loadingOverlay = document.getElementById('loading-overlay');
-                    const loadingDetails = document.getElementById('loading-details');
-                    const cancelBtn = document.getElementById('cancel-gen-btn');
-
-                    loadingOverlay.style.display = 'flex';
-                    loadingDetails.textContent = "Initialisation...";
-
-                    const onProgress = (attempt, max) => {
-                        loadingDetails.textContent = `Tentative ${attempt} / ${max}`;
-                    };
-
-                    // Wire up cancel button
-                    const cancelHandler = () => {
-                        this.game.cancelGeneration = true;
-                    };
-                    cancelBtn.onclick = cancelHandler;
-
-                    try {
-                        const result = await this.game.reveal(x, y, onProgress);
-                        this.handleGameUpdate(result);
-                    } catch (e) {
-                        console.error("Error during generation", e);
-                    } finally {
-                        loadingOverlay.style.display = 'none';
-                        cancelBtn.onclick = null; // cleanup
-                    }
+                if (networkManager.mode) {
+                    // Multiplayer: send to network
+                    networkManager.sendAction({ type: 'reveal', x, y });
                 } else {
-                    // Standard click (fast)
-                    const result = await this.game.reveal(x, y);
-                    this.handleGameUpdate(result);
+                    // Handling Async Reveal with UI
+                    if (this.game.firstClick && this.game.noGuessMode) {
+                        const loadingOverlay = document.getElementById('loading-overlay');
+                        const loadingDetails = document.getElementById('loading-details');
+                        const cancelBtn = document.getElementById('cancel-gen-btn');
+
+                        loadingOverlay.style.display = 'flex';
+                        loadingDetails.textContent = "Initialisation...";
+
+                        const onProgress = (attempt, max) => {
+                            loadingDetails.textContent = `Tentative ${attempt} / ${max}`;
+                        };
+
+                        // Wire up cancel button
+                        const cancelHandler = () => {
+                            this.game.cancelGeneration = true;
+                        };
+                        cancelBtn.onclick = cancelHandler;
+
+                        try {
+                            const result = await this.game.reveal(x, y, onProgress);
+                            this.handleGameUpdate(result);
+                        } catch (e) {
+                            console.error("Error during generation", e);
+                        } finally {
+                            loadingOverlay.style.display = 'none';
+                            cancelBtn.onclick = null; // cleanup
+                        }
+                    } else {
+                        // Standard click (fast)
+                        const result = await this.game.reveal(x, y);
+                        this.handleGameUpdate(result);
+                    }
                 }
             } else if (event.button === 2) {
-                const result = this.game.toggleFlag(x, y);
-                this.handleGameUpdate(result);
+                if (networkManager.mode) {
+                    // Multiplayer: send to network
+                    networkManager.sendAction({ type: 'flag', x, y });
+                } else {
+                    const result = this.game.toggleFlag(x, y);
+                    this.handleGameUpdate(result);
+                }
             }
+        }
+    }
+
+    createPartnerCursor() {
+        this.partnerCursor = document.createElement('div');
+        this.partnerCursor.className = 'partner-cursor hidden';
+        this.partnerCursor.id = 'partner-cursor';
+        document.body.appendChild(this.partnerCursor);
+    }
+
+    gridToScreen(x, y) {
+        const worldPos = new THREE.Vector3(
+            -(this.game.width * 10) + x * 22,
+            0,
+            (this.game.height * 10) - y * 22
+        );
+
+        worldPos.project(this.camera);
+
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        return {
+            x: rect.left + (worldPos.x * 0.5 + 0.5) * rect.width,
+            y: rect.top + (-worldPos.y * 0.5 + 0.5) * rect.height
+        };
+    }
+
+    updatePartnerCursor(x, y) {
+        if (!this.partnerCursor) this.createPartnerCursor();
+
+        const screenPos = this.gridToScreen(x, y);
+        if (screenPos) {
+            this.partnerCursor.style.left = `${screenPos.x}px`;
+            this.partnerCursor.style.top = `${screenPos.y}px`;
+            this.partnerCursor.classList.remove('hidden');
+        }
+    }
+
+    hidePartnerCursor() {
+        if (this.partnerCursor) {
+            this.partnerCursor.classList.add('hidden');
         }
     }
 
@@ -884,15 +945,20 @@ export class MinesweeperRenderer {
             const material = new THREE.MeshBasicMaterial({
                 map: this.textures[value],
                 transparent: true,
-                side: THREE.DoubleSide
+                opacity: 1.0,
+                depthWrite: true,
+                depthTest: true,
+                side: THREE.DoubleSide,
+                alphaTest: 0.1
             });
             const mesh = new THREE.Mesh(planeGeo, material);
             mesh.position.set(
                 -(this.game.width * 10) + x * 22,
-                10,
+                11, // Slightly higher to prevent z-fighting
                 (this.game.height * 10) - y * 22
             );
             mesh.rotation.x = -Math.PI / 2;
+            mesh.renderOrder = 1; // Render after cubes
             this.scene.add(mesh);
             this.numberMeshes.push(mesh);
         }
@@ -1020,12 +1086,12 @@ export class MinesweeperRenderer {
     }
 
     /**
-     * Toggle flag visual style between particle and 3D
-     * Can be called during gameplay
+     * Set flag visual style between particle and 3D
+     * @param {string} style - 'particle' or '3d'
      */
-    toggleFlagStyle() {
-        // Switch style
-        this.flagStyle = this.flagStyle === 'particle' ? '3d' : 'particle';
+    setFlagStyle(style) {
+        // Update style
+        this.flagStyle = style;
 
         // Collect current flag positions from game state
         const activeFlags = [];
@@ -1389,6 +1455,11 @@ export class MinesweeperRenderer {
         if (this.renderer && this.renderer.domElement) {
             this.renderer.domElement.removeEventListener('pointerdown', this._boundOnMouseClick);
             this.renderer.domElement.removeEventListener('pointermove', this._boundOnMouseMove);
+        }
+
+        if (this.partnerCursor && this.partnerCursor.parentNode) {
+            this.partnerCursor.parentNode.removeChild(this.partnerCursor);
+            this.partnerCursor = null;
         }
     }
 }

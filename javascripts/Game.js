@@ -1,5 +1,13 @@
 import { MinesweeperSolver } from './MinesweeperSolver.js';
 
+// Environment detection
+const isBrowser = typeof window !== 'undefined';
+const storage = isBrowser ? localStorage : {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {}
+};
+
 /**
  * Logique du jeu Démineur
  * Gère la grille, le placement des mines et les règles du jeu.
@@ -141,7 +149,7 @@ export class MinesweeperGame {
             noGuessMode: this.noGuessMode || false,
             minePositions: this.getMinePositions()
         };
-        localStorage.setItem('minesweeper3d_last_grid', JSON.stringify(gridData));
+        storage.setItem('minesweeper3d_last_grid', JSON.stringify(gridData));
 
         return true;
     }
@@ -193,7 +201,11 @@ export class MinesweeperGame {
             // If user stopped or limit reached, we still play but with a warning
             if (success.cancelled || success.warning) {
                 const reason = success.cancelled ? "interrompue" : "limitée à 10000 essais";
-                alert(`Note : La génération a été ${reason}. La grille n'est pas garantie 100% logique.`);
+                if (isBrowser && typeof alert === 'function') {
+                    alert(`Note : La génération a été ${reason}. La grille n'est pas garantie 100% logique.`);
+                }
+                // In headless mode, just log it
+                console.log(`[GameServer] Board generation: ${reason}`);
             }
 
             this.firstClick = false;
@@ -291,7 +303,7 @@ export class MinesweeperGame {
         const isWin = revealedCount === (this.width * this.height - this.bombCount);
         if (isWin) {
             // Clear saved grid on win (replay only available after loss)
-            localStorage.removeItem('minesweeper3d_last_grid');
+            storage.removeItem('minesweeper3d_last_grid');
         }
         return isWin;
     }

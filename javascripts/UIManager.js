@@ -364,12 +364,13 @@ export class UIManager {
             // Set multiplayer mode flag
             networkManager._isMultiplayer = true;
 
-            await this.setupBackgroundForMultiplayer();
+            // Setup background using the same logic as solo mode
+            const bgResult = await this.setupBackground();
             this.menuOverlay.style.display = 'none';
 
             if (this.onStartGame) {
-                // Pass mine positions from server
-                this.onStartGame(state.width, state.height, state.bombCount, true, false, 'Multiplayer', state.minePositions);
+                // Pass mine positions from server and the chosen background
+                this.onStartGame(state.width, state.height, state.bombCount, true, false, bgResult, state.minePositions);
             }
 
             // Apply state sync after a short delay
@@ -410,25 +411,7 @@ export class UIManager {
         document.getElementById('guest-ready')?.classList.add('hidden');
     }
 
-    async setupBackgroundForMultiplayer() {
-        const videoElement = document.getElementById('image');
-        if (videoElement) {
-            videoElement.muted = true;
-            videoElement.load();
-            await new Promise(resolve => {
-                const check = () => {
-                    if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
-                        videoElement.play().catch(() => { });
-                        resolve();
-                    } else {
-                        setTimeout(check, 50);
-                    }
-                };
-                check();
-                setTimeout(resolve, 3000);
-            });
-        }
-    }
+
 
     async handleStartClick() {
         const width = parseInt(this.widthInput.value) || 30;

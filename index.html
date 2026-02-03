@@ -2,7 +2,7 @@
 <html lang="fr">
 
 <head>
-    <title>Démineur 3D - Modernisé</title>
+    <title>Démineur 3D - Multijoueur</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
     <link rel="stylesheet" href="css/style.css">
@@ -20,13 +20,6 @@
             }
         }
     </script>
-
-    <!-- Server configuration for GitHub Pages -->
-    <script>
-        window.MINESWEEPER_SERVERS = {
-            raspberryCloud: 'https://adds-homework-recall-polyphonic.trycloudflare.com'
-        };
-    </script>
 </head>
 
 <body>
@@ -34,7 +27,7 @@
     <video id="image" preload="auto" loop muted autoplay style="display:none;" playsinline>
         <source src="images/storm_render.mp4" type="video/mp4">
     </video>
-    <!-- Image utilisée comme texture (quand l'utilisateur uploade une image) -->
+    <!-- Image utilisée comme texture -->
     <img id="custom-image-source" style="display:none;" />
 
     <div id="ui-container">
@@ -42,8 +35,7 @@
         <p>Clic Gauche: Révéler | Clic Droit: Drapeau</p>
         <button id="hint-btn" class="control-btn" title="Obtenir un indice logique">🧩 BESOIN D'AIDE</button>
         <button id="flag-style-btn" class="control-btn" style="margin-left: 10px;"
-            title="Basculer vers les drapeaux 3D">⭐
-            ÉTOILES</button>
+            title="Basculer vers les drapeaux 3D">⭐ ÉTOILES</button>
         <div id="hint-display">🧩 Indices: 0</div>
         <button id="mute-btn" class="control-btn" title="Désactiver le son">🔊 ON</button>
         <button id="retry-btn" title="Recommencer au dernier coup sûr">🔁 REESSAYER</button>
@@ -56,7 +48,6 @@
     <div id="menu-overlay">
         <div class="menu-box">
             <h2>Configuration</h2>
-            <!-- Note: Presets are inserted via UIManager -->
             <div class="input-row">
                 <div class="input-group">
                     <label>Largeur</label>
@@ -72,50 +63,45 @@
                 </div>
             </div>
             <div class="input-group">
-                <label>Média de fond (optionnel)</label>
+                <label>Média de fond</label>
                 <div id="background-presets-container" class="preset-grid">
                     <div class="preset-item active" data-value="video:images/storm_render.mp4" title="Orage (Vidéo)">
                         <video src="images/storm_render.mp4" muted loop playsinline autoplay></video>
                         <span>Orage</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_5.png"
-                        title="Marbre Gris (Très Lisible)">
+                    <div class="preset-item" data-value="image:images/default_texture_5.png" title="Marbre Gris">
                         <img src="images/default_texture_5.png">
                         <span>Marbre</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_6.png"
-                        title="Métal Sombre (Très Lisible)">
+                    <div class="preset-item" data-value="image:images/default_texture_6.png" title="Métal Sombre">
                         <img src="images/default_texture_6.png">
                         <span>Métal</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_7.png"
-                        title="Bois Clair (Lisible)">
+                    <div class="preset-item" data-value="image:images/default_texture_7.png" title="Bois Clair">
                         <img src="images/default_texture_7.png">
                         <span>Bois</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_8.png"
-                        title="Grille Minimaliste (Lisible)">
+                    <div class="preset-item" data-value="image:images/default_texture_8.png" title="Grille">
                         <img src="images/default_texture_8.png">
                         <span>Grille</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_9.png" title="Carbone (Lisible)">
+                    <div class="preset-item" data-value="image:images/default_texture_9.png" title="Carbone">
                         <img src="images/default_texture_9.png">
                         <span>Carbone</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_1.png"
-                        title="Nébuleuse (Complexe)">
+                    <div class="preset-item" data-value="image:images/default_texture_1.png" title="Nébuleuse">
                         <img src="images/default_texture_1.png">
                         <span>Espace</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_2.png" title="Cristal (Complexe)">
+                    <div class="preset-item" data-value="image:images/default_texture_2.png" title="Cristal">
                         <img src="images/default_texture_2.png">
                         <span>Cristal</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_3.png" title="Néon (Complexe)">
+                    <div class="preset-item" data-value="image:images/default_texture_3.png" title="Néon">
                         <img src="images/default_texture_3.png">
                         <span>Néon</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_4.png" title="Fluide (Complexe)">
+                    <div class="preset-item" data-value="image:images/default_texture_4.png" title="Fluide">
                         <img src="images/default_texture_4.png">
                         <span>Fluide</span>
                     </div>
@@ -130,50 +116,8 @@
                     <span id="video-filename" class="video-filename">Utilise le préréglage ci-dessus</span>
                 </div>
 
-                <!-- HTTPS URL Input -->
-                <div class="input-group" style="margin-top: 15px;">
-                    <label>Lien Direct / YouTube / Dailymotion</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="video-url-input" placeholder="Collez un lien https://..."
-                            style="flex: 1;">
-                        <button id="load-url-btn" type="button" class="video-upload-btn"
-                            style="width: auto; padding: 0 15px;" title="Charger la vidéo">
-                            <span class="upload-icon">▶</span>
-                        </button>
-                    </div>
-                    <div id="server-status"
-                        style="font-size: 0.75em; margin-top: 5px; color: rgba(255,255,255,0.7); display: flex; align-items: center; gap: 6px;">
-                        <span class="status-dot"
-                            style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #666;"></span>
-                        <span class="status-text">Connexion serveur...</span>
-                    </div>
-                    <div id="video-thumbnail-container"
-                        style="display: none; margin-top: 15px; flex-direction: column; align-items: center; gap: 8px;">
-                        <label
-                            style="font-size: 0.7em; text-transform: uppercase; opacity: 0.8; letter-spacing: 1px;">Aperçu
-                            du Flux</label>
-                        <div class="preset-item active"
-                            style="width: 100px; height: 100px; cursor: default; transform: none; position: relative;">
-                            <video id="video-preview" muted loop playsinline autoplay style="opacity: 1;"></video>
-                            <span id="video-preview-title"
-                                style="transform: translateY(0); background: rgba(240, 147, 251, 0.8);">Flux Live</span>
-                            <!-- Loading overlay -->
-                            <div id="video-loading-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-                                background: rgba(0,0,0,0.7); display: flex; flex-direction: column; justify-content: center; 
-                                align-items: center; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none;">
-                                <div style="color: #fff; font-size: 0.6em; margin-bottom: 5px;">Chargement...</div>
-                                <div style="width: 70%; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;">
-                                    <div id="video-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #f093fb, #f5576c); 
-                                        transition: width 0.2s; border-radius: 2px;"></div>
-                                </div>
-                                <div id="video-progress-text" style="color: #aaa; font-size: 0.5em; margin-top: 3px;">0%</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
                 <div class="video-webcam">
-                    <label class="webcam-label"><input type="checkbox" id="use-webcam"> Utiliser la webcam si
-                        disponible</label>
+                    <label class="webcam-label"><input type="checkbox" id="use-webcam"> Utiliser la webcam</label>
                     <small class="hint">Si la webcam est refusée ou absente, on revient à la vidéo par défaut.</small>
                 </div>
                 <div class="input-row" style="margin-top: 15px;">
@@ -187,8 +131,58 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Multiplayer Panel -->
+            <div id="multiplayer-panel" class="panel">
+                <h3>Multijoueur</h3>
+
+                <!-- Server Status -->
+                <div id="mp-server-status">
+                    <span id="server-indicator">●</span>
+                    <span id="server-status-text">Vérification du serveur...</span>
+                </div>
+
+                <!-- Connect to Server -->
+                <div id="mp-connect">
+                    <input type="text" id="server-name" placeholder="Votre pseudo" value="Joueur">
+                    <button id="btn-connect-server" class="primary">Connexion</button>
+                </div>
+
+                <!-- Host Lobby (P1 creates game) -->
+                <div id="mp-host-lobby" class="hidden">
+                    <h4>🎮 Créer une partie</h4>
+                    <p class="lobby-info">Choisissez la difficulté :</p>
+                    <div class="mp-difficulty-btns">
+                        <button class="mp-diff-btn" data-diff="easy">Facile<br><small>9×9 • 10💣</small></button>
+                        <button class="mp-diff-btn active" data-diff="medium">Moyen<br><small>16×16 •
+                                40💣</small></button>
+                        <button class="mp-diff-btn" data-diff="hard">Expert<br><small>30×16 • 99💣</small></button>
+                    </div>
+                    <div id="host-waiting" class="hidden">
+                        <p>⏳ En attente d'un autre joueur...</p>
+                    </div>
+                    <div id="host-actions">
+                        <button id="btn-create-game" class="primary">Créer la partie</button>
+                        <button id="btn-leave-host">Quitter</button>
+                    </div>
+                </div>
+
+                <!-- Guest Lobby (P2 joins) -->
+                <div id="mp-guest-lobby" class="hidden">
+                    <h4>🎮 Rejoindre</h4>
+                    <div id="guest-waiting">
+                        <p>⏳ En attente que l'hôte crée la partie...</p>
+                    </div>
+                    <div id="guest-ready" class="hidden">
+                        <p id="guest-config">Partie prête !</p>
+                        <button id="btn-join-game" class="primary">Rejoindre la partie</button>
+                    </div>
+                    <button id="btn-leave-guest">Quitter</button>
+                </div>
+            </div>
+
             <button id="replay-btn" style="display: none;">🔄 REJOUER LA GRILLE</button>
-            <button id="start-btn">JOUER</button>
+            <button id="start-btn">JOUER (Solo)</button>
         </div>
 
         <!-- Leaderboard -->
@@ -219,24 +213,23 @@
         import { MinesweeperRenderer } from './javascripts/Renderer.js';
         import { ScoreManager } from './javascripts/ScoreManager.js';
         import { UIManager } from './javascripts/UIManager.js';
-        import { YouTubeManager } from './javascripts/YouTubeManager.js';
+        import { networkManager } from './javascripts/NetworkManager.js';
 
         let game, renderer;
         const scoreManager = new ScoreManager();
-        const youTubeManager = new YouTubeManager();
         let uiManager;
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Initialize UI
-            uiManager = new UIManager(null, null, scoreManager, youTubeManager);
-            // Expose for Renderer to access loading state
+            uiManager = new UIManager(null, null, scoreManager);
             window._minesweeperUIManager = uiManager;
+
+            setupNetworkCallbacks();
 
             uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines) => {
                 startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines);
             };
 
-            // Main Loop integration for Timer/Score updates
+            // Timer/Score updates
             setInterval(() => {
                 if (game && renderer) {
                     const timerDisplay = document.getElementById('timer-display');
@@ -248,7 +241,6 @@
                         timerDisplay.textContent = `⏱️ ${Math.floor(time / 60).toString().padStart(2, '0')}:${(time % 60).toString().padStart(2, '0')}`;
                         timerDisplay.classList.add('active');
 
-                        // Score prediction
                         const score = scoreManager.calculateScore(game.width, game.height, game.bombCount, time, {
                             noGuessMode: game.noGuessMode,
                             hintCount: game.hintCount,
@@ -257,17 +249,11 @@
                         scoreDisplay.textContent = `🏆 Score: ${score.toLocaleString()}`;
                         scoreDisplay.classList.add('active');
 
-                        // Hint count display
                         hintDisplay.textContent = `🧩 Indices: ${game.hintCount}`;
                         hintDisplay.classList.toggle('active', game.hintCount > 0);
 
-                        // Retry button visibility
                         const retryBtn = document.getElementById('retry-btn');
-                        if (game.gameOver && game.lastMove) {
-                            retryBtn.style.display = 'block';
-                        } else {
-                            retryBtn.style.display = 'none';
-                        }
+                        retryBtn.style.display = (game.gameOver && game.lastMove) ? 'block' : 'none';
                     } else {
                         timerDisplay.classList.remove('active');
                         scoreDisplay.classList.remove('active');
@@ -287,14 +273,17 @@
             game.noGuessMode = noGuessMode;
             game.init();
 
-            // If replaying, set mines immediately instead of waiting for first click
             if (replayMines) {
                 game.setMinesFromPositions(replayMines);
             }
 
+            const videoElement = document.getElementById('image');
+            if (videoElement && videoElement.src) {
+                videoElement.play().catch(() => { });
+            }
+
             renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper, bgName);
 
-            // Hint handling
             const hintBtn = document.getElementById('hint-btn');
             hintBtn.style.display = 'inline-flex';
             hintBtn.onclick = () => {
@@ -302,13 +291,11 @@
                 if (hint) {
                     renderer.showHint(hint.x, hint.y, hint.type);
                 } else {
-                    // Visual feedback for no hint
                     hintBtn.classList.add('no-hint');
                     setTimeout(() => hintBtn.classList.remove('no-hint'), 500);
                 }
             };
 
-            // Retry handling
             const retryBtn = document.getElementById('retry-btn');
             retryBtn.onclick = () => {
                 if (game.retryLastMove()) {
@@ -318,10 +305,8 @@
                 }
             };
 
-            // Link UI manager to renderer for mute sync
             uiManager.setRenderer(renderer);
 
-            // Wait for audio
             setTimeout(() => {
                 if (renderer.soundManager) {
                     renderer.soundManager.resumeContext();
@@ -329,7 +314,6 @@
                 }
             }, 100);
 
-            // Game End Callback
             renderer.onGameEnd = () => {
                 document.getElementById('hint-btn').style.display = 'none';
                 document.getElementById('retry-btn').style.display = 'none';
@@ -337,6 +321,168 @@
                 renderer = null;
                 game = null;
                 uiManager.showMenu();
+            };
+        }
+
+        function setupNetworkCallbacks() {
+            networkManager.onConnected = () => console.log('[Main] Connected to server');
+            networkManager.onPlayerJoined = (data) => console.log('[Main] Player joined:', data);
+            networkManager.onPlayerLeft = (data) => console.log('[Main] Player left:', data);
+            networkManager.onGameReady = (config) => console.log('[Main] Game ready:', config);
+
+            networkManager.onStateSync = async (state) => {
+                if (!state) return;
+
+                if (!game || !renderer) {
+                    const videoElement = document.getElementById('image');
+                    if (videoElement) {
+                        videoElement.muted = true;
+                        videoElement.load();
+                        await new Promise(resolve => {
+                            const checkReady = () => {
+                                if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
+                                    videoElement.play().catch(() => { });
+                                    resolve();
+                                } else setTimeout(checkReady, 50);
+                            };
+                            checkReady();
+                            setTimeout(resolve, 3000);
+                        });
+                    }
+                    startGame(state.width, state.height, state.bombCount, true, false, 'Multiplayer');
+                    setTimeout(() => applyStateSync(state), 300);
+                } else {
+                    applyStateSync(state);
+                }
+            };
+
+            function applyStateSync(state) {
+                if (!game || !state || !renderer) return;
+
+                game.visibleGrid = state.visibleGrid.map(row => [...row]);
+                game.flags = state.flags.map(row => [...row]);
+                game.gameOver = state.gameOver;
+                game.victory = state.victory;
+
+                renderer.numberMeshes.forEach(mesh => {
+                    renderer.scene.remove(mesh);
+                    if (mesh.geometry) mesh.geometry.dispose();
+                    if (mesh.material) {
+                        if (mesh.material.map) mesh.material.map.dispose();
+                        mesh.material.dispose();
+                    }
+                });
+                renderer.numberMeshes = [];
+
+                for (let x = 0; x < game.width; x++) {
+                    for (let y = 0; y < game.height; y++) {
+                        const index = x * game.height + y;
+                        renderer.dummy.position.set(-(game.width * 10) + x * 22, 0, (game.height * 10) - y * 22);
+                        renderer.dummy.rotation.set(-Math.PI / 2, 0, 0);
+                        renderer.dummy.scale.set(game.visibleGrid[x][y] !== -1 ? 0 : 1, game.visibleGrid[x][y] !== -1 ? 0 : 1, game.visibleGrid[x][y] !== -1 ? 0 : 1);
+                        renderer.dummy.updateMatrix();
+                        renderer.gridMesh.setMatrixAt(index, renderer.dummy.matrix);
+                    }
+                }
+                renderer.gridMesh.instanceMatrix.needsUpdate = true;
+
+                for (let x = 0; x < game.width; x++) {
+                    for (let y = 0; y < game.height; y++) {
+                        const val = game.visibleGrid[x][y];
+                        if (val !== -1 && val > 0) {
+                            const planeGeo = new THREE.PlaneGeometry(16, 16);
+                            const material = new THREE.MeshBasicMaterial({
+                                map: renderer.textures[val],
+                                transparent: true, opacity: 1.0, depthWrite: true, depthTest: true,
+                                side: THREE.DoubleSide, alphaTest: 0.1
+                            });
+                            const mesh = new THREE.Mesh(planeGeo, material);
+                            mesh.position.set(-(game.width * 10) + x * 22, 11, (game.height * 10) - y * 22);
+                            mesh.rotation.x = -Math.PI / 2;
+                            mesh.renderOrder = 1;
+                            renderer.scene.add(mesh);
+                            renderer.numberMeshes.push(mesh);
+                        }
+                        if (game.flags[x][y]) renderer.updateFlagVisual(x, y, true);
+                    }
+                }
+            }
+
+            networkManager.onGameUpdate = (update) => {
+                console.log('[Main] gameUpdate received:', update);
+                if (!game || !renderer) {
+                    console.log('[Main] No game/renderer, ignoring update');
+                    return;
+                }
+                const result = update.result;
+                console.log('[Main] Processing result type:', result.type, 'changes:', result.changes?.length);
+                if (result.type === 'reveal' || result.type === 'win') {
+                    // Update local game state AND visuals
+                    result.changes.forEach(c => {
+                        game.visibleGrid[c.x][c.y] = c.value; // Update game state
+                        renderer.updateCellVisual(c.x, c.y, c.value);
+                    });
+                    if (result.type === 'win') { game.victory = true; renderer.triggerWin(); }
+                } else if (result.type === 'explode') {
+                    game.gameOver = true;
+                    game.visibleGrid[update.action.x][update.action.y] = 9; // Mark explosion
+                    renderer.triggerExplosion();
+                } else if (result.type === 'flag') {
+                    game.flags[result.x][result.y] = result.active;
+                    renderer.updateFlagVisual(result.x, result.y, result.active);
+                }
+            };
+
+            networkManager.onGameOver = (data) => {
+                if (!game) return;
+                console.log('[Main] Game Over received:', data);
+                if (data.victory) {
+                    game.victory = true;
+                    renderer.triggerWin();
+                } else {
+                    game.gameOver = true;
+                    renderer.triggerExplosion();
+                }
+                // Server will send gameEnded after delay, which will return to menu
+            };
+
+            networkManager.onMinesPlaced = (minePositions) => {
+                if (!game || !minePositions) return;
+                console.log('[Main] Mines placed:', minePositions.length, 'mines');
+                game.setMinesFromPositions(minePositions);
+            };
+
+            // Server tells us the game session is over, return to menu
+            networkManager.onGameEnded = () => {
+                console.log('[Main] Game ended, returning to menu');
+                networkManager.disconnect();
+                if (renderer) {
+                    renderer.dispose();
+                    renderer = null;
+                }
+                game = null;
+                uiManager.showMenu();
+                // Reset multiplayer panel to initial state completely
+                document.getElementById('mp-connect').classList.remove('hidden');
+                document.getElementById('mp-host-lobby').classList.add('hidden');
+                document.getElementById('mp-guest-lobby').classList.add('hidden');
+                // Reset host lobby internal state
+                document.getElementById('host-waiting').classList.add('hidden');
+                document.getElementById('host-actions').classList.remove('hidden');
+                // Reset guest lobby internal state
+                document.getElementById('guest-waiting').classList.remove('hidden');
+                document.getElementById('guest-ready').classList.add('hidden');
+            };
+
+            networkManager.onCursorUpdate = (cursor) => {
+                if (renderer && cursor.playerNumber !== networkManager.playerNumber) {
+                    renderer.updatePartnerCursor(cursor.x, cursor.y);
+                }
+            };
+
+            networkManager.onError = (error) => {
+                console.error('[Main] Network error:', error);
+                alert('Erreur réseau: ' + error);
             };
         }
     </script>
