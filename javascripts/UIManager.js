@@ -49,7 +49,7 @@ export class UIManager {
 
         this.bindEvents();
         this.updateLeaderboard();
-        this.currentFlagStyle = 'particle';
+        this.currentFlagStyle = localStorage.getItem('flagStyle') || 'particle';
         this.selectedPresetValue = 'video:images/storm_render.mp4';
         this.updateFlagStyleButton();
         this.detectGpuTier();
@@ -546,6 +546,7 @@ export class UIManager {
 
     toggleFlagStyle() {
         this.currentFlagStyle = this.currentFlagStyle === 'particle' ? '3d' : 'particle';
+        localStorage.setItem('flagStyle', this.currentFlagStyle);
         this.updateFlagStyleButton();
         if (this.renderer?.setFlagStyle) {
             this.renderer.setFlagStyle(this.currentFlagStyle);
@@ -597,6 +598,9 @@ export class UIManager {
 
     setRenderer(renderer) {
         this.renderer = renderer;
+        if (this.renderer && this.renderer.setFlagStyle) {
+            this.renderer.setFlagStyle(this.currentFlagStyle);
+        }
     }
 
     showMenu() {
