@@ -20,6 +20,9 @@ export class GameServer {
         // Callbacks for network layer to implement
         this.onBroadcast = null;  // (eventName, data) => void
         this.onSendTo = null;     // (playerId, eventName, data) => void
+
+        // Queue to handle actions sequentially
+        this.actionQueue = Promise.resolve();
     }
 
     /**
@@ -100,8 +103,21 @@ export class GameServer {
      * @returns {object} Result to broadcast
      */
     async processAction(playerId, action) {
+        // Queue the action to ensure atomicity
+        return this.actionQueue = this.actionQueue.then(async () => {
+            return await this._internalProcessAction(playerId, action);
+        }).catch(err => {
+            console.error('[GameServer] Error processing action:', err);
+            return { success: false, error: err.message };
+        });
+    }
+
+    async _internalProcessAction(playerId, action) {
         if (!this.game) {
             return { success: false, error: 'Game not initialized' };
+        }
+        if (this.game.gameOver || this.game.victory) {
+            return { success: false, error: 'Game already ended' };
         }
         if (!this.players.has(playerId)) {
             return { success: false, error: 'Unknown player' };
@@ -116,7 +132,10 @@ export class GameServer {
         // Handle first click - place mines safely
         if (type === 'reveal' && this.game.firstClick) {
             console.log(`[GameServer] First click at (${x}, ${y}), placing mines with safe zone`);
-            this.game.placeMinesWithSafeZone(x, y);
+            const placementResult = await this.game.placeMines(x, y);
+            if (placementResult && placementResult.cancelled) {
+                return { success: false, error: 'Generation cancelled' };
+            }
             firstClickMines = this.game.getMinePositions();
             this.game.firstClick = false;
             this.game.startChronometer();
