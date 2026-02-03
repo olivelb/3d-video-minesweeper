@@ -1,36 +1,41 @@
 # Dependencies
-node_modules/
-package-lock.json
+**/node_modules/
+**/package-lock.json
+**/yarn.lock
 
 # Environment files
-.env
-.env.local
-.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
 
 # Local server configuration (contains private IPs)
-servers-local.json
+**/servers-local.json
+!**/servers-local.json.example
 
 # IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+**/.vscode/
+**/.idea/
+**/*.swp
+**/*.swo
 
 # OS
-.DS_Store
-Thumbs.db
+**/.DS_Store
+**/Thumbs.db
 
-# Local Development / Agent Skills
-.github/
+# Local Development / Agent Skills / Config
+**/.github/
 
 # Logs
-*.log
-npm-debug.log*
+**/*.log
+**/npm-debug.log*
 
-# Temporary files
-*.tmp
-*-player-script.js
+# Temporary and deployment files
+**/*.tmp
+**/*-player-script.js
+**/deploy.sh
+**/deploy.ps1
+**/deploy.tar.gz
 
 # Build outputs
-dist/
-build/
+**/dist/
+**/build/
