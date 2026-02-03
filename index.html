@@ -327,6 +327,58 @@
             };
         }
 
+        function applyStateSync(state) {
+            if (!game || !state || !renderer) return;
+
+            game.visibleGrid = state.visibleGrid.map(row => [...row]);
+            game.flags = state.flags.map(row => [...row]);
+            game.gameOver = state.gameOver;
+            game.victory = state.victory;
+
+            renderer.numberMeshes.forEach(mesh => {
+                renderer.scene.remove(mesh);
+                if (mesh.geometry) mesh.geometry.dispose();
+                if (mesh.material) {
+                    if (mesh.material.map) mesh.material.map.dispose();
+                    mesh.material.dispose();
+                }
+            });
+            renderer.numberMeshes = [];
+
+            for (let x = 0; x < game.width; x++) {
+                for (let y = 0; y < game.height; y++) {
+                    const index = x * game.height + y;
+                    renderer.dummy.position.set(-(game.width * 10) + x * 22, 0, (game.height * 10) - y * 22);
+                    renderer.dummy.rotation.set(-Math.PI / 2, 0, 0);
+                    renderer.dummy.scale.set(game.visibleGrid[x][y] !== -1 ? 0 : 1, game.visibleGrid[x][y] !== -1 ? 0 : 1, game.visibleGrid[x][y] !== -1 ? 0 : 1);
+                    renderer.dummy.updateMatrix();
+                    renderer.gridMesh.setMatrixAt(index, renderer.dummy.matrix);
+                }
+            }
+            renderer.gridMesh.instanceMatrix.needsUpdate = true;
+
+            for (let x = 0; x < game.width; x++) {
+                for (let y = 0; y < game.height; y++) {
+                    const val = game.visibleGrid[x][y];
+                    if (val !== -1 && val > 0) {
+                        const planeGeo = new THREE.PlaneGeometry(16, 16);
+                        const material = new THREE.MeshBasicMaterial({
+                            map: renderer.textures[val],
+                            transparent: true, opacity: 1.0, depthWrite: true, depthTest: true,
+                            side: THREE.DoubleSide, alphaTest: 0.1
+                        });
+                        const mesh = new THREE.Mesh(planeGeo, material);
+                        mesh.position.set(-(game.width * 10) + x * 22, 11, (game.height * 10) - y * 22);
+                        mesh.rotation.x = -Math.PI / 2;
+                        mesh.renderOrder = 1;
+                        renderer.scene.add(mesh);
+                        renderer.numberMeshes.push(mesh);
+                    }
+                    if (game.flags[x][y]) renderer.updateFlagVisual(x, y, true);
+                }
+            }
+        }
+
         function setupNetworkCallbacks() {
             networkManager.onConnected = () => console.log('[Main] Connected to server');
             networkManager.onPlayerJoined = (data) => console.log('[Main] Player joined:', data);
@@ -344,58 +396,6 @@
                     applyStateSync(state);
                 }
             };
-
-            function applyStateSync(state) {
-                if (!game || !state || !renderer) return;
-
-                game.visibleGrid = state.visibleGrid.map(row => [...row]);
-                game.flags = state.flags.map(row => [...row]);
-                game.gameOver = state.gameOver;
-                game.victory = state.victory;
-
-                renderer.numberMeshes.forEach(mesh => {
-                    renderer.scene.remove(mesh);
-                    if (mesh.geometry) mesh.geometry.dispose();
-                    if (mesh.material) {
-                        if (mesh.material.map) mesh.material.map.dispose();
-                        mesh.material.dispose();
-                    }
-                });
-                renderer.numberMeshes = [];
-
-                for (let x = 0; x < game.width; x++) {
-                    for (let y = 0; y < game.height; y++) {
-                        const index = x * game.height + y;
-                        renderer.dummy.position.set(-(game.width * 10) + x * 22, 0, (game.height * 10) - y * 22);
-                        renderer.dummy.rotation.set(-Math.PI / 2, 0, 0);
-                        renderer.dummy.scale.set(game.visibleGrid[x][y] !== -1 ? 0 : 1, game.visibleGrid[x][y] !== -1 ? 0 : 1, game.visibleGrid[x][y] !== -1 ? 0 : 1);
-                        renderer.dummy.updateMatrix();
-                        renderer.gridMesh.setMatrixAt(index, renderer.dummy.matrix);
-                    }
-                }
-                renderer.gridMesh.instanceMatrix.needsUpdate = true;
-
-                for (let x = 0; x < game.width; x++) {
-                    for (let y = 0; y < game.height; y++) {
-                        const val = game.visibleGrid[x][y];
-                        if (val !== -1 && val > 0) {
-                            const planeGeo = new THREE.PlaneGeometry(16, 16);
-                            const material = new THREE.MeshBasicMaterial({
-                                map: renderer.textures[val],
-                                transparent: true, opacity: 1.0, depthWrite: true, depthTest: true,
-                                side: THREE.DoubleSide, alphaTest: 0.1
-                            });
-                            const mesh = new THREE.Mesh(planeGeo, material);
-                            mesh.position.set(-(game.width * 10) + x * 22, 11, (game.height * 10) - y * 22);
-                            mesh.rotation.x = -Math.PI / 2;
-                            mesh.renderOrder = 1;
-                            renderer.scene.add(mesh);
-                            renderer.numberMeshes.push(mesh);
-                        }
-                        if (game.flags[x][y]) renderer.updateFlagVisual(x, y, true);
-                    }
-                }
-            }
 
             networkManager.onGameUpdate = (update) => {
                 console.log('[Main] gameUpdate received:', update);
