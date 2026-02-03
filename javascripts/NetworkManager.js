@@ -44,12 +44,13 @@ export class NetworkManager {
         }
 
         return new Promise((resolve, reject) => {
+            console.log('[NetworkManager] Connecting to:', serverUrl);
             this.socket = io(serverUrl, {
-                transports: ['websocket', 'polling']
+                // Let Socket.io negotiate the best transport (WebSocket vs Polling)
             });
 
             this.socket.on('connect', () => {
-                console.log('[NetworkManager] Connected to server');
+                console.log('[NetworkManager] Connected to server! ID:', this.socket.id);
                 this.socket.emit('join', { playerName });
             });
 

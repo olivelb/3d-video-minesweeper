@@ -25,6 +25,10 @@ const io = new Server(httpServer, {
     }
 });
 
+io.on('connection', (socket) => {
+    console.log('[Socket.io] New connection attempt:', socket.id, 'from origin:', socket.handshake.headers.origin);
+});
+
 const PORT = process.env.PORT || 3001;
 
 // Health check
