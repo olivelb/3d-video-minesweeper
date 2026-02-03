@@ -1,11 +1,11 @@
 # Dependencies
-node_modules/
+**/node_modules/
 package-lock.json
 
 # Environment files
-.env
-.env.local
-.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
 
 # Local server configuration (contains private IPs)
 servers-local.json
@@ -27,9 +27,12 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Temporary files
+# Temporary and deployment files
 *.tmp
 *-player-script.js
+**/deploy.sh
+**/deploy.ps1
+**/deploy.tar.gz
 
 # Build outputs
 dist/
