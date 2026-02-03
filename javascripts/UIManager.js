@@ -280,6 +280,9 @@ export class UIManager {
         }
 
         try {
+            // Setup event handlers BEFORE connecting so we don't miss early messages (lobby updates)
+            this.setupNetworkHandlers();
+
             const welcomeData = await networkManager.connectToServer(this.dedicatedServerUrl, playerName);
 
             // Hide connect panel
@@ -292,10 +295,8 @@ export class UIManager {
                 this.showGuestLobby();
             }
 
-            // Setup event handlers
-            this.setupNetworkHandlers();
-
         } catch (err) {
+            console.error('[UI] Connection error:', err);
             alert('Connexion au serveur échouée');
         }
     }
