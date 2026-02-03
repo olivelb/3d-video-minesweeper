@@ -22,6 +22,10 @@ export class UIManager {
         this.muteBtn = document.getElementById('mute-btn');
         this.leaderboardList = document.getElementById('leaderboard-list');
         this.videoElement = document.getElementById('image');
+        if (this.videoElement) {
+            this.videoElement.muted = this.isMuted;
+            this.videoElement.volume = 0.5; // Match SoundManager default
+        }
         this.hoverHelperCheckbox = document.getElementById('hover-helper');
         this.noGuessCheckbox = document.getElementById('no-guess-mode');
         this.hintBtn = document.getElementById('hint-btn');
@@ -427,6 +431,7 @@ export class UIManager {
         // Custom uploaded file
         if (this.customVideoUrl) {
             this.videoElement.src = this.customVideoUrl;
+            this.videoElement.muted = this.isMuted;
             await this.videoElement.play().catch(() => { });
             return 'Custom Upload';
         }
@@ -436,6 +441,7 @@ export class UIManager {
             const [type, path] = this.selectedPresetValue.split(':');
             if (type === 'video') {
                 this.videoElement.src = path;
+                this.videoElement.muted = this.isMuted;
                 await this.videoElement.play().catch(() => { });
                 this.mediaType = 'video';
             } else if (type === 'image') {
@@ -528,6 +534,11 @@ export class UIManager {
     toggleMute() {
         this.isMuted = !this.isMuted;
         this.muteBtn.textContent = this.isMuted ? '🔇 OFF' : '🔊 ON';
+
+        if (this.videoElement) {
+            this.videoElement.muted = this.isMuted;
+        }
+
         if (this.renderer?.soundManager) {
             this.renderer.soundManager.setMute(this.isMuted);
         }

@@ -50,6 +50,9 @@ async function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgNa
 
     const videoElement = document.getElementById('image');
     if (videoElement && videoElement.src) {
+        if (uiManager) {
+            videoElement.muted = uiManager.isMuted;
+        }
         videoElement.play().catch(() => { });
     }
 
