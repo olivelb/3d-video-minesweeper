@@ -1,7 +1,7 @@
 import { networkManager } from './NetworkManager.js';
 
 // Configuration: Dedicated server URL (Raspberry Pi)
-const DEDICATED_SERVER_URL = 'http://192.168.1.232:3002';
+const DEDICATED_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
 
 export class UIManager {
     constructor(game, renderer, scoreManager) {

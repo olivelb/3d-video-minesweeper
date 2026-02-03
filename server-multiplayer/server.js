@@ -25,7 +25,7 @@ const io = new Server(httpServer, {
     }
 });
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3001;
 
 // Health check
 app.get('/health', (req, res) => {
