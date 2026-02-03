@@ -223,8 +223,8 @@
 
             setupNetworkCallbacks();
 
-            uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines) => {
-                startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines);
+            uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines, initialState) => {
+                startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines, initialState);
             };
 
             // Timer/Score updates
@@ -261,7 +261,7 @@
             }, 100);
         });
 
-        function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines = null) {
+        function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines = null, initialState = null) {
             if (renderer) {
                 renderer.dispose();
                 renderer = null;
@@ -281,6 +281,11 @@
             }
 
             renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper, bgName);
+
+            // If we have an initial state (multiplayer join), apply it immediately
+            if (initialState) {
+                applyStateSync(initialState);
+            }
 
             const hintBtn = document.getElementById('hint-btn');
             hintBtn.style.display = 'inline-flex';
@@ -332,23 +337,9 @@
                 if (!state) return;
 
                 if (!game || !renderer) {
-                    const videoElement = document.getElementById('image');
-                    if (videoElement) {
-                        videoElement.muted = true;
-                        videoElement.load();
-                        await new Promise(resolve => {
-                            const checkReady = () => {
-                                if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
-                                    videoElement.play().catch(() => { });
-                                    resolve();
-                                } else setTimeout(checkReady, 50);
-                            };
-                            checkReady();
-                            setTimeout(resolve, 3000);
-                        });
-                    }
-                    startGame(state.width, state.height, state.bombCount, true, false, 'Multiplayer');
-                    setTimeout(() => applyStateSync(state), 300);
+                    // This case handles joining an already running game via onStateSync message
+                    // (if not already handled by onGameStart)
+                    startGame(state.width, state.height, state.bombCount, true, false, 'Multiplayer', state.minePositions, state);
                 } else {
                     applyStateSync(state);
                 }

@@ -357,16 +357,9 @@ export class UIManager {
             this.menuOverlay.style.display = 'none';
 
             if (this.onStartGame) {
-                // Pass mine positions from server and the chosen background
-                this.onStartGame(state.width, state.height, state.bombCount, true, false, bgResult, state.minePositions);
+                // Pass mine positions from server, chosen background, and the full initial state
+                this.onStartGame(state.width, state.height, state.bombCount, true, false, bgResult, state.minePositions, state);
             }
-
-            // Apply state sync after a short delay
-            setTimeout(() => {
-                if (networkManager.onStateSync) {
-                    networkManager.onStateSync(state);
-                }
-            }, 300);
         };
 
         // Host left
