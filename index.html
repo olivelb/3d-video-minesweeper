@@ -411,8 +411,8 @@
                         game.visibleGrid[c.x][c.y] = c.value; // Update game state
                         renderer.updateCellVisual(c.x, c.y, c.value);
                     });
-                    if (result.type === 'win') { game.victory = true; renderer.triggerWin(); }
-                } else if (result.type === 'explode') {
+                    if (result.type === 'win' && !game.victory) { game.victory = true; renderer.triggerWin(); }
+                } else if (result.type === 'explode' && !game.gameOver) {
                     game.gameOver = true;
                     game.visibleGrid[update.action.x][update.action.y] = 9; // Mark explosion
                     renderer.triggerExplosion();
@@ -425,10 +425,10 @@
             networkManager.onGameOver = (data) => {
                 if (!game) return;
                 console.log('[Main] Game Over received:', data);
-                if (data.victory) {
+                if (data.victory && !game.victory) {
                     game.victory = true;
                     renderer.triggerWin();
-                } else {
+                } else if (!data.victory && !game.gameOver) {
                     game.gameOver = true;
                     renderer.triggerExplosion();
                 }

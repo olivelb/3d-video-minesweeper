@@ -1119,6 +1119,7 @@ export class MinesweeperRenderer {
     }
 
     triggerExplosion() {
+        if (this.isExploding) return;
         this.isExploding = true;
         this.showText("PERDU", 0xff0000);
         this.numberMeshes.forEach(mesh => mesh.visible = false);
@@ -1193,6 +1194,7 @@ export class MinesweeperRenderer {
     }
 
     triggerWin() {
+        if (this.game.victory && this.endTextMesh) return; // Already triggered
         this.game.victory = true;
         // Win sound removed - only video sound
 
@@ -1292,6 +1294,12 @@ export class MinesweeperRenderer {
     }
 
     showText(message, color) {
+        if (this.endTextMesh) {
+            this.scene.remove(this.endTextMesh);
+            if (this.endTextMesh.geometry) this.endTextMesh.geometry.dispose();
+            if (this.endTextMesh.material) this.endTextMesh.material.dispose();
+        }
+
         const geometry = new TextGeometry(message, {
             font: this.font,
             size: 70, height: 20, curveSegments: 4,
