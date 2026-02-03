@@ -29,6 +29,11 @@ const PORT = process.env.PORT || 3001;
 
 // Health check
 app.get('/health', (req, res) => {
+    res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Cache-Control': 'no-cache'
+    });
     res.json({ status: 'ok', mode: 'multiplayer', uptime: process.uptime() });
 });
 
