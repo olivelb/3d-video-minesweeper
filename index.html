@@ -261,7 +261,7 @@
             }, 100);
         });
 
-        function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines = null, initialState = null) {
+        async function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines = null, initialState = null) {
             if (renderer) {
                 renderer.dispose();
                 renderer = null;
@@ -281,6 +281,19 @@
             }
 
             renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper, bgName);
+
+            // Wait for renderer to fully initialize before applying state sync
+            // This ensures gridMesh and other resources are ready
+            await new Promise(resolve => {
+                const checkReady = () => {
+                    if (renderer && renderer.gridMesh) {
+                        resolve();
+                    } else {
+                        setTimeout(checkReady, 50);
+                    }
+                };
+                checkReady();
+            });
 
             // If we have an initial state (multiplayer join), apply it immediately
             if (initialState) {
@@ -328,7 +341,7 @@
         }
 
         function applyStateSync(state) {
-            if (!game || !state || !renderer) return;
+            if (!game || !state || !renderer || !renderer.gridMesh) return;
 
             game.visibleGrid = state.visibleGrid.map(row => [...row]);
             game.flags = state.flags.map(row => [...row]);
