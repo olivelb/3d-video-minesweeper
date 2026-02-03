@@ -195,17 +195,6 @@ export class UIManager {
             this.connectToServer();
         });
 
-        // Difficulty buttons for host
-        document.querySelectorAll('.mp-diff-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.mp-diff-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            });
-        });
-
-        // Selected difficulty config
-        this.mpDifficulty = { easy: { w: 9, h: 9, b: 10 }, medium: { w: 16, h: 16, b: 40 }, hard: { w: 30, h: 16, b: 99 } };
-
         // Bind Host/Guest actions here (once) to prevent duplicate listeners
         this.bindMultiplayerActions();
     }
@@ -217,16 +206,15 @@ export class UIManager {
             if (createBtn.disabled) return;
             createBtn.disabled = true; // Prevent double click
 
-            const activeBtn = document.querySelector('.mp-diff-btn.active');
-            const diff = activeBtn?.dataset.diff || 'medium';
-            const { w, h, b } = this.mpDifficulty[diff];
+            const w = parseInt(this.widthInput.value) || 30;
+            const h = parseInt(this.heightInput.value) || 20;
+            const b = parseInt(this.bombInput.value) || 50;
 
             networkManager.createGame(w, h, b);
 
             // Show waiting state
             document.getElementById('host-actions')?.classList.add('hidden');
             document.getElementById('host-waiting')?.classList.remove('hidden');
-            document.querySelectorAll('.mp-diff-btn').forEach(btn => btn.disabled = true);
         });
 
         // Leave Host
@@ -322,7 +310,6 @@ export class UIManager {
 
         document.getElementById('host-actions')?.classList.remove('hidden');
         document.getElementById('host-waiting')?.classList.add('hidden');
-        document.querySelectorAll('.mp-diff-btn').forEach(btn => btn.disabled = false);
     }
 
     showGuestLobby() {
@@ -404,14 +391,11 @@ export class UIManager {
         // Reset host UI
         document.getElementById('host-actions')?.classList.remove('hidden');
         document.getElementById('host-waiting')?.classList.add('hidden');
-        document.querySelectorAll('.mp-diff-btn').forEach(btn => btn.disabled = false);
 
         // Reset guest UI
         document.getElementById('guest-waiting')?.classList.remove('hidden');
         document.getElementById('guest-ready')?.classList.add('hidden');
     }
-
-
 
     async handleStartClick() {
         const width = parseInt(this.widthInput.value) || 30;
