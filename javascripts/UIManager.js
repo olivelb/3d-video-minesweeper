@@ -603,5 +603,10 @@ export class UIManager {
         this.menuOverlay.style.display = 'flex';
         this.updateLeaderboard();
         this.checkReplayAvailable();
+
+        // Stop video playback and sound when returning to menu
+        if (this.videoElement) {
+            this.videoElement.pause();
+        }
     }
 }
