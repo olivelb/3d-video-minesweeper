@@ -68,7 +68,7 @@ export class Scoreboard {
     }
 
     /**
-     * Inject CSS styles for scoreboard
+     * Inject CSS styles for scoreboard - matches solo game style
      * @private
      */
     _injectStyles() {
@@ -77,21 +77,22 @@ export class Scoreboard {
         const style = document.createElement('style');
         style.id = 'scoreboard-styles';
         style.textContent = `
-            /* In-game Scoreboard */
+            /* In-game Scoreboard - Glass morphism style like solo leaderboard */
             .scoreboard {
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                background: linear-gradient(135deg, rgba(30, 30, 40, 0.95), rgba(20, 20, 30, 0.95));
-                border: 1px solid rgba(100, 100, 150, 0.3);
-                border-radius: 12px;
-                padding: 12px 16px;
-                min-width: 180px;
+                background: rgba(255, 255, 255, 0.08);
+                backdrop-filter: blur(25px);
+                -webkit-backdrop-filter: blur(25px);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                border-radius: 20px;
+                padding: 18px 22px;
+                min-width: 200px;
                 z-index: 1000;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-                backdrop-filter: blur(10px);
-                font-family: 'Segoe UI', Arial, sans-serif;
-                transition: opacity 0.3s ease, transform 0.3s ease;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             }
 
             .scoreboard.hidden {
@@ -103,85 +104,100 @@ export class Scoreboard {
             .scoreboard-header {
                 display: flex;
                 align-items: center;
-                margin-bottom: 10px;
-                padding-bottom: 8px;
-                border-bottom: 1px solid rgba(100, 100, 150, 0.2);
+                margin-bottom: 14px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             }
 
             .scoreboard-title {
-                font-size: 14px;
-                font-weight: 600;
-                color: #ffd700;
-                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+                font-size: 1em;
+                font-weight: 800;
+                background: linear-gradient(135deg, #ffd700 0%, #ffae00 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
             }
 
             .scoreboard-players {
                 display: flex;
                 flex-direction: column;
-                gap: 6px;
+                gap: 8px;
             }
 
             .scoreboard-player {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 6px 10px;
-                background: rgba(255, 255, 255, 0.05);
-                border-radius: 6px;
-                transition: all 0.3s ease;
+                padding: 10px 14px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 12px;
+                transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+
+            .scoreboard-player:hover {
+                background: rgba(255, 255, 255, 0.08);
+                border-color: rgba(255, 255, 255, 0.2);
             }
 
             .scoreboard-player.local {
-                background: rgba(100, 150, 255, 0.15);
-                border: 1px solid rgba(100, 150, 255, 0.3);
+                background: rgba(79, 172, 254, 0.15);
+                border: 1px solid rgba(79, 172, 254, 0.3);
             }
 
             .scoreboard-player.eliminated {
                 opacity: 0.5;
+            }
+
+            .scoreboard-player.eliminated .player-name {
                 text-decoration: line-through;
             }
 
             .scoreboard-player.leading {
-                background: rgba(255, 215, 0, 0.15);
+                background: rgba(255, 215, 0, 0.12);
                 border: 1px solid rgba(255, 215, 0, 0.3);
             }
 
             .player-name {
-                font-size: 13px;
+                font-size: 0.9em;
+                font-weight: 600;
                 color: #ffffff;
                 display: flex;
                 align-items: center;
-                gap: 6px;
+                gap: 8px;
             }
 
             .player-number {
-                font-size: 10px;
-                background: rgba(255, 255, 255, 0.2);
-                padding: 2px 6px;
-                border-radius: 4px;
-                color: #aaaaaa;
+                font-size: 0.7em;
+                font-weight: 700;
+                background: rgba(255, 255, 255, 0.15);
+                padding: 3px 8px;
+                border-radius: 6px;
+                color: rgba(255, 255, 255, 0.7);
             }
 
             .player-score {
-                font-size: 14px;
-                font-weight: bold;
-                color: #4ade80;
-                text-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+                font-size: 1.1em;
+                font-weight: 800;
+                color: #4facfe;
+            }
+
+            .scoreboard-player.leading .player-score {
+                color: #ffd700;
             }
 
             .scoreboard-player.eliminated .player-score {
-                color: #888888;
-                text-shadow: none;
+                color: rgba(255, 255, 255, 0.4);
             }
 
-            /* Results Modal */
+            /* Results Modal - Glass morphism style like menu-box */
             .results-modal {
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: rgba(0, 0, 0, 0.8);
+                background: linear-gradient(135deg, rgba(26, 28, 44, 0.95) 0%, rgba(74, 25, 44, 0.95) 100%);
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -196,39 +212,68 @@ export class Scoreboard {
             }
 
             .results-content {
-                background: linear-gradient(135deg, rgba(30, 30, 50, 0.98), rgba(20, 20, 40, 0.98));
-                border: 1px solid rgba(100, 100, 150, 0.4);
-                border-radius: 16px;
-                padding: 30px 40px;
-                min-width: 400px;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(25px);
+                -webkit-backdrop-filter: blur(25px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 24px;
+                padding: 35px 45px;
+                min-width: 450px;
                 max-width: 600px;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                box-shadow:
+                    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+                animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px) scale(0.98);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
             }
 
             .results-header {
                 text-align: center;
-                margin-bottom: 25px;
+                margin-bottom: 30px;
             }
 
             .results-title {
-                font-size: 28px;
-                color: #ffffff;
+                font-size: 1.8em;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+                background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.7) 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
                 margin: 0 0 15px 0;
             }
 
             .results-winner {
-                font-size: 20px;
-                color: #ffd700;
-                text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+                font-size: 1.3em;
+                font-weight: 700;
+                background: linear-gradient(135deg, #ffd700 0%, #ffae00 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
             }
 
             .results-winner.defeat {
-                color: #ff6b6b;
-                text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
             }
 
             .results-table-container {
-                margin-bottom: 25px;
+                margin-bottom: 30px;
+                background: rgba(0, 0, 0, 0.15);
+                border-radius: 16px;
+                padding: 5px;
             }
 
             .results-table {
@@ -238,45 +283,66 @@ export class Scoreboard {
 
             .results-table th,
             .results-table td {
-                padding: 12px 15px;
+                padding: 14px 16px;
                 text-align: left;
-                border-bottom: 1px solid rgba(100, 100, 150, 0.2);
             }
 
             .results-table th {
-                color: #aaaaaa;
-                font-weight: 500;
-                font-size: 12px;
+                color: rgba(255, 255, 255, 0.5);
+                font-weight: 600;
+                font-size: 0.75em;
                 text-transform: uppercase;
+                letter-spacing: 0.05em;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             }
 
             .results-table td {
                 color: #ffffff;
-                font-size: 14px;
+                font-size: 0.95em;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            }
+
+            .results-table tr:last-child td {
+                border-bottom: none;
+            }
+
+            .results-table tr.winner {
+                background: rgba(255, 215, 0, 0.1);
             }
 
             .results-table tr.winner td {
                 color: #ffd700;
-                font-weight: bold;
+                font-weight: 700;
+            }
+
+            .results-table tr.eliminated {
+                opacity: 0.6;
             }
 
             .results-table tr.eliminated td {
-                color: #888888;
                 text-decoration: line-through;
             }
 
             .results-table .rank {
-                font-weight: bold;
-                width: 30px;
+                font-weight: 800;
+                width: 40px;
+            }
+
+            .results-table tr.winner .rank {
+                color: #ffd700;
             }
 
             .results-table .score {
-                color: #4ade80;
-                font-weight: bold;
+                color: #4facfe;
+                font-weight: 700;
+            }
+
+            .results-table tr.winner .score {
+                color: #ffd700;
             }
 
             .results-table tr.eliminated .score {
-                color: #888888;
+                color: rgba(255, 255, 255, 0.4);
             }
 
             .results-actions {
@@ -286,26 +352,50 @@ export class Scoreboard {
             }
 
             .results-btn {
-                padding: 12px 30px;
-                font-size: 16px;
+                padding: 14px 35px;
+                font-size: 1em;
+                font-weight: 700;
                 border: none;
-                border-radius: 8px;
+                border-radius: 14px;
                 cursor: pointer;
-                transition: all 0.2s ease;
-                font-weight: 600;
+                transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .results-btn::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+                transition: left 0.5s ease;
+            }
+
+            .results-btn:hover::before {
+                left: 100%;
             }
 
             .results-btn:hover {
-                transform: translateY(-2px);
+                transform: translateY(-3px);
             }
 
             #results-menu-btn {
-                background: linear-gradient(135deg, #667eea, #764ba2);
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
                 color: white;
+                box-shadow:
+                    0 10px 30px rgba(245, 87, 108, 0.4),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
             }
 
             #results-menu-btn:hover {
-                box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+                box-shadow:
+                    0 15px 40px rgba(245, 87, 108, 0.5),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.4);
             }
         `;
         document.head.appendChild(style);
