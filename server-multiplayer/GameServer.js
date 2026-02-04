@@ -219,6 +219,9 @@ export class GameServer {
 
             // Check if all players eliminated (everyone loses)
             if (eliminationResult.allEliminated) {
+                // Calculate flag scores at game end
+                this._calculateFinalFlagScores();
+                
                 if (this.onBroadcast) {
                     this.onBroadcast('gameOver', {
                         victory: false,
@@ -251,6 +254,9 @@ export class GameServer {
 
         // Check for win
         if (result.type === 'win') {
+            // Calculate final flag scores for all players
+            this._calculateFinalFlagScores();
+            
             // Apply winner bonus
             this._applyWinnerBonus(playerId);
             
@@ -422,6 +428,9 @@ export class GameServer {
 
     /**
      * Update player stats when flag is placed/removed
+     * NOTE: Flag scores are NOT calculated during gameplay to prevent cheating
+     * (player could tell if flag is correct by watching score change)
+     * Flag scores are calculated at game end via _calculateFinalFlagScores()
      * @param {string} playerId 
      * @param {number} x 
      * @param {number} y 
@@ -431,26 +440,60 @@ export class GameServer {
         const player = this.players.get(playerId);
         if (!player || player.eliminated) return;
 
-        const isMine = this.game.mines[x][y];
-
+        // Just track the action, don't reveal if correct (would be cheating!)
         if (active) {
-            // Flag placed
             player.stats.flagsPlaced++;
-            if (isMine) {
-                player.stats.correctFlags++;
-                player.score += GameServer.SCORING.CORRECT_FLAG;
-            }
         } else {
-            // Flag removed
             player.stats.flagsPlaced--;
-            if (isMine) {
-                // Removed a correct flag - subtract the bonus
-                player.stats.correctFlags--;
-                player.score -= GameServer.SCORING.CORRECT_FLAG;
-            } else {
-                // Removed an incorrect flag - penalty
-                player.stats.incorrectFlags++;
-                player.score += GameServer.SCORING.INCORRECT_FLAG;
+        }
+    }
+
+    /**
+     * Calculate final flag scores for all players at game end
+     * Called when game ends (win or all eliminated)
+     */
+    _calculateFinalFlagScores() {
+        if (!this.game) return;
+
+        for (const [playerId, player] of this.players) {
+            let correctFlags = 0;
+            let incorrectFlags = 0;
+
+            // Count flags for this calculation (check all flags on the board)
+            // We need to track which player placed which flag - for now, 
+            // we use the shared flag grid and divide equally or use stats
+            // Actually, let's count from the current flag state
+            for (let x = 0; x < this.width; x++) {
+                for (let y = 0; y < this.height; y++) {
+                    if (this.game.flags[x][y]) {
+                        if (this.game.mines[x][y]) {
+                            correctFlags++;
+                        } else {
+                            incorrectFlags++;
+                        }
+                    }
+                }
+            }
+
+            // In 2-player mode, we can't easily track who placed which flag
+            // For now, award flag points based on flagsPlaced ratio
+            // TODO: Track individual flag ownership for proper scoring
+            const totalFlagsPlaced = Array.from(this.players.values())
+                .reduce((sum, p) => sum + Math.max(0, p.stats.flagsPlaced), 0);
+            
+            if (totalFlagsPlaced > 0 && player.stats.flagsPlaced > 0) {
+                const playerRatio = player.stats.flagsPlaced / totalFlagsPlaced;
+                const playerCorrect = Math.round(correctFlags * playerRatio);
+                const playerIncorrect = Math.round(incorrectFlags * playerRatio);
+
+                player.stats.correctFlags = playerCorrect;
+                player.stats.incorrectFlags = playerIncorrect;
+
+                const flagPoints = (playerCorrect * GameServer.SCORING.CORRECT_FLAG) + 
+                                   (playerIncorrect * GameServer.SCORING.INCORRECT_FLAG);
+                player.score += flagPoints;
+
+                console.log(`[GameServer] Final flag scores for ${player.name}: ${playerCorrect} correct, ${playerIncorrect} incorrect = ${flagPoints} pts`);
             }
         }
     }
