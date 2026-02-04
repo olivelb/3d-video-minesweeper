@@ -10,6 +10,9 @@ package-lock.json
 # Local server configuration (contains private IPs)
 servers-local.json
 
+# YouTube proxy server (not used in this branch)
+server/
+
 # IDE
 .vscode/
 .idea/
