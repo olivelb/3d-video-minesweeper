@@ -319,4 +319,98 @@ export class MultiplayerUI {
         document.getElementById('mp-host-lobby')?.classList.add('hidden');
         if (this.joinBtn) this.joinBtn.disabled = false;
     }
+
+    /**
+     * Show elimination notification when another player is eliminated
+     * @param {string} playerName - Name of the eliminated player
+     */
+    showEliminationNotification(playerName) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = 'elimination-notification';
+        notification.innerHTML = `
+            <div class="elimination-icon">💀</div>
+            <div class="elimination-text">
+                <span class="elimination-name">${playerName}</span>
+                <span class="elimination-msg">a été éliminé!</span>
+            </div>
+        `;
+        
+        // Add styles inline for immediate effect
+        notification.style.cssText = `
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: linear-gradient(135deg, rgba(180, 40, 40, 0.95), rgba(120, 20, 20, 0.95));
+            border: 2px solid #ff4444;
+            border-radius: 12px;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 10000;
+            box-shadow: 0 8px 32px rgba(255, 0, 0, 0.4), 0 0 60px rgba(255, 0, 0, 0.2);
+            opacity: 0;
+            animation: eliminationSlideIn 0.5s ease forwards;
+            font-family: 'Arial', sans-serif;
+        `;
+        
+        const icon = notification.querySelector('.elimination-icon');
+        icon.style.cssText = `
+            font-size: 48px;
+            animation: eliminationPulse 0.5s ease infinite alternate;
+        `;
+        
+        const textDiv = notification.querySelector('.elimination-text');
+        textDiv.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            color: white;
+        `;
+        
+        const nameSpan = notification.querySelector('.elimination-name');
+        nameSpan.style.cssText = `
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffcccc;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        `;
+        
+        const msgSpan = notification.querySelector('.elimination-msg');
+        msgSpan.style.cssText = `
+            font-size: 18px;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        `;
+        
+        // Add keyframe animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes eliminationSlideIn {
+                0% { opacity: 0; transform: translateX(-50%) translateY(-40px) scale(0.8); }
+                100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+            }
+            @keyframes eliminationSlideOut {
+                0% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+                100% { opacity: 0; transform: translateX(-50%) translateY(-40px) scale(0.8); }
+            }
+            @keyframes eliminationPulse {
+                0% { transform: scale(1); }
+                100% { transform: scale(1.1); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        document.body.appendChild(notification);
+        
+        // Remove after 3 seconds with fade out
+        setTimeout(() => {
+            notification.style.animation = 'eliminationSlideOut 0.5s ease forwards';
+            setTimeout(() => {
+                notification.remove();
+                style.remove();
+            }, 500);
+        }, 3000);
+    }
 }

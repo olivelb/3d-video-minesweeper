@@ -1,8 +1,9 @@
 # 📋 Multiplayer Implementation Plan & Technical Details
 
-> **Document Version:** 1.0  
-> **Branch:** `coop-2player`  
+> **Document Version:** 2.0  
+> **Branch:** `competitive-multiplayer`  
 > **Purpose:** Deep technical reference for maintainers and developers
+> **Mode:** Competitive elimination - click bomb = eliminated, others continue
 
 ---
 
@@ -453,13 +454,16 @@ CMD ["node", "server.js"]
 
 ## 📝 Changelog
 
-### v1.0 (Current)
-- Initial 2-player cooperative mode
-- Socket.io dedicated server
-- Real-time cursor sharing
-- Action queue for race condition prevention
-- Cloudflare Tunnel compatibility
+### v2.0 (Current)
+- **Competitive mode with player elimination**
+- Click a bomb = eliminated, other players continue
+- Revealed bombs visible to all (cell value 10)
+- No auto-win: last player must complete grid
+- `playerEliminated` event for notifications
+- Host elimination no longer ends game for others
+- Support for unlimited players (scalable)
 
+### v1.0
 ---
 
 *Document maintained by the 3D Minesweeper team*

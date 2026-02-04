@@ -118,6 +118,9 @@ export class MinesweeperRenderer {
         }
         this.textures['flag'] = textureLoader.load('images/star.png');
         this.textures['particle'] = textureLoader.load('images/flare.png');
+        
+        // Create bomb texture for revealed bombs (value 10)
+        this.textures['bomb'] = this._createBombTexture();
 
         // Initialize media texture - check for custom uploaded image first, then fall back to video
         const customImage = document.getElementById('custom-image-source');
@@ -503,6 +506,115 @@ export class MinesweeperRenderer {
         if (this.mediaTexture && this.mediaTexture.isCanvasTexture) {
             this.mediaTexture.needsUpdate = true;
         }
+    }
+
+    /**
+     * Create a bomb texture for revealed bombs (when a player is eliminated)
+     * @returns {THREE.CanvasTexture}
+     */
+    _createBombTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        
+        // Clear with transparency
+        ctx.clearRect(0, 0, 128, 128);
+        
+        // Draw bomb body (black circle with spikes)
+        const cx = 64, cy = 64;
+        const radius = 35;
+        
+        // Outer glow (red/orange danger glow)
+        ctx.shadowColor = '#ff4400';
+        ctx.shadowBlur = 20;
+        
+        // Main bomb body
+        ctx.fillStyle = '#222222';
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Spikes
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#222222';
+        const spikeCount = 8;
+        for (let i = 0; i < spikeCount; i++) {
+            const angle = (i / spikeCount) * Math.PI * 2 - Math.PI / 2;
+            const spikeLength = 18;
+            const spikeWidth = 8;
+            
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(-spikeWidth / 2, -radius + 5);
+            ctx.lineTo(0, -radius - spikeLength);
+            ctx.lineTo(spikeWidth / 2, -radius + 5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+        
+        // Inner highlight (gives 3D effect)
+        const grad = ctx.createRadialGradient(cx - 10, cy - 10, 0, cx, cy, radius);
+        grad.addColorStop(0, 'rgba(100, 100, 100, 0.6)');
+        grad.addColorStop(0.5, 'rgba(50, 50, 50, 0.3)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Fuse hole
+        ctx.fillStyle = '#444444';
+        ctx.beginPath();
+        ctx.arc(cx, cy - radius + 8, 6, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Fuse
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - radius + 2);
+        ctx.quadraticCurveTo(cx + 15, cy - radius - 15, cx + 5, cy - radius - 25);
+        ctx.stroke();
+        
+        // Spark at fuse tip
+        ctx.fillStyle = '#ffaa00';
+        ctx.shadowColor = '#ff6600';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(cx + 5, cy - radius - 25, 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Red X overlay to indicate "revealed/dead" bomb
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(30, 30);
+        ctx.lineTo(98, 98);
+        ctx.moveTo(98, 30);
+        ctx.lineTo(30, 98);
+        ctx.stroke();
+        
+        // White border on X for visibility
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(30, 30);
+        ctx.lineTo(98, 98);
+        ctx.moveTo(98, 30);
+        ctx.lineTo(30, 98);
+        ctx.stroke();
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        return texture;
     }
 
     /**
@@ -940,7 +1052,32 @@ export class MinesweeperRenderer {
 
         this.updateFlagVisual(x, y, false);
 
-        if (value > 0) {
+        // Handle revealed bomb (value 10) - from eliminated player in multiplayer
+        if (value === 10) {
+            const planeGeo = new THREE.PlaneGeometry(18, 18); // Slightly larger than numbers
+            const material = new THREE.MeshBasicMaterial({
+                map: this.textures['bomb'],
+                transparent: true,
+                opacity: 1.0,
+                depthWrite: true,
+                depthTest: true,
+                side: THREE.DoubleSide,
+                alphaTest: 0.1
+            });
+            const mesh = new THREE.Mesh(planeGeo, material);
+            mesh.position.set(
+                -(this.game.width * 10) + x * 22,
+                11,
+                (this.game.height * 10) - y * 22
+            );
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.renderOrder = 2; // Render on top
+            this.scene.add(mesh);
+            this.numberMeshes.push(mesh);
+            return;
+        }
+
+        if (value > 0 && value <= 8) {
             const planeGeo = new THREE.PlaneGeometry(16, 16);
             const material = new THREE.MeshBasicMaterial({
                 map: this.textures[value],

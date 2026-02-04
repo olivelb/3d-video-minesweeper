@@ -39,10 +39,13 @@ The codebase demonstrates **professional-level architecture** with clear separat
 - **Retry Mechanism**: Undo last fatal move
 
 ### 4. Multiplayer Implementation
+- **Competitive elimination mode**: click a bomb = eliminated, others continue
+- Revealed bombs shown to all players (cell value 10)
 - Clean lobby flow (host creates, guest joins)
 - Real-time cursor sharing
 - Proper state synchronization
 - Graceful handling of disconnections
+- Support for unlimited players
 
 ---
 
@@ -333,10 +336,10 @@ The foundation is solid, the architecture is clean, and the multiplayer implemen
 **My Recommendations:**
 
 1. **Short-term (1-2 weeks):** Implement Priority 1 quick wins to polish the current experience
-2. **Medium-term (1-2 months):** Add chat and per-player stats for better coop feeling  
-3. **Long-term:** Consider mobile support and 4-player mode for broader appeal
+2. **Medium-term (1-2 months):** Add chat and per-player stats for competitive ranking
+3. **Long-term:** Consider mobile support and expanded player modes
 
-The unique combination of 3D graphics, video textures, and cooperative multiplayer makes this project stand out. It has genuine potential as either:
+The unique combination of 3D graphics, video textures, and competitive multiplayer makes this project stand out. It has genuine potential as either:
 - A portfolio piece demonstrating full-stack real-time development
 - An actual game to share with friends
 - A foundation for more elaborate multiplayer puzzle games

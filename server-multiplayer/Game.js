@@ -45,6 +45,7 @@ export class MinesweeperGame {
         this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
         this.visibleGrid = Array(this.width).fill().map(() => Array(this.height).fill(-1));
         this.flags = Array(this.width).fill().map(() => Array(this.height).fill(false));
+        this.revealedBombs = []; // Track bombs revealed by eliminated players
 
         this.gameOver = false;
         this.victory = false;
@@ -412,6 +413,20 @@ export class MinesweeperGame {
             }
         }
         return positions;
+    }
+
+    /**
+     * Reveal a bomb without ending the game (for multiplayer player elimination)
+     * Marks the cell as a revealed bomb (value 10) instead of explosion (value 9)
+     * @param {number} x
+     * @param {number} y
+     * @returns {boolean} true if bomb was revealed
+     */
+    revealBombForElimination(x, y) {
+        if (!this.mines[x][y]) return false;
+        this.visibleGrid[x][y] = 10; // 10 = Revealed bomb (player eliminated)
+        this.revealedBombs.push({ x, y });
+        return true;
     }
 
     /**

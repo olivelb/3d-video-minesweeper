@@ -25,6 +25,7 @@ export class NetworkManager {
         this.onGameStart = null;
         this.onGameCreated = null;
         this.onHostLeft = null;
+        this.onPlayerEliminated = null; // New: player elimination in multiplayer
     }
 
     // True when in multiplayer mode
@@ -101,6 +102,11 @@ export class NetworkManager {
 
             this.socket.on('gameOver', (data) => {
                 if (this.onGameOver) this.onGameOver(data);
+            });
+
+            this.socket.on('playerEliminated', (data) => {
+                console.log('[NetworkManager] Player eliminated:', data.playerName);
+                if (this.onPlayerEliminated) this.onPlayerEliminated(data);
             });
 
             this.socket.on('minesPlaced', (data) => {

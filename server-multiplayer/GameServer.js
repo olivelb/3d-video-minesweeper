@@ -43,7 +43,8 @@ export class GameServer {
         this.players.set(playerId, {
             name: playerName,
             number: playerNumber,
-            connected: true
+            connected: true,
+            eliminated: false
         });
 
         // Notify all players
@@ -122,6 +123,10 @@ export class GameServer {
         if (!this.players.has(playerId)) {
             return { success: false, error: 'Unknown player' };
         }
+        // Check if this player is already eliminated
+        if (this.isPlayerEliminated(playerId)) {
+            return { success: false, error: 'Player already eliminated' };
+        }
 
         const player = this.players.get(playerId);
         const { type, x, y } = action;
@@ -153,7 +158,59 @@ export class GameServer {
             this.gameStarted = true;
         }
 
-        // Broadcast the result
+        // Handle explosion - player elimination in multiplayer
+        if (result.type === 'explode') {
+            // Mark the bomb as revealed (value 10) instead of explosion (value 9)
+            this.game.revealBombForElimination(x, y);
+            // Reset gameOver flag since game continues for other players
+            this.game.gameOver = false;
+
+            // Eliminate this player
+            const eliminationResult = this.eliminatePlayer(playerId);
+
+            // Broadcast the revealed bomb to all players
+            const update = {
+                actor: {
+                    id: playerId,
+                    name: player.name,
+                    number: player.number
+                },
+                action: { type, x, y },
+                result: { type: 'revealedBomb', x, y } // New result type
+            };
+
+            if (this.onBroadcast) {
+                this.onBroadcast('gameUpdate', update);
+            }
+
+            // Send playerEliminated event
+            if (this.onBroadcast) {
+                this.onBroadcast('playerEliminated', {
+                    playerId,
+                    playerName: player.name,
+                    playerNumber: player.number,
+                    bombX: x,
+                    bombY: y,
+                    remainingPlayers: eliminationResult.remainingPlayers
+                });
+            }
+
+            // Check if all players eliminated (everyone loses)
+            if (eliminationResult.allEliminated) {
+                if (this.onBroadcast) {
+                    this.onBroadcast('gameOver', {
+                        victory: false,
+                        reason: 'allEliminated'
+                    });
+                }
+                return { success: true, result, firstClickMines, gameEnded: true, playerEliminated: playerId };
+            }
+
+            // Game continues for remaining players - they win by completing the grid
+            return { success: true, result, firstClickMines, playerEliminated: playerId };
+        }
+
+        // Broadcast the result for non-explosion actions
         const update = {
             actor: {
                 id: playerId,
@@ -168,20 +225,16 @@ export class GameServer {
             this.onBroadcast('gameUpdate', update);
         }
 
-        // Check for game over
-        if (result.type === 'explode') {
-            if (this.onBroadcast) {
-                this.onBroadcast('gameOver', {
-                    victory: false,
-                    triggeredBy: player.name
-                });
-            }
-            return { success: true, result, firstClickMines, gameEnded: true };
-        } else if (result.type === 'win') {
+        // Check for win
+        if (result.type === 'win') {
             if (this.onBroadcast) {
                 this.onBroadcast('gameOver', {
                     victory: true,
-                    time: this.game.getElapsedTime()
+                    winnerId: playerId,
+                    winnerName: player.name,
+                    winnerNumber: player.number,
+                    time: this.game.getElapsedTime(),
+                    reason: 'completed'
                 });
             }
             return { success: true, result, firstClickMines, gameEnded: true };
@@ -207,10 +260,12 @@ export class GameServer {
             victory: this.game.victory,
             elapsedTime: this.game.getElapsedTime(),
             minePositions: this.game.getMinePositions(),
+            revealedBombs: this.game.revealedBombs || [],
             players: Array.from(this.players.entries()).map(([id, p]) => ({
                 id,
                 name: p.name,
-                number: p.number
+                number: p.number,
+                eliminated: p.eliminated || false
             }))
         };
     }
@@ -234,5 +289,56 @@ export class GameServer {
                 y: position.y
             }, playerId); // Exclude sender
         }
+    }
+
+    /**
+     * Get count of active (non-eliminated) players
+     * @returns {number}
+     */
+    getActivePlayerCount() {
+        let count = 0;
+        for (const player of this.players.values()) {
+            if (!player.eliminated) count++;
+        }
+        return count;
+    }
+
+    /**
+     * Eliminate a player (they clicked a bomb)
+     * @param {string} playerId
+     * @returns {object} { eliminated: boolean, remainingPlayers: number, allEliminated?: boolean }
+     */
+    eliminatePlayer(playerId) {
+        if (!this.players.has(playerId)) {
+            return { eliminated: false, remainingPlayers: this.getActivePlayerCount() };
+        }
+
+        const player = this.players.get(playerId);
+        player.eliminated = true;
+
+        const remainingPlayers = this.getActivePlayerCount();
+
+        // Check if all players eliminated - game over with no winner
+        if (remainingPlayers === 0) {
+            return {
+                eliminated: true,
+                remainingPlayers,
+                allEliminated: true
+            };
+        }
+
+        // Game continues - remaining players must complete the grid to win
+        // No automatic winner just for being last standing
+        return { eliminated: true, remainingPlayers };
+    }
+
+    /**
+     * Check if a player is eliminated
+     * @param {string} playerId
+     * @returns {boolean}
+     */
+    isPlayerEliminated(playerId) {
+        const player = this.players.get(playerId);
+        return player ? player.eliminated : true;
     }
 }

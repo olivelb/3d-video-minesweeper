@@ -45,6 +45,7 @@ export class MinesweeperGame {
         this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
         this.visibleGrid = Array(this.width).fill().map(() => Array(this.height).fill(-1));
         this.flags = Array(this.width).fill().map(() => Array(this.height).fill(false));
+        this.revealedBombs = []; // Track bombs revealed by eliminated players in multiplayer
 
         this.gameOver = false;
         this.victory = false;

@@ -1,4 +1,4 @@
-# 🎮 3D Minesweeper - Cooperative Multiplayer Branch
+# 🎮 3D Minesweeper - Competitive Multiplayer
 
 > **Branch:** `coop-2player`  
 > **Status:** Feature complete, production-tested  
@@ -6,18 +6,34 @@
 
 ## Overview
 
-This branch extends the 3D Video Minesweeper with **real-time cooperative multiplayer** functionality, allowing two players to work together on the same game board simultaneously. The implementation uses a **client-server architecture** with Socket.io for real-time communication.
+This branch extends the 3D Video Minesweeper with **real-time competitive multiplayer** functionality. Multiple players compete on the same board - when a player clicks a bomb, they are **eliminated** and the remaining players continue until one wins or all are eliminated.
 
 ---
 
 ## 🎯 Key Features
 
 ### Multiplayer Functionality
-- **2-Player Coop Mode** - Two players share the same board and work together
-- **Real-time Synchronization** - Actions are instantly synced across all connected clients
-- **Live Cursor Tracking** - See your partner's cursor position in real-time
-- **Lobby System** - Host creates a game, guest joins when ready
-- **Automatic Game Reset** - After game ends, server resets for a new session
+- **Competitive Mode** - Multiple players compete on the same board
+- **Player Elimination** - Click a bomb = eliminated, but others continue playing
+- **Revealed Bombs** - Eliminated player's bomb is shown to others (distinct visual)
+- **Elimination Notifications** - "Player X eliminated!" toast message
+- **Real-time Synchronization** - Actions are instantly synced across all clients
+- **Live Cursor Tracking** - See other players' cursor positions in real-time
+- **Lobby System** - Host creates a game, others join when ready
+
+### Elimination System
+When a player clicks a bomb:
+1. Server marks player as **eliminated**
+2. `playerEliminated` event sent to all clients
+3. Eliminated player sees **explosion animation** → returns to **menu after 3s**
+4. Other players see **revealed bomb** (bomb icon with red X) + notification
+5. Game **continues** for remaining players
+6. Server does **NOT reset** (even if host is eliminated)
+
+### Win/Lose Conditions
+- **Victory**: Reveal all non-mine cells → `gameOver { victory: true }`
+- **Total Loss**: All players eliminated → `gameOver { victory: false, reason: 'allEliminated' }`
+- After `gameOver`, server resets after 5 seconds
 
 ### Architecture Highlights
 - **Authoritative Server** - All game logic runs on the server (anti-cheat by design)
@@ -97,12 +113,14 @@ This branch extends the 3D Video Minesweeper with **real-time cooperative multip
    ├── Both players see empty board
    ├── First reveal action places mines (safe zone around click)
    ├── All actions go through server, broadcast to both clients
-   └── Players see partner cursors in real-time
+   └── Players see other players' cursors in real-time
 
 5. END PHASE
-   ├── Win or explosion triggers game over
-   ├── 5-second delay for animations
-   └── Server resets, clients return to menu
+   ├── Player clicks bomb → Eliminated (others continue)
+   ├── Win: All non-mine cells revealed
+   ├── Lose: All players eliminated
+   ├── 5-second delay after game over
+   └── Server resets, remaining clients return to menu
 ```
 
 ---
@@ -179,10 +197,28 @@ window.MINESWEEPER_SERVERS = {
 | `gameStart` | `{ state }` | Game begins, includes mine positions |
 | `gameUpdate` | `{ actor, action, result }` | Action result broadcast |
 | `minesPlaced` | `{ minePositions }` | First click triggered mine placement |
-| `gameOver` | `{ victory, triggeredBy? }` | Game ended |
-| `cursorUpdate` | `{ playerId, playerNumber, x, y }` | Partner cursor moved |
-| `hostLeft` | `{}` | Host disconnected |
+| `playerEliminated` | `{ playerId, playerName, playerNumber, bombX, bombY, remainingPlayers }` | Player clicked a bomb |
+| `gameOver` | `{ victory, winnerId?, winnerName?, reason? }` | Game ended (win or all eliminated) |
+| `cursorUpdate` | `{ playerId, playerNumber, x, y }` | Other player cursor moved |
+| `hostLeft` | `{}` | Host disconnected (before elimination) |
 | `gameEnded` | `{}` | Session complete, return to menu |
+
+### Result Types in gameUpdate
+| Type | Description |
+|------|-------------|
+| `reveal` | Normal cell reveal with changes array |
+| `flag` | Flag toggled at position |
+| `win` | All non-mine cells revealed |
+| `revealedBomb` | Bomb revealed (player eliminated) |
+
+### Cell Values (visibleGrid)
+| Value | Meaning |
+|-------|---------|
+| -1 | Hidden |
+| 0 | Revealed, empty |
+| 1-8 | Revealed, adjacent mine count |
+| 9 | Explosion (client animation) |
+| 10 | Revealed bomb (player eliminated) |
 
 ---
 
@@ -202,9 +238,10 @@ When Player 2 joins, they receive the full game state:
     victory: false,
     elapsedTime: 45,
     minePositions: [...], // All mine locations
+    revealedBombs: [...], // Bombs revealed by eliminated players
     players: [
-        { id: "socket-1", name: "Player 1", number: 1 },
-        { id: "socket-2", name: "Player 2", number: 2 }
+        { id: "socket-1", name: "Player 1", number: 1, eliminated: false },
+        { id: "socket-2", name: "Player 2", number: 2, eliminated: false }
     ]
 }
 ```
@@ -279,10 +316,16 @@ The partner's cursor is displayed as a CSS-styled overlay that follows their gri
 1. **Race Condition on Join** - Fixed with `actionQueue` promise chain
 2. **Double End-Game Text** - Fixed by tracking explosion/victory state
 3. **Renderer Not Ready** - Fixed with async wait for `gridMesh` before state sync
+4. **Host Elimination Ended Game** - Fixed by tracking `eliminated` status on disconnect
 
 ---
 
 ## 🚧 Future Improvements
+
+- **Spectator Mode** - Eliminated players can watch remaining players
+- **Player Score Board** - Real-time leaderboard showing player progress
+- **More than 2 Players** - Support for 3+ players in a single game
+- **Reconnection** - Allow eliminated players to rejoin as spectators
 
 See `IMPLEMENTATION_PLAN_MULTIPLAYER.md` for detailed improvement ideas and roadmap.
 

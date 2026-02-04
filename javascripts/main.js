@@ -202,7 +202,8 @@ function applyStateSync(state) {
     for (let x = 0; x < game.width; x++) {
         for (let y = 0; y < game.height; y++) {
             const val = game.visibleGrid[x][y];
-            if (val !== -1 && val > 0) {
+            if (val !== -1 && val > 0 && val <= 8) {
+                // Number cells (1-8)
                 const planeGeo = new THREE.PlaneGeometry(16, 16);
                 const material = new THREE.MeshBasicMaterial({
                     map: renderer.textures[val],
@@ -213,6 +214,20 @@ function applyStateSync(state) {
                 mesh.position.set(-(game.width * 10) + x * 22, 11, (game.height * 10) - y * 22);
                 mesh.rotation.x = -Math.PI / 2;
                 mesh.renderOrder = 1;
+                renderer.scene.add(mesh);
+                renderer.numberMeshes.push(mesh);
+            } else if (val === 10) {
+                // Revealed bomb (from eliminated player)
+                const planeGeo = new THREE.PlaneGeometry(18, 18);
+                const material = new THREE.MeshBasicMaterial({
+                    map: renderer.textures['bomb'],
+                    transparent: true, opacity: 1.0, depthWrite: true, depthTest: true,
+                    side: THREE.DoubleSide, alphaTest: 0.1
+                });
+                const mesh = new THREE.Mesh(planeGeo, material);
+                mesh.position.set(-(game.width * 10) + x * 22, 11, (game.height * 10) - y * 22);
+                mesh.rotation.x = -Math.PI / 2;
+                mesh.renderOrder = 2;
                 renderer.scene.add(mesh);
                 renderer.numberMeshes.push(mesh);
             }
@@ -257,7 +272,12 @@ function setupNetworkCallbacks() {
                 renderer.updateCellVisual(c.x, c.y, c.value);
             });
             if (result.type === 'win' && !game.victory) { game.victory = true; renderer.triggerWin(); }
+        } else if (result.type === 'revealedBomb') {
+            // Another player clicked a bomb - show the revealed bomb visual
+            game.visibleGrid[result.x][result.y] = 10; // Mark as revealed bomb
+            renderer.updateCellVisual(result.x, result.y, 10);
         } else if (result.type === 'explode' && !game.gameOver) {
+            // Legacy: full game over explosion (should not happen in new multiplayer)
             game.gameOver = true;
             game.visibleGrid[update.action.x][update.action.y] = 9; // Mark explosion
             renderer.triggerExplosion();
@@ -267,13 +287,62 @@ function setupNetworkCallbacks() {
         }
     };
 
+    // Handle player elimination in multiplayer
+    networkManager.onPlayerEliminated = (data) => {
+        console.log('[Main] Player eliminated:', data.playerName, 'isMe:', data.playerId === networkManager.playerId);
+        
+        if (data.playerId === networkManager.playerId) {
+            // I was eliminated - show explosion effect and return to menu
+            if (game) game.gameOver = true;
+            if (renderer) renderer.triggerExplosion();
+            
+            // Return to menu after the explosion animation
+            setTimeout(() => {
+                console.log('[Main] Eliminated player returning to menu');
+                networkManager.disconnect();
+                if (renderer) {
+                    renderer.dispose();
+                    renderer = null;
+                }
+                game = null;
+                uiManager.showMenu();
+                // Reset multiplayer panel
+                document.getElementById('mp-connect').classList.remove('hidden');
+                document.getElementById('mp-host-lobby').classList.add('hidden');
+                document.getElementById('mp-guest-lobby').classList.add('hidden');
+                document.getElementById('host-waiting').classList.add('hidden');
+                document.getElementById('host-actions').classList.remove('hidden');
+                document.getElementById('guest-waiting').classList.remove('hidden');
+                document.getElementById('guest-ready').classList.add('hidden');
+            }, 3000); // 3 seconds for explosion animation
+        } else {
+            // Another player was eliminated - show notification
+            if (uiManager.multiplayerUI) {
+                uiManager.multiplayerUI.showEliminationNotification(data.playerName);
+            }
+        }
+    };
+
     networkManager.onGameOver = (data) => {
         if (!game) return;
         console.log('[Main] Game Over received:', data);
-        if (data.victory && !game.victory) {
-            game.victory = true;
-            renderer.triggerWin();
+        
+        if (data.victory) {
+            // Check if I'm the winner
+            const isMyWin = data.winnerId === networkManager.playerId;
+            
+            if (!game.victory) {
+                game.victory = true;
+                renderer.triggerWin();
+            }
+            
+            // Show winner notification for others
+            if (!isMyWin && data.winnerName) {
+                // Show who won if it wasn't me
+                console.log(`[Main] ${data.winnerName} won! Reason: ${data.reason}`);
+            }
         } else if (!data.victory && !game.gameOver) {
+            // Everyone lost (all eliminated)
             game.gameOver = true;
             renderer.triggerExplosion();
         }

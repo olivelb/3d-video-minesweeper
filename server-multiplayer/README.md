@@ -1,6 +1,14 @@
 # 3D Minesweeper - Multiplayer Server
 
-A dedicated server for 2-player cooperative Minesweeper.
+A dedicated server for competitive multiplayer Minesweeper with player elimination.
+
+## Features
+
+- **Competitive Mode** - Multiple players compete on the same board
+- **Player Elimination** - Click a bomb = eliminated, others continue
+- **Revealed Bombs** - Eliminated player's bomb is shown to others
+- **No Auto-Win** - Last player standing must still complete the grid to win
+- **Authoritative Server** - All game logic runs server-side (anti-cheat)
 
 ## Requirements
 
@@ -9,75 +17,96 @@ A dedicated server for 2-player cooperative Minesweeper.
 
 ## Quick Start
 
-1. **Copy this folder to your Raspberry Pi:**
+1. **Install dependencies:**
    ```bash
-   scp -r server-multiplayer/ olivier@raspberrol.local:~/minesweeper-server/
-   ```
-
-2. **SSH into your Raspberry Pi:**
-   ```bash
-   ssh olivier@raspberrol.local
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   cd ~/minesweeper-server
+   cd server-multiplayer
    npm install
    ```
 
-4. **Configure (optional):**
-   ```bash
-   cp .env.example .env
-   nano .env  # Edit settings if needed
-   ```
-
-5. **Run the server:**
+2. **Run the server:**
    ```bash
    npm start
    ```
 
+Server will be available at `http://localhost:3001`
+
+## Deployment to Raspberry Pi
+
+Use the deployment script from the project root:
+
+```powershell
+# PowerShell (Windows)
+.\.github\skills\raspberry-pi-manager\deploy.ps1
+```
+
+Or manually:
+
+```bash
+# Compress
+wsl tar --exclude="node_modules" -czf deploy-multiplayer.tar.gz server-multiplayer/
+
+# Transfer
+scp -i ~/.ssh/id_minesweeper deploy-multiplayer.tar.gz olivier@raspberrol:~/minesweeper/
+
+# Extract and restart
+ssh -i ~/.ssh/id_minesweeper olivier@raspberrol "cd ~/minesweeper && tar -xzf deploy-multiplayer.tar.gz && cd server-multiplayer && npm install --production && pm2 restart minesweeper-multiplayer"
+```
+
+## Game Flow
+
+```
+1. Player 1 connects → HOST
+2. Host creates game with config (width, height, bombs)
+3. Player 2+ connects → GUEST
+4. Guests join the game
+5. First click places mines (with safe zone)
+6. Players take turns revealing/flagging cells
+7. Player clicks bomb → ELIMINATED (returns to menu)
+8. Other players see revealed bomb + notification
+9. Game continues until:
+   - A player wins (all non-mine cells revealed)
+   - All players eliminated
+10. Server resets after 5 seconds
+```
+
+## Socket.io Events
+
+### Client → Server
+- `join` - Connect with player name
+- `createGame` - Host creates game config
+- `joinGame` - Guest joins the game
+- `action` - Reveal or flag a cell
+- `cursor` - Update cursor position
+
+### Server → Client
+- `welcome` - Connection confirmed
+- `gameStart` - Game begins
+- `gameUpdate` - Cell revealed/flagged
+- `playerEliminated` - Player clicked a bomb
+- `gameOver` - Game ended (win or all eliminated)
+- `gameEnded` - Return to menu
+
 ## Configuration
 
-Edit `.env` to configure:
-- `PORT` - Server port (default: 3002)
-- `GAME_WIDTH` - Grid width (default: 30)
-- `GAME_HEIGHT` - Grid height (default: 16)
-- `GAME_BOMBS` - Number of mines (default: 99)
+Environment variables (or edit `server.js`):
+- `PORT` - Server port (default: 3001)
+- Default grid: 30x16 with 99 bombs
 
-## Run as a Service (systemd)
+## PM2 Commands
 
-1. Create the service file:
-   ```bash
-   sudo nano /etc/systemd/system/minesweeper.service
-   ```
+```bash
+# Status
+pm2 status
 
-2. Add this content:
-   ```ini
-   [Unit]
-   Description=Minesweeper Multiplayer Server
-   After=network.target
+# Logs
+pm2 logs minesweeper-multiplayer --lines 50
 
-   [Service]
-   Type=simple
-   User=olivier
-   WorkingDirectory=/home/olivier/minesweeper-server
-   ExecStart=/usr/bin/node server.js
-   Restart=on-failure
-   RestartSec=10
-   StandardOutput=syslog
-   StandardError=syslog
-   SyslogIdentifier=minesweeper
+# Restart
+pm2 restart minesweeper-multiplayer
 
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-3. Enable and start:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable minesweeper
-   sudo systemctl start minesweeper
-   ```
+# Stop
+pm2 stop minesweeper-multiplayer
+```
 
 4. Check status:
    ```bash

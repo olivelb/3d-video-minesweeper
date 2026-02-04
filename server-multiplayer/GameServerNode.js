@@ -155,12 +155,27 @@ export function createGameServer(io, defaultConfig = {}) {
                     io.emit('minesPlaced', { minePositions: result.firstClickMines });
                 }
 
-                // If game ended, reset server after a delay to let clients show animation
+                // If a player was eliminated (but game continues), disconnect just that player after delay
+                if (result.playerEliminated && !result.gameEnded) {
+                    console.log('[GameServer] Player eliminated:', result.playerEliminated, '- game continues');
+                    // The eliminated player will return to menu via playerEliminated event
+                    // No server reset needed - game continues for others
+                }
+
+                // If game fully ended (winner determined or all eliminated), reset server after delay
                 if (result.gameEnded) {
                     console.log('[GameServer] Game ended, will reset server in 5 seconds');
                     setTimeout(() => {
                         resetServer();
                     }, 5000);
+                }
+                
+                // Track eliminated players so we don't reset when they disconnect
+                if (result.playerEliminated) {
+                    const playerInfo = socketToPlayer.get(socket.id);
+                    if (playerInfo) {
+                        playerInfo.eliminated = true;
+                    }
                 }
             }
         });
@@ -176,22 +191,26 @@ export function createGameServer(io, defaultConfig = {}) {
         socket.on('disconnect', () => {
             const player = socketToPlayer.get(socket.id);
             if (player) {
-                console.log(`[GameServer] Player ${player.number} disconnected: ${player.name}`);
+                console.log(`[GameServer] Player ${player.number} disconnected: ${player.name} (eliminated: ${player.eliminated || false})`);
 
                 if (gameServer) {
                     gameServer.removePlayer(player.id);
                 }
                 socketToPlayer.delete(socket.id);
 
-                // If host disconnects, reset everything
-                if (socket.id === hostSocketId) {
-                    console.log('[GameServer] Host disconnected, resetting game');
+                // If host disconnects AND was NOT eliminated, reset everything
+                // (eliminated players disconnecting is expected and shouldn't end the game)
+                if (socket.id === hostSocketId && !player.eliminated) {
+                    console.log('[GameServer] Host disconnected unexpectedly, resetting game');
                     resetServer();
                     // Disconnect remaining players
                     for (const [sid] of socketToPlayer) {
                         io.to(sid).emit('hostLeft');
                     }
                     socketToPlayer.clear();
+                } else if (socket.id === hostSocketId && player.eliminated) {
+                    console.log('[GameServer] Eliminated host disconnected, game continues for others');
+                    // Don't reset - game continues
                 } else {
                     // Update lobby for remaining players
                     io.emit('lobbyUpdate', getLobbyState());
