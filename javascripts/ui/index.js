@@ -7,10 +7,11 @@
  * @module ui
  * 
  * @example
- * import { UIManager, MediaHandler, MultiplayerUI, LeaderboardManager } from './ui/index.js';
+ * import { UIManager, MediaHandler, MultiplayerUI, LeaderboardManager, Scoreboard } from './ui/index.js';
  */
 
 export { UIManager } from './UIManager.js';
 export { MediaHandler } from './MediaHandler.js';
 export { MultiplayerUI, ConnectionStatus } from './MultiplayerUI.js';
 export { LeaderboardManager } from './LeaderboardManager.js';
+export { Scoreboard } from './Scoreboard.js';

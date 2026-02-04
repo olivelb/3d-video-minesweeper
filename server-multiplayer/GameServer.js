@@ -44,7 +44,19 @@ export class GameServer {
             name: playerName,
             number: playerNumber,
             connected: true,
-            eliminated: false
+            eliminated: false,
+            score: 0,
+            stats: {
+                cellsRevealed: 0,
+                emptyCells: 0,
+                numberedCells: 0,
+                correctFlags: 0,
+                incorrectFlags: 0,
+                flagsPlaced: 0,
+                joinedAt: Date.now(),
+                eliminatedAt: null,
+                finishedAt: null
+            }
         });
 
         // Notify all players
@@ -148,8 +160,16 @@ export class GameServer {
 
         if (type === 'reveal') {
             result = await this.game.reveal(x, y);
+            // Update player stats for revealed cells
+            if (result.type === 'reveal' && result.changes) {
+                this._updateRevealStats(playerId, result.changes);
+            }
         } else if (type === 'flag') {
             result = this.game.toggleFlag(x, y);
+            // Update player stats for flags
+            if (result.type === 'flag') {
+                this._updateFlagStats(playerId, x, y, result.active);
+            }
         } else {
             return { success: false, error: 'Unknown action type' };
         }
@@ -165,7 +185,7 @@ export class GameServer {
             // Reset gameOver flag since game continues for other players
             this.game.gameOver = false;
 
-            // Eliminate this player
+            // Eliminate this player (freezes their score)
             const eliminationResult = this.eliminatePlayer(playerId);
 
             // Broadcast the revealed bomb to all players
@@ -176,7 +196,8 @@ export class GameServer {
                     number: player.number
                 },
                 action: { type, x, y },
-                result: { type: 'revealedBomb', x, y } // New result type
+                result: { type: 'revealedBomb', x, y },
+                scores: this.getScoreboard()
             };
 
             if (this.onBroadcast) {
@@ -189,6 +210,7 @@ export class GameServer {
                     playerId,
                     playerName: player.name,
                     playerNumber: player.number,
+                    finalScore: player.score,
                     bombX: x,
                     bombY: y,
                     remainingPlayers: eliminationResult.remainingPlayers
@@ -200,7 +222,8 @@ export class GameServer {
                 if (this.onBroadcast) {
                     this.onBroadcast('gameOver', {
                         victory: false,
-                        reason: 'allEliminated'
+                        reason: 'allEliminated',
+                        finalScores: this.getScoreboard()
                     });
                 }
                 return { success: true, result, firstClickMines, gameEnded: true, playerEliminated: playerId };
@@ -218,7 +241,8 @@ export class GameServer {
                 number: player.number
             },
             action: { type, x, y },
-            result: result
+            result: result,
+            scores: this.getScoreboard()
         };
 
         if (this.onBroadcast) {
@@ -227,6 +251,9 @@ export class GameServer {
 
         // Check for win
         if (result.type === 'win') {
+            // Apply winner bonus
+            this._applyWinnerBonus(playerId);
+            
             if (this.onBroadcast) {
                 this.onBroadcast('gameOver', {
                     victory: true,
@@ -234,7 +261,8 @@ export class GameServer {
                     winnerName: player.name,
                     winnerNumber: player.number,
                     time: this.game.getElapsedTime(),
-                    reason: 'completed'
+                    reason: 'completed',
+                    finalScores: this.getScoreboard()
                 });
             }
             return { success: true, result, firstClickMines, gameEnded: true };
@@ -261,11 +289,14 @@ export class GameServer {
             elapsedTime: this.game.getElapsedTime(),
             minePositions: this.game.getMinePositions(),
             revealedBombs: this.game.revealedBombs || [],
+            scores: this.getScoreboard(),
             players: Array.from(this.players.entries()).map(([id, p]) => ({
                 id,
                 name: p.name,
                 number: p.number,
-                eliminated: p.eliminated || false
+                eliminated: p.eliminated || false,
+                score: p.score || 0,
+                stats: p.stats || {}
             }))
         };
     }
@@ -315,6 +346,8 @@ export class GameServer {
 
         const player = this.players.get(playerId);
         player.eliminated = true;
+        player.stats.eliminatedAt = Date.now();
+        // Score is frozen at current value (no bonus)
 
         const remainingPlayers = this.getActivePlayerCount();
 
@@ -340,5 +373,164 @@ export class GameServer {
     isPlayerEliminated(playerId) {
         const player = this.players.get(playerId);
         return player ? player.eliminated : true;
+    }
+
+    // ============================================
+    // SCORING SYSTEM
+    // ============================================
+
+    /**
+     * Scoring constants
+     */
+    static SCORING = {
+        EMPTY_CELL: 1,           // Points for revealing empty cell
+        NUMBERED_MULTIPLIER: 1,  // Points per number value (e.g., "3" = 3 pts)
+        CORRECT_FLAG: 10,        // Points for flag on mine
+        INCORRECT_FLAG: -5,      // Penalty for wrong flag removed
+        WIN_BONUS: 100,          // Flat bonus for winning
+        TIME_BONUS_MAX: 300,     // Max time bonus (at 0 seconds)
+        TIME_BONUS_DURATION: 300 // Seconds until time bonus reaches 0
+    };
+
+    /**
+     * Update player stats when cells are revealed
+     * @param {string} playerId 
+     * @param {Array} changes - Array of { x, y, value } revealed cells
+     */
+    _updateRevealStats(playerId, changes) {
+        const player = this.players.get(playerId);
+        if (!player || player.eliminated) return;
+
+        let pointsEarned = 0;
+
+        for (const cell of changes) {
+            player.stats.cellsRevealed++;
+            
+            if (cell.value === 0) {
+                // Empty cell
+                player.stats.emptyCells++;
+                pointsEarned += GameServer.SCORING.EMPTY_CELL;
+            } else if (cell.value >= 1 && cell.value <= 8) {
+                // Numbered cell - points equal to number
+                player.stats.numberedCells++;
+                pointsEarned += cell.value * GameServer.SCORING.NUMBERED_MULTIPLIER;
+            }
+        }
+
+        player.score += pointsEarned;
+    }
+
+    /**
+     * Update player stats when flag is placed/removed
+     * @param {string} playerId 
+     * @param {number} x 
+     * @param {number} y 
+     * @param {boolean} active - true if flag placed, false if removed
+     */
+    _updateFlagStats(playerId, x, y, active) {
+        const player = this.players.get(playerId);
+        if (!player || player.eliminated) return;
+
+        const isMine = this.game.mines[x][y];
+
+        if (active) {
+            // Flag placed
+            player.stats.flagsPlaced++;
+            if (isMine) {
+                player.stats.correctFlags++;
+                player.score += GameServer.SCORING.CORRECT_FLAG;
+            }
+        } else {
+            // Flag removed
+            player.stats.flagsPlaced--;
+            if (isMine) {
+                // Removed a correct flag - subtract the bonus
+                player.stats.correctFlags--;
+                player.score -= GameServer.SCORING.CORRECT_FLAG;
+            } else {
+                // Removed an incorrect flag - penalty
+                player.stats.incorrectFlags++;
+                player.score += GameServer.SCORING.INCORRECT_FLAG;
+            }
+        }
+    }
+
+    /**
+     * Apply winner bonus (flat + time)
+     * @param {string} playerId 
+     */
+    _applyWinnerBonus(playerId) {
+        const player = this.players.get(playerId);
+        if (!player) return;
+
+        player.stats.finishedAt = Date.now();
+
+        // Flat win bonus
+        player.score += GameServer.SCORING.WIN_BONUS;
+
+        // Time bonus: max(0, 300 - elapsed)
+        const elapsed = this.game.getElapsedTime();
+        const timeBonus = Math.max(0, GameServer.SCORING.TIME_BONUS_MAX - elapsed);
+        player.score += timeBonus;
+
+        console.log(`[GameServer] Winner ${player.name}: +${GameServer.SCORING.WIN_BONUS} win + ${timeBonus} time = ${player.score} total`);
+    }
+
+    /**
+     * Get current scoreboard sorted by score descending
+     * @returns {Array} [{ id, name, number, score, eliminated, stats }]
+     */
+    getScoreboard() {
+        const scoreboard = [];
+        
+        for (const [id, player] of this.players) {
+            scoreboard.push({
+                id,
+                name: player.name,
+                number: player.number,
+                score: player.score,
+                eliminated: player.eliminated,
+                stats: {
+                    cellsRevealed: player.stats.cellsRevealed,
+                    correctFlags: player.stats.correctFlags,
+                    incorrectFlags: player.stats.incorrectFlags
+                }
+            });
+        }
+
+        // Sort by score descending
+        scoreboard.sort((a, b) => b.score - a.score);
+
+        return scoreboard;
+    }
+
+    /**
+     * Get complete game record for persistence
+     * @returns {object} Full game data
+     */
+    getGameRecord() {
+        const scoreboard = this.getScoreboard();
+        const winner = scoreboard.find(p => !p.eliminated) || null;
+
+        return {
+            gameId: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            startedAt: this.game?.gameStartTime || Date.now(),
+            endedAt: Date.now(),
+            duration: this.game?.getElapsedTime() || 0,
+            config: {
+                width: this.width,
+                height: this.height,
+                bombCount: this.bombCount
+            },
+            winner: winner ? {
+                id: winner.id,
+                name: winner.name,
+                score: winner.score
+            } : null,
+            players: scoreboard.map((p, index) => ({
+                ...p,
+                rank: index + 1
+            }))
+        };
     }
 }

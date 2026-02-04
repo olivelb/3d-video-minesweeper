@@ -7,6 +7,7 @@ import { MinesweeperGame } from './core/Game.js';
 import { MinesweeperRenderer } from './rendering/Renderer.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { UIManager } from './ui/UIManager.js';
+import { Scoreboard } from './ui/Scoreboard.js';
 import { networkManager } from './network/NetworkManager.js';
 
 // Global state
@@ -14,6 +15,7 @@ let game = null;
 let renderer = null;
 const scoreManager = new ScoreManager();
 let uiManager = null;
+let scoreboard = null;
 
 /**
  * Initialize the application
@@ -21,6 +23,9 @@ let uiManager = null;
 function init() {
     uiManager = new UIManager(null, null, scoreManager);
     window._minesweeperUIManager = uiManager;
+
+    // Initialize scoreboard for multiplayer
+    scoreboard = new Scoreboard();
 
     setupNetworkCallbacks();
 
@@ -74,6 +79,12 @@ async function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgNa
     // If we have an initial state (multiplayer join), apply it immediately
     if (initialState) {
         applyStateSync(initialState);
+        
+        // Show scoreboard in multiplayer mode
+        if (scoreboard && initialState.scores) {
+            scoreboard.updateScores(initialState.scores);
+            scoreboard.show();
+        }
     }
 
     setupGameControls();
@@ -240,7 +251,13 @@ function applyStateSync(state) {
  * Setup all network event callbacks
  */
 function setupNetworkCallbacks() {
-    networkManager.onConnected = () => console.log('[Main] Connected to server');
+    networkManager.onConnected = (data) => {
+        console.log('[Main] Connected to server');
+        // Set local player ID for scoreboard highlighting
+        if (scoreboard && data.playerId) {
+            scoreboard.setLocalPlayer(data.playerId);
+        }
+    };
     networkManager.onPlayerJoined = (data) => console.log('[Main] Player joined:', data);
     networkManager.onPlayerLeft = (data) => console.log('[Main] Player left:', data);
     networkManager.onGameReady = (config) => console.log('[Main] Game ready:', config);
@@ -254,6 +271,12 @@ function setupNetworkCallbacks() {
             startGame(state.width, state.height, state.bombCount, true, false, 'Multiplayer', state.minePositions, state);
         } else {
             applyStateSync(state);
+        }
+        
+        // Update scoreboard with initial scores
+        if (state.scores && scoreboard) {
+            scoreboard.updateScores(state.scores);
+            scoreboard.show();
         }
     };
 
@@ -285,6 +308,11 @@ function setupNetworkCallbacks() {
             game.flags[result.x][result.y] = result.active;
             renderer.updateFlagVisual(result.x, result.y, result.active);
         }
+        
+        // Update scoreboard with new scores
+        if (update.scores && scoreboard) {
+            scoreboard.updateScores(update.scores);
+        }
     };
 
     // Handle player elimination in multiplayer
@@ -295,6 +323,9 @@ function setupNetworkCallbacks() {
             // I was eliminated - show explosion effect and return to menu
             if (game) game.gameOver = true;
             if (renderer) renderer.triggerExplosion();
+            
+            // Hide scoreboard for eliminated player
+            if (scoreboard) scoreboard.hide();
             
             // Return to menu after the explosion animation
             setTimeout(() => {
@@ -338,7 +369,6 @@ function setupNetworkCallbacks() {
             
             // Show winner notification for others
             if (!isMyWin && data.winnerName) {
-                // Show who won if it wasn't me
                 console.log(`[Main] ${data.winnerName} won! Reason: ${data.reason}`);
             }
         } else if (!data.victory && !game.gameOver) {
@@ -346,6 +376,17 @@ function setupNetworkCallbacks() {
             game.gameOver = true;
             renderer.triggerExplosion();
         }
+        
+        // Show results modal with final scores after animation
+        setTimeout(() => {
+            if (scoreboard && data.finalScores) {
+                scoreboard.hide(); // Hide in-game scoreboard
+                scoreboard.showResults(data, () => {
+                    // Menu button callback - handled by onGameEnded
+                });
+            }
+        }, 2000);
+        
         // Server will send gameEnded after delay, which will return to menu
     };
 
@@ -359,6 +400,13 @@ function setupNetworkCallbacks() {
     networkManager.onGameEnded = () => {
         console.log('[Main] Game ended, returning to menu');
         networkManager.disconnect();
+        
+        // Hide scoreboard and results
+        if (scoreboard) {
+            scoreboard.hide();
+            scoreboard.hideResults();
+        }
+        
         if (renderer) {
             renderer.dispose();
             renderer = null;
