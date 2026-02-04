@@ -8,6 +8,7 @@ import { MinesweeperRenderer } from './rendering/Renderer.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { UIManager } from './ui/UIManager.js';
 import { Scoreboard } from './ui/Scoreboard.js';
+import { MultiplayerLeaderboard } from './ui/MultiplayerLeaderboard.js';
 import { networkManager } from './network/NetworkManager.js';
 
 // Global state
@@ -16,6 +17,7 @@ let renderer = null;
 const scoreManager = new ScoreManager();
 let uiManager = null;
 let scoreboard = null;
+let mpLeaderboard = null;
 
 /**
  * Initialize the application
@@ -26,6 +28,14 @@ function init() {
 
     // Initialize scoreboard for multiplayer
     scoreboard = new Scoreboard();
+
+    // Initialize multiplayer leaderboard
+    mpLeaderboard = new MultiplayerLeaderboard();
+    const mpContainer = document.getElementById('mp-leaderboard-container');
+    if (mpContainer) {
+        mpContainer.appendChild(mpLeaderboard.getElement());
+        mpLeaderboard.show(); // Show and load leaderboard on init
+    }
 
     setupNetworkCallbacks();
 

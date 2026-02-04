@@ -5,7 +5,7 @@
 
 import { GameServer } from './GameServer.js';
 
-export function createGameServer(io, defaultConfig = {}) {
+export function createGameServer(io, defaultConfig = {}, statsDb = null) {
     let gameServer = null;
     let hostSocketId = null;
     const socketToPlayer = new Map(); // socketId -> { id, name, number }
@@ -23,6 +23,22 @@ export function createGameServer(io, defaultConfig = {}) {
                 io.emit(event, data);
             }
         };
+    }
+
+    /**
+     * Save game to database when it ends
+     */
+    function saveGameToDatabase() {
+        if (!gameServer || !statsDb) return;
+        
+        try {
+            const gameRecord = gameServer.getGameRecord();
+            if (gameRecord.players.length > 0) {
+                statsDb.saveGame(gameRecord);
+            }
+        } catch (err) {
+            console.error('[GameServerNode] Error saving game to database:', err);
+        }
     }
 
     // Helper to get lobby state
@@ -162,9 +178,13 @@ export function createGameServer(io, defaultConfig = {}) {
                     // No server reset needed - game continues for others
                 }
 
-                // If game fully ended (winner determined or all eliminated), reset server after delay
+                // If game fully ended (winner determined or all eliminated), save stats and reset server after delay
                 if (result.gameEnded) {
-                    console.log('[GameServer] Game ended, will reset server in 5 seconds');
+                    console.log('[GameServer] Game ended, saving stats and will reset server in 5 seconds');
+                    
+                    // Save game to database
+                    saveGameToDatabase();
+                    
                     setTimeout(() => {
                         resetServer();
                     }, 5000);

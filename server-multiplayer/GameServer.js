@@ -549,29 +549,40 @@ export class GameServer {
 
     /**
      * Get complete game record for persistence
-     * @returns {object} Full game data
+     * @returns {object} Full game data matching StatsDatabase schema
      */
     getGameRecord() {
         const scoreboard = this.getScoreboard();
         const winner = scoreboard.find(p => !p.eliminated) || null;
+        const victory = this.game?.victory || false;
 
         return {
             gameId: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            width: this.width,
+            height: this.height,
+            bombCount: this.bombCount,
             startedAt: this.game?.gameStartTime || Date.now(),
             endedAt: Date.now(),
             duration: this.game?.getElapsedTime() || 0,
-            config: {
-                width: this.width,
-                height: this.height,
-                bombCount: this.bombCount
-            },
+            victory: victory,
             winner: winner ? {
                 id: winner.id,
                 name: winner.name,
                 score: winner.score
             } : null,
             players: scoreboard.map((p, index) => ({
-                ...p,
+                id: p.id,
+                name: p.name,
+                number: p.number,
+                score: p.score,
+                eliminated: p.eliminated,
+                stats: {
+                    cellsRevealed: p.stats?.cellsRevealed || 0,
+                    emptyCells: p.stats?.emptyCells || 0,
+                    numberedCells: p.stats?.numberedCells || 0,
+                    correctFlags: p.stats?.correctFlags || 0,
+                    incorrectFlags: p.stats?.incorrectFlags || 0
+                },
                 rank: index + 1
             }))
         };
