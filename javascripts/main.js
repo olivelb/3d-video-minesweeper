@@ -3,11 +3,11 @@
  * Handles game initialization, UI coordination, and multiplayer networking
  */
 
-import { MinesweeperGame } from './Game.js';
-import { MinesweeperRenderer } from './Renderer.js';
-import { ScoreManager } from './ScoreManager.js';
-import { UIManager } from './UIManager.js';
-import { networkManager } from './NetworkManager.js';
+import { MinesweeperGame } from './core/Game.js';
+import { MinesweeperRenderer } from './rendering/Renderer.js';
+import { ScoreManager } from './managers/ScoreManager.js';
+import { UIManager } from './ui/UIManager.js';
+import { networkManager } from './network/NetworkManager.js';
 
 // Global state
 let game = null;

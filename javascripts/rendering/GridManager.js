@@ -1,0 +1,499 @@
+/**
+ * GridManager Module
+ * 
+ * Manages the 3D grid of cubes that represent the minesweeper board.
+ * Handles cube instancing, visual updates for revealed cells, hover effects,
+ * and explosion animations. Uses THREE.js InstancedMesh for performance.
+ * 
+ * @module GridManager
+ * @requires three
+ */
+
+import * as THREE from 'three';
+
+/**
+ * Configuration for grid rendering
+ * @constant
+ */
+const GRID_CONFIG = {
+    /** Size of each cube */
+    CUBE_SIZE: 20,
+    /** Spacing between cubes */
+    CUBE_SPACING: 22,
+    /** Number plane size */
+    NUMBER_PLANE_SIZE: 16,
+    /** Height of number planes above grid */
+    NUMBER_HEIGHT: 11
+};
+
+/**
+ * Manages the instanced mesh grid for minesweeper
+ * @class
+ */
+export class GridManager {
+    /**
+     * Create a grid manager
+     * @param {THREE.Scene} scene - The Three.js scene
+     * @param {Object} game - Game state object
+     * @param {THREE.Texture} mediaTexture - Media texture for cube front face
+     * @param {Object} textures - Number textures (1-8)
+     */
+    constructor(scene, game, mediaTexture, textures) {
+        /** @type {THREE.Scene} */
+        this.scene = scene;
+        
+        /** @type {Object} Game state reference */
+        this.game = game;
+        
+        /** @type {THREE.Texture} Media texture for cube faces */
+        this.mediaTexture = mediaTexture;
+        
+        /** @type {Object} Number textures */
+        this.textures = textures;
+        
+        /** @type {THREE.InstancedMesh} The main grid mesh */
+        this.gridMesh = null;
+        
+        /** @type {THREE.Object3D} Dummy object for matrix calculations */
+        this.dummy = new THREE.Object3D();
+        
+        /** @type {Array<THREE.Mesh>} Number meshes for revealed cells */
+        this.numberMeshes = [];
+        
+        /** @type {Array<Object>} Explosion velocity vectors per instance */
+        this.explosionVectors = [];
+        
+        /** @type {number} Last hovered instance ID */
+        this.lastHoveredId = -1;
+        
+        /** @type {boolean} Whether explosion is active */
+        this.isExploding = false;
+        
+        /** @type {number} Explosion animation time */
+        this.explosionTime = 0;
+
+        this._createGrid();
+    }
+
+    /**
+     * Create the instanced mesh grid
+     * @private
+     */
+    _createGrid() {
+        const geometry = new THREE.BoxGeometry(
+            GRID_CONFIG.CUBE_SIZE,
+            GRID_CONFIG.CUBE_SIZE,
+            GRID_CONFIG.CUBE_SIZE
+        );
+        
+        const materials = this._createMaterials();
+        const instanceCount = this.game.width * this.game.height;
+        
+        this.gridMesh = new THREE.InstancedMesh(geometry, materials, instanceCount);
+        
+        const aGridPos = new Float32Array(instanceCount * 2);
+        
+        this._initializeInstances(aGridPos);
+        
+        this.gridMesh.geometry.setAttribute(
+            'aGridPos',
+            new THREE.InstancedBufferAttribute(aGridPos, 2)
+        );
+        
+        this.scene.add(this.gridMesh);
+    }
+
+    /**
+     * Create materials for cube faces
+     * @private
+     * @returns {Array<THREE.MeshBasicMaterial>} Array of 6 materials
+     */
+    _createMaterials() {
+        // Video material for front face with custom shader
+        const videoMaterial = new THREE.MeshBasicMaterial({ 
+            map: this.mediaTexture 
+        });
+
+        videoMaterial.onBeforeCompile = (shader) => {
+            shader.uniforms.uGridSize = { 
+                value: new THREE.Vector2(this.game.width, this.game.height) 
+            };
+            shader.vertexShader = `
+                attribute vec2 aGridPos;
+                uniform vec2 uGridSize;
+                ${shader.vertexShader}
+            `.replace(
+                '#include <uv_vertex>',
+                `
+                #include <uv_vertex>
+                vMapUv = (uv + aGridPos) / uGridSize;
+                `
+            );
+
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <color_fragment>',
+                `
+                #if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )
+                    #ifdef USE_INSTANCING_COLOR
+                        diffuseColor.rgb += vInstanceColor;
+                    #else
+                        diffuseColor.rgb += vColor;
+                    #endif
+                #endif
+                `
+            );
+        };
+
+        // Create materials array - white materials for sides (instance color makes them black)
+        const materials = [
+            new THREE.MeshBasicMaterial({ color: 0xffffff }), // Right
+            new THREE.MeshBasicMaterial({ color: 0xffffff }), // Left
+            new THREE.MeshBasicMaterial({ color: 0xffffff }), // Top
+            new THREE.MeshBasicMaterial({ color: 0xffffff }), // Bottom
+            videoMaterial,                                      // Front (video)
+            new THREE.MeshBasicMaterial({ color: 0xffffff })  // Back
+        ];
+
+        return materials;
+    }
+
+    /**
+     * Initialize instance matrices and colors
+     * @private
+     * @param {Float32Array} aGridPos - Grid position attribute array
+     */
+    _initializeInstances(aGridPos) {
+        let i = 0;
+        
+        for (let x = 0; x < this.game.width; x++) {
+            for (let y = 0; y < this.game.height; y++) {
+                // Set position
+                this.dummy.position.set(
+                    -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
+                    0,
+                    (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
+                );
+                this.dummy.rotation.x = -Math.PI / 2;
+                this.dummy.updateMatrix();
+                this.gridMesh.setMatrixAt(i, this.dummy.matrix);
+                
+                // Set initial color (black = no addition to white material)
+                this.gridMesh.setColorAt(i, new THREE.Color(0x000000));
+
+                // Store grid position for UV mapping
+                aGridPos[i * 2] = x;
+                aGridPos[i * 2 + 1] = y;
+
+                // Initialize random explosion vector
+                this.explosionVectors[i] = {
+                    dx: 0.05 * (0.5 - Math.random()),
+                    dy: 0.05 * (0.5 - Math.random())
+                };
+                
+                i++;
+            }
+        }
+    }
+
+    /**
+     * Update a cell's visual state when revealed
+     * @param {number} x - Grid X coordinate
+     * @param {number} y - Grid Y coordinate
+     * @param {number} value - Cell value (0-8)
+     */
+    updateCellVisual(x, y, value) {
+        const index = x * this.game.height + y;
+        
+        // Hide the cube
+        this.gridMesh.getMatrixAt(index, this.dummy.matrix);
+        this.dummy.matrix.decompose(
+            this.dummy.position, 
+            this.dummy.quaternion, 
+            this.dummy.scale
+        );
+        this.dummy.scale.set(0, 0, 0);
+        this.dummy.updateMatrix();
+        this.gridMesh.setMatrixAt(index, this.dummy.matrix);
+        this.gridMesh.instanceMatrix.needsUpdate = true;
+
+        // Add number mesh if value > 0
+        if (value > 0) {
+            this._createNumberMesh(x, y, value);
+        }
+    }
+
+    /**
+     * Create a number mesh for a revealed cell
+     * @private
+     * @param {number} x - Grid X coordinate
+     * @param {number} y - Grid Y coordinate
+     * @param {number} value - Cell value (1-8)
+     */
+    _createNumberMesh(x, y, value) {
+        const planeGeo = new THREE.PlaneGeometry(
+            GRID_CONFIG.NUMBER_PLANE_SIZE,
+            GRID_CONFIG.NUMBER_PLANE_SIZE
+        );
+        
+        const material = new THREE.MeshBasicMaterial({
+            map: this.textures[value],
+            transparent: true,
+            opacity: 1.0,
+            depthWrite: true,
+            depthTest: true,
+            side: THREE.DoubleSide,
+            alphaTest: 0.1
+        });
+        
+        const mesh = new THREE.Mesh(planeGeo, material);
+        mesh.position.set(
+            -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
+            GRID_CONFIG.NUMBER_HEIGHT,
+            (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
+        );
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.renderOrder = 1;
+        
+        this.scene.add(mesh);
+        this.numberMeshes.push(mesh);
+    }
+
+    /**
+     * Update hover effect on an instance
+     * @param {number} instanceId - Hovered instance ID, or -1 for none
+     * @param {boolean} useHoverHelper - Whether hover effects are enabled
+     */
+    updateHover(instanceId, useHoverHelper) {
+        // Reset last hovered if changed
+        if (this.lastHoveredId !== instanceId && this.lastHoveredId !== -1) {
+            this._resetInstance(this.lastHoveredId);
+        }
+
+        if (useHoverHelper && instanceId !== -1 && !this.isExploding && !this.game.victory) {
+            this.gridMesh.getMatrixAt(instanceId, this.dummy.matrix);
+            this.dummy.matrix.decompose(
+                this.dummy.position, 
+                this.dummy.quaternion, 
+                this.dummy.scale
+            );
+
+            if (this.dummy.scale.x > 0.1) {
+                const pulse = Math.sin(Date.now() * 0.01);
+                const scale = 1.0 + pulse * 0.1;
+                this.dummy.scale.set(scale, scale, scale);
+                this.dummy.updateMatrix();
+                this.gridMesh.setMatrixAt(instanceId, this.dummy.matrix);
+
+                // Add highlight color
+                const colorVal = (pulse + 1.0) * 0.2;
+                this.gridMesh.setColorAt(
+                    instanceId, 
+                    new THREE.Color(colorVal, colorVal, colorVal)
+                );
+
+                this.gridMesh.instanceMatrix.needsUpdate = true;
+                this.gridMesh.instanceColor.needsUpdate = true;
+                this.lastHoveredId = instanceId;
+                return;
+            }
+        }
+
+        if (instanceId === -1) {
+            this.lastHoveredId = -1;
+        }
+    }
+
+    /**
+     * Reset an instance to its default state
+     * @private
+     * @param {number} instanceId - Instance to reset
+     */
+    _resetInstance(instanceId) {
+        const y = instanceId % this.game.height;
+        const x = Math.floor(instanceId / this.game.height);
+
+        // Check if revealed
+        if (this.game.visibleGrid[x][y] !== -1) {
+            this.dummy.scale.set(0, 0, 0);
+        } else {
+            this.dummy.scale.set(1, 1, 1);
+        }
+
+        this.dummy.position.set(
+            -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
+            0,
+            (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
+        );
+        this.dummy.rotation.x = -Math.PI / 2;
+        this.dummy.rotation.y = 0;
+        this.dummy.rotation.z = 0;
+        this.dummy.updateMatrix();
+        
+        this.gridMesh.setMatrixAt(instanceId, this.dummy.matrix);
+        this.gridMesh.setColorAt(instanceId, new THREE.Color(0x000000));
+        this.gridMesh.instanceMatrix.needsUpdate = true;
+        this.gridMesh.instanceColor.needsUpdate = true;
+    }
+
+    /**
+     * Reset all instances to default state
+     */
+    resetAllInstances() {
+        for (let i = 0; i < this.game.width * this.game.height; i++) {
+            this._resetInstance(i);
+        }
+    }
+
+    /**
+     * Show hint effect on a cell
+     * @param {number} x - Grid X coordinate
+     * @param {number} y - Grid Y coordinate
+     * @param {string} type - 'safe' or 'mine'
+     */
+    showHint(x, y, type) {
+        const index = x * this.game.height + y;
+        const color = type === 'safe' 
+            ? new THREE.Color(0x00ff00) 
+            : new THREE.Color(0xff0000);
+
+        const originalColor = new THREE.Color(0x000000);
+        this.gridMesh.setColorAt(index, color);
+        this.gridMesh.instanceColor.needsUpdate = true;
+
+        // Restore color after delay if not revealed
+        setTimeout(() => {
+            if (this.game.visibleGrid[x][y] === -1 && 
+                !this.game.gameOver && 
+                !this.game.victory) {
+                this.gridMesh.setColorAt(index, originalColor);
+                this.gridMesh.instanceColor.needsUpdate = true;
+            }
+        }, 1500);
+    }
+
+    /**
+     * Start explosion animation
+     */
+    triggerExplosion() {
+        this.isExploding = true;
+        this.explosionTime = 0;
+        this.numberMeshes.forEach(mesh => mesh.visible = false);
+    }
+
+    /**
+     * Reset explosion state
+     */
+    resetExplosion() {
+        this.isExploding = false;
+        this.explosionTime = 0;
+        this.numberMeshes.forEach(mesh => mesh.visible = true);
+        this.resetAllInstances();
+    }
+
+    /**
+     * Update explosion animation each frame
+     */
+    animateExplosion() {
+        if (!this.isExploding) return;
+
+        this.explosionTime++;
+        
+        for (let i = 0; i < this.game.width * this.game.height; i++) {
+            this.gridMesh.getMatrixAt(i, this.dummy.matrix);
+            this.dummy.matrix.decompose(
+                this.dummy.position, 
+                this.dummy.quaternion, 
+                this.dummy.scale
+            );
+            
+            if (this.dummy.scale.x > 0.1) {
+                const vec = this.explosionVectors[i];
+                this.dummy.rotation.x += 10 * vec.dx;
+                this.dummy.rotation.y += 10 * vec.dy;
+                this.dummy.position.x += 200 * vec.dx;
+                this.dummy.position.y += 200 * vec.dy;
+                this.dummy.updateMatrix();
+                this.gridMesh.setMatrixAt(i, this.dummy.matrix);
+            }
+        }
+        
+        this.gridMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    /**
+     * Update media texture (when switching sources)
+     * @param {THREE.Texture} texture - New media texture
+     */
+    updateMediaTexture(texture) {
+        if (this.gridMesh && this.gridMesh.material && Array.isArray(this.gridMesh.material)) {
+            const videoMaterialIndex = 4; // Front face
+            this.gridMesh.material[videoMaterialIndex].map = texture;
+            this.gridMesh.material[videoMaterialIndex].needsUpdate = true;
+        }
+    }
+
+    /**
+     * Get grid cell coordinates from instance ID
+     * @param {number} instanceId - Instance ID
+     * @returns {Object} { x, y } coordinates
+     */
+    getCoordinatesFromInstance(instanceId) {
+        const y = instanceId % this.game.height;
+        const x = Math.floor(instanceId / this.game.height);
+        return { x, y };
+    }
+
+    /**
+     * Get instance ID from grid coordinates
+     * @param {number} x - Grid X coordinate
+     * @param {number} y - Grid Y coordinate
+     * @returns {number} Instance ID
+     */
+    getInstanceFromCoordinates(x, y) {
+        return x * this.game.height + y;
+    }
+
+    /**
+     * Hide the entire grid (for win animation)
+     */
+    hide() {
+        this.gridMesh.visible = false;
+        this.numberMeshes.forEach(mesh => mesh.visible = false);
+    }
+
+    /**
+     * Show the grid
+     */
+    show() {
+        this.gridMesh.visible = true;
+        this.numberMeshes.forEach(mesh => mesh.visible = true);
+    }
+
+    /**
+     * Clean up resources
+     */
+    dispose() {
+        // Dispose number meshes
+        this.numberMeshes.forEach(mesh => {
+            this.scene.remove(mesh);
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) {
+                if (mesh.material.map) mesh.material.map.dispose();
+                mesh.material.dispose();
+            }
+        });
+        this.numberMeshes = [];
+
+        // Dispose grid mesh
+        if (this.gridMesh) {
+            this.scene.remove(this.gridMesh);
+            if (this.gridMesh.geometry) this.gridMesh.geometry.dispose();
+            if (Array.isArray(this.gridMesh.material)) {
+                this.gridMesh.material.forEach(m => {
+                    if (m.map) m.map.dispose();
+                    m.dispose();
+                });
+            }
+        }
+    }
+}

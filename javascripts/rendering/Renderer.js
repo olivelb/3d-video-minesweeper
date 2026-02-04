@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
-import { SoundManager } from './SoundManager.js';
+import { SoundManager } from '../audio/SoundManager.js';
 import { ParticleSystem } from './ParticleSystem.js';
-import { networkManager } from './NetworkManager.js';
+import { networkManager } from '../network/NetworkManager.js';
 
 export class MinesweeperRenderer {
     constructor(game, containerId, scoreManager = null, useHoverHelper = true, bgName = 'Unknown') {

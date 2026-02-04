@@ -1,4 +1,4 @@
-import { networkManager } from './NetworkManager.js';
+import { networkManager } from '../network/NetworkManager.js';
 
 // Configuration: Dedicated server URL (Raspberry Pi)
 const DEDICATED_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
