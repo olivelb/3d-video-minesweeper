@@ -320,32 +320,13 @@ function setupNetworkCallbacks() {
         console.log('[Main] Player eliminated:', data.playerName, 'isMe:', data.playerId === networkManager.playerId);
         
         if (data.playerId === networkManager.playerId) {
-            // I was eliminated - show explosion effect and return to menu
+            // I was eliminated - show explosion effect but stay to watch
             if (game) game.gameOver = true;
             if (renderer) renderer.triggerExplosion();
             
-            // Hide scoreboard for eliminated player
-            if (scoreboard) scoreboard.hide();
-            
-            // Return to menu after the explosion animation
-            setTimeout(() => {
-                console.log('[Main] Eliminated player returning to menu');
-                networkManager.disconnect();
-                if (renderer) {
-                    renderer.dispose();
-                    renderer = null;
-                }
-                game = null;
-                uiManager.showMenu();
-                // Reset multiplayer panel
-                document.getElementById('mp-connect').classList.remove('hidden');
-                document.getElementById('mp-host-lobby').classList.add('hidden');
-                document.getElementById('mp-guest-lobby').classList.add('hidden');
-                document.getElementById('host-waiting').classList.add('hidden');
-                document.getElementById('host-actions').classList.remove('hidden');
-                document.getElementById('guest-waiting').classList.remove('hidden');
-                document.getElementById('guest-ready').classList.add('hidden');
-            }, 3000); // 3 seconds for explosion animation
+            // Show elimination message but keep watching
+            // Scoreboard stays visible showing us as eliminated
+            // We'll see the final results when the game ends
         } else {
             // Another player was eliminated - show notification
             if (uiManager.multiplayerUI) {
@@ -382,7 +363,28 @@ function setupNetworkCallbacks() {
             if (scoreboard && data.finalScores) {
                 scoreboard.hide(); // Hide in-game scoreboard
                 scoreboard.showResults(data, () => {
-                    // Menu button callback - handled by onGameEnded
+                    // Menu button callback - return to menu
+                    console.log('[Main] Results modal menu clicked, returning to menu');
+                    networkManager.disconnect();
+                    
+                    if (scoreboard) {
+                        scoreboard.hideResults();
+                    }
+                    
+                    if (renderer) {
+                        renderer.dispose();
+                        renderer = null;
+                    }
+                    game = null;
+                    uiManager.showMenu();
+                    // Reset multiplayer panel
+                    document.getElementById('mp-connect').classList.remove('hidden');
+                    document.getElementById('mp-host-lobby').classList.add('hidden');
+                    document.getElementById('mp-guest-lobby').classList.add('hidden');
+                    document.getElementById('host-waiting').classList.add('hidden');
+                    document.getElementById('host-actions').classList.remove('hidden');
+                    document.getElementById('guest-waiting').classList.remove('hidden');
+                    document.getElementById('guest-ready').classList.add('hidden');
                 });
             }
         }, 2000);

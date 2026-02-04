@@ -193,7 +193,9 @@ export function createGameServer(io, defaultConfig = {}) {
             if (player) {
                 console.log(`[GameServer] Player ${player.number} disconnected: ${player.name} (eliminated: ${player.eliminated || false})`);
 
-                if (gameServer) {
+                // Only remove from game server if NOT eliminated
+                // (eliminated players stay in scoreboard for final results)
+                if (gameServer && !player.eliminated) {
                     gameServer.removePlayer(player.id);
                 }
                 socketToPlayer.delete(socket.id);
