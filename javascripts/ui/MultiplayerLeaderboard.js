@@ -2,6 +2,7 @@
  * MultiplayerLeaderboard - UI component for multiplayer statistics
  * 
  * Displays leaderboard, player stats, and recent games from the server.
+ * Styled to match the solo leaderboard for consistent UI.
  */
 
 export class MultiplayerLeaderboard {
@@ -12,34 +13,30 @@ export class MultiplayerLeaderboard {
         this.serverUrl = serverUrl || window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
         this.container = null;
         this.statsModal = null;
+        this.isServerOnline = false;
         this._createElements();
     }
 
     /**
-     * Create DOM elements
+     * Create DOM elements - styled like the solo leaderboard
      * @private
      */
     _createElements() {
-        // Main container for leaderboard
+        // Main container - matches .leaderboard-box style
         this.container = document.createElement('div');
         this.container.id = 'mp-leaderboard';
-        this.container.className = 'mp-leaderboard hidden';
+        this.container.className = 'leaderboard-box mp-leaderboard hidden';
         this.container.innerHTML = `
-            <div class="mp-leaderboard-header">
-                <h3>🎮 Classement Multijoueur</h3>
-                <button class="refresh-btn" title="Actualiser">🔄</button>
+            <h2>🎮 Multijoueur</h2>
+            <div class="mp-tabs">
+                <button class="mp-tab-btn active" data-sort="wins">Victoires</button>
+                <button class="mp-tab-btn" data-sort="score">Score</button>
+                <button class="mp-tab-btn" data-sort="bestScore">Record</button>
             </div>
-            <div class="mp-leaderboard-tabs">
-                <button class="tab-btn active" data-sort="wins">Victoires</button>
-                <button class="tab-btn" data-sort="score">Score Total</button>
-                <button class="tab-btn" data-sort="bestScore">Meilleur Score</button>
+            <div id="mp-leaderboard-list">
+                <p class="no-scores">Chargement...</p>
             </div>
-            <div class="mp-leaderboard-content">
-                <div class="leaderboard-loading">Chargement...</div>
-            </div>
-            <div class="mp-leaderboard-footer">
-                <button class="recent-games-btn">📜 Parties récentes</button>
-            </div>
+            <button class="mp-recent-btn">📜 Parties récentes</button>
         `;
 
         // Stats modal for detailed player info
@@ -48,9 +45,9 @@ export class MultiplayerLeaderboard {
         this.statsModal.className = 'mp-stats-modal hidden';
         this.statsModal.innerHTML = `
             <div class="mp-stats-content">
-                <button class="close-btn">&times;</button>
-                <h2 class="stats-title">Statistiques</h2>
-                <div class="stats-body">
+                <button class="mp-close-btn">&times;</button>
+                <h2 class="mp-stats-title">Statistiques</h2>
+                <div class="mp-stats-body">
                     <!-- Filled dynamically -->
                 </div>
             </div>
@@ -62,12 +59,12 @@ export class MultiplayerLeaderboard {
         // Bind events
         this._bindEvents();
 
-        // Append to body (hidden initially)
+        // Append modal to body
         document.body.appendChild(this.statsModal);
     }
 
     /**
-     * Inject CSS styles
+     * Inject CSS styles - matching solo leaderboard aesthetic
      * @private
      */
     _injectStyles() {
@@ -76,163 +73,130 @@ export class MultiplayerLeaderboard {
         const style = document.createElement('style');
         style.id = 'mp-leaderboard-styles';
         style.textContent = `
+            /* Multiplayer Leaderboard - matches solo leaderboard */
             .mp-leaderboard {
-                background: rgba(20, 20, 40, 0.95);
-                border: 1px solid rgba(100, 100, 150, 0.3);
-                border-radius: 12px;
-                padding: 15px;
                 margin-top: 20px;
-                max-width: 400px;
-                font-family: 'Segoe UI', Arial, sans-serif;
             }
 
             .mp-leaderboard.hidden {
                 display: none;
             }
 
-            .mp-leaderboard-header {
+            .mp-leaderboard h2 {
+                background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+
+            .mp-tabs {
+                display: flex;
+                gap: 6px;
+                margin-bottom: 14px;
+                padding: 4px;
+                background: rgba(0, 0, 0, 0.15);
+                border-radius: 12px;
+            }
+
+            .mp-tab-btn {
+                flex: 1;
+                padding: 8px 10px;
+                background: transparent;
+                border: 1px solid transparent;
+                border-radius: 10px;
+                color: rgba(255, 255, 255, 0.5);
+                cursor: pointer;
+                font-size: 0.8em;
+                font-weight: 600;
+                font-family: inherit;
+                transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+
+            .mp-tab-btn:hover {
+                color: rgba(255, 255, 255, 0.8);
+                background: rgba(255, 255, 255, 0.05);
+            }
+
+            .mp-tab-btn.active {
+                background: rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 255, 255, 0.2);
+                color: #fff;
+            }
+
+            #mp-leaderboard-list {
+                margin-bottom: 14px;
+            }
+
+            /* Score entries - matches solo .score-entry */
+            .mp-score-entry {
+                background: rgba(255, 255, 255, 0.03);
+                padding: 12px 16px;
+                margin: 8px 0;
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 10px;
-            }
-
-            .mp-leaderboard-header h3 {
-                margin: 0;
-                color: #ffd700;
-                font-size: 16px;
-            }
-
-            .mp-leaderboard .refresh-btn {
-                background: none;
-                border: none;
-                font-size: 16px;
+                transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
                 cursor: pointer;
-                padding: 4px 8px;
-                border-radius: 4px;
-                transition: background 0.2s;
             }
 
-            .mp-leaderboard .refresh-btn:hover {
-                background: rgba(255, 255, 255, 0.1);
+            .mp-score-entry:hover {
+                background: rgba(255, 255, 255, 0.08);
+                border-color: rgba(255, 255, 255, 0.2);
+                transform: translateX(8px);
             }
 
-            .mp-leaderboard-tabs {
-                display: flex;
-                gap: 5px;
-                margin-bottom: 10px;
+            .mp-score-rank {
+                font-weight: 800;
+                font-size: 1.15em;
+                min-width: 28px;
             }
 
-            .mp-leaderboard .tab-btn {
+            .mp-score-rank.rank-1 { color: #ffd700; }
+            .mp-score-rank.rank-2 { color: #c0c0c0; }
+            .mp-score-rank.rank-3 { color: #cd7f32; }
+            .mp-score-rank:not(.rank-1):not(.rank-2):not(.rank-3) { color: rgba(255, 255, 255, 0.5); }
+
+            .mp-score-info {
                 flex: 1;
-                padding: 6px 8px;
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(100, 100, 150, 0.2);
-                border-radius: 6px;
-                color: #aaa;
-                font-size: 11px;
-                cursor: pointer;
-                transition: all 0.2s;
-            }
-
-            .mp-leaderboard .tab-btn:hover {
-                background: rgba(255, 255, 255, 0.1);
-            }
-
-            .mp-leaderboard .tab-btn.active {
-                background: rgba(100, 150, 255, 0.2);
-                border-color: rgba(100, 150, 255, 0.4);
-                color: #fff;
-            }
-
-            .mp-leaderboard-content {
-                min-height: 100px;
-            }
-
-            .leaderboard-loading {
-                text-align: center;
-                padding: 20px;
-                color: #888;
-            }
-
-            .leaderboard-error {
-                text-align: center;
-                padding: 20px;
-                color: #f88;
-            }
-
-            .leaderboard-empty {
-                text-align: center;
-                padding: 20px;
-                color: #888;
-                font-style: italic;
-            }
-
-            .leaderboard-table {
-                width: 100%;
-                border-collapse: collapse;
-            }
-
-            .leaderboard-table th {
                 text-align: left;
-                padding: 6px 8px;
-                color: #888;
-                font-weight: normal;
-                font-size: 11px;
-                border-bottom: 1px solid rgba(100, 100, 150, 0.2);
+                margin: 0 12px;
             }
 
-            .leaderboard-table td {
-                padding: 8px;
-                font-size: 13px;
-                border-bottom: 1px solid rgba(100, 100, 150, 0.1);
-            }
-
-            .leaderboard-table tr:hover {
-                background: rgba(255, 255, 255, 0.05);
-                cursor: pointer;
-            }
-
-            .leaderboard-table .rank {
-                width: 30px;
-                color: #888;
-            }
-
-            .leaderboard-table .rank-1 { color: #ffd700; }
-            .leaderboard-table .rank-2 { color: #c0c0c0; }
-            .leaderboard-table .rank-3 { color: #cd7f32; }
-
-            .leaderboard-table .name {
+            .mp-score-name {
+                font-weight: 600;
                 color: #fff;
             }
 
-            .leaderboard-table .stat {
-                text-align: right;
-                color: #aaa;
+            .mp-score-details {
+                font-size: 0.85em;
+                opacity: 0.7;
+                margin-top: 2px;
             }
 
-            .leaderboard-table .wins {
-                color: #4f4;
+            .mp-score-value {
+                font-weight: 700;
+                font-size: 1.1em;
+                color: #4facfe;
             }
 
-            .mp-leaderboard-footer {
-                margin-top: 10px;
-                text-align: center;
-            }
-
-            .mp-leaderboard .recent-games-btn {
-                padding: 8px 16px;
-                background: rgba(100, 100, 150, 0.2);
-                border: 1px solid rgba(100, 100, 150, 0.3);
-                border-radius: 6px;
-                color: #aaa;
-                font-size: 12px;
+            .mp-recent-btn {
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                color: rgba(255, 255, 255, 0.7);
+                padding: 10px 20px;
+                border-radius: 10px;
                 cursor: pointer;
-                transition: all 0.2s;
+                font-size: 0.9em;
+                font-family: inherit;
+                transition: all 0.3s ease;
+                width: 100%;
             }
 
-            .mp-leaderboard .recent-games-btn:hover {
-                background: rgba(100, 100, 150, 0.3);
+            .mp-recent-btn:hover {
+                background: rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 255, 255, 0.2);
                 color: #fff;
             }
 
@@ -258,114 +222,141 @@ export class MultiplayerLeaderboard {
             }
 
             .mp-stats-content {
-                background: linear-gradient(135deg, rgba(30, 30, 60, 0.98), rgba(20, 20, 40, 0.98));
-                border: 1px solid rgba(100, 100, 150, 0.4);
-                border-radius: 16px;
-                padding: 25px;
-                max-width: 500px;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(25px);
+                -webkit-backdrop-filter: blur(25px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 24px;
+                padding: 30px;
+                max-width: 480px;
                 width: 90%;
                 max-height: 80vh;
                 overflow-y: auto;
                 position: relative;
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             }
 
-            .mp-stats-content .close-btn {
+            .mp-close-btn {
                 position: absolute;
                 top: 15px;
-                right: 15px;
+                right: 20px;
                 background: none;
                 border: none;
-                color: #888;
-                font-size: 24px;
+                color: rgba(255, 255, 255, 0.6);
+                font-size: 28px;
                 cursor: pointer;
                 padding: 0;
                 line-height: 1;
+                transition: color 0.2s;
             }
 
-            .mp-stats-content .close-btn:hover {
+            .mp-close-btn:hover {
                 color: #fff;
             }
 
-            .stats-title {
-                margin: 0 0 20px 0;
-                color: #ffd700;
-                font-size: 20px;
+            .mp-stats-title {
+                margin: 0 0 25px 0;
+                background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                font-size: 1.6em;
+                font-weight: 800;
             }
 
-            .stats-body {
-                color: #ddd;
+            .mp-stats-body {
+                color: #fff;
             }
 
-            .stats-section {
+            .mp-stats-section {
                 margin-bottom: 20px;
             }
 
-            .stats-section h4 {
-                margin: 0 0 10px 0;
-                color: #888;
-                font-size: 12px;
+            .mp-stats-section h4 {
+                margin: 0 0 12px 0;
+                color: rgba(255, 255, 255, 0.5);
+                font-size: 0.75em;
                 text-transform: uppercase;
+                letter-spacing: 0.1em;
             }
 
-            .stats-grid {
+            .mp-stats-grid {
                 display: grid;
                 grid-template-columns: repeat(3, 1fr);
                 gap: 10px;
             }
 
-            .stat-box {
+            .mp-stat-box {
                 background: rgba(255, 255, 255, 0.05);
-                border-radius: 8px;
-                padding: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 12px;
+                padding: 14px;
                 text-align: center;
             }
 
-            .stat-box .value {
-                font-size: 24px;
-                font-weight: bold;
+            .mp-stat-box .value {
+                font-size: 1.6em;
+                font-weight: 800;
                 color: #fff;
             }
 
-            .stat-box .label {
-                font-size: 11px;
-                color: #888;
+            .mp-stat-box .label {
+                font-size: 0.75em;
+                color: rgba(255, 255, 255, 0.5);
                 margin-top: 4px;
             }
 
-            .stat-box.highlight .value {
+            .mp-stat-box.highlight .value {
                 color: #ffd700;
             }
 
-            .recent-games-list {
-                max-height: 200px;
+            .mp-recent-list {
+                max-height: 250px;
                 overflow-y: auto;
             }
 
-            .recent-game-item {
+            .mp-recent-item {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 10px;
+                padding: 10px 14px;
+                margin-bottom: 8px;
+            }
+
+            .mp-recent-header {
                 display: flex;
                 justify-content: space-between;
+                font-size: 0.85em;
+                color: rgba(255, 255, 255, 0.5);
+                margin-bottom: 6px;
+            }
+
+            .mp-recent-players {
+                display: flex;
+                gap: 12px;
+                font-size: 0.9em;
+            }
+
+            .mp-recent-player {
+                display: flex;
                 align-items: center;
-                padding: 8px 10px;
-                background: rgba(255, 255, 255, 0.03);
-                border-radius: 6px;
-                margin-bottom: 5px;
+                gap: 4px;
             }
 
-            .recent-game-item .game-info {
-                color: #888;
-                font-size: 12px;
+            .mp-recent-player.winner { color: #4f4; }
+            .mp-recent-player.eliminated { color: #f66; }
+            .mp-recent-player.normal { color: rgba(255, 255, 255, 0.7); }
+
+            .mp-loading {
+                text-align: center;
+                padding: 20px;
+                color: rgba(255, 255, 255, 0.5);
             }
 
-            .recent-game-item .game-result {
-                font-weight: bold;
-            }
-
-            .recent-game-item .game-result.win {
-                color: #4f4;
-            }
-
-            .recent-game-item .game-result.loss {
-                color: #f44;
+            .mp-error {
+                text-align: center;
+                padding: 20px;
+                color: #f88;
             }
         `;
         document.head.appendChild(style);
@@ -376,27 +367,22 @@ export class MultiplayerLeaderboard {
      * @private
      */
     _bindEvents() {
-        // Refresh button
-        this.container.querySelector('.refresh-btn').addEventListener('click', () => {
-            this.refresh();
-        });
-
         // Tab buttons
-        this.container.querySelectorAll('.tab-btn').forEach(btn => {
+        this.container.querySelectorAll('.mp-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                this.container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                this.container.querySelectorAll('.mp-tab-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this.loadLeaderboard(btn.dataset.sort);
             });
         });
 
         // Recent games button
-        this.container.querySelector('.recent-games-btn').addEventListener('click', () => {
+        this.container.querySelector('.mp-recent-btn').addEventListener('click', () => {
             this.showRecentGames();
         });
 
         // Close modal
-        this.statsModal.querySelector('.close-btn').addEventListener('click', () => {
+        this.statsModal.querySelector('.mp-close-btn').addEventListener('click', () => {
             this.statsModal.classList.add('hidden');
         });
 
@@ -417,11 +403,40 @@ export class MultiplayerLeaderboard {
     }
 
     /**
-     * Show the leaderboard
+     * Check if server is online before showing
+     * @returns {Promise<boolean>}
      */
-    show() {
-        this.container.classList.remove('hidden');
-        this.loadLeaderboard();
+    async checkServerStatus() {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3000);
+            
+            const response = await fetch(`${this.serverUrl}/health`, {
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+            
+            this.isServerOnline = response.ok;
+            return this.isServerOnline;
+        } catch (err) {
+            this.isServerOnline = false;
+            return false;
+        }
+    }
+
+    /**
+     * Show the leaderboard (only if server is online)
+     */
+    async show() {
+        const isOnline = await this.checkServerStatus();
+        
+        if (isOnline) {
+            this.container.classList.remove('hidden');
+            this.loadLeaderboard();
+        } else {
+            // Hide if server is offline
+            this.container.classList.add('hidden');
+        }
     }
 
     /**
@@ -435,84 +450,64 @@ export class MultiplayerLeaderboard {
      * Refresh current view
      */
     refresh() {
-        const activeTab = this.container.querySelector('.tab-btn.active');
+        const activeTab = this.container.querySelector('.mp-tab-btn.active');
         this.loadLeaderboard(activeTab?.dataset.sort || 'wins');
     }
 
     /**
      * Load leaderboard data from server
-     * @param {string} sortBy - wins, score, bestScore, winRate, avgScore
+     * @param {string} sortBy - wins, score, bestScore
      */
     async loadLeaderboard(sortBy = 'wins') {
-        const content = this.container.querySelector('.mp-leaderboard-content');
-        content.innerHTML = '<div class="leaderboard-loading">Chargement...</div>';
+        const list = this.container.querySelector('#mp-leaderboard-list');
+        list.innerHTML = '<p class="mp-loading">Chargement...</p>';
 
         try {
             const response = await fetch(`${this.serverUrl}/api/leaderboard?sortBy=${sortBy}&limit=10`);
             const data = await response.json();
 
             if (!data.success) {
-                throw new Error(data.error || 'Unknown error');
+                throw new Error(data.error || 'Erreur serveur');
             }
 
             if (data.leaderboard.length === 0) {
-                content.innerHTML = '<div class="leaderboard-empty">Aucune partie jouée</div>';
+                list.innerHTML = '<p class="no-scores">Aucune partie enregistrée</p>';
                 return;
             }
 
-            const sortLabel = {
-                wins: 'Victoires',
-                score: 'Score Total',
-                bestScore: 'Meilleur',
-                winRate: 'Win %',
-                avgScore: 'Moyenne'
-            }[sortBy] || 'Stat';
+            list.innerHTML = data.leaderboard.map((p, i) => `
+                <div class="mp-score-entry" data-player="${this._escapeHtml(p.name)}">
+                    <span class="mp-score-rank rank-${i + 1}">${i + 1}</span>
+                    <div class="mp-score-info">
+                        <div class="mp-score-name">${this._escapeHtml(p.name)}</div>
+                        <div class="mp-score-details">${p.wins}V / ${p.gamesPlayed} parties · ${p.winRate}%</div>
+                    </div>
+                    <span class="mp-score-value">${this._formatMainStat(p, sortBy)}</span>
+                </div>
+            `).join('');
 
-            content.innerHTML = `
-                <table class="leaderboard-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Joueur</th>
-                            <th style="text-align:right">${sortLabel}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.leaderboard.map((p, i) => `
-                            <tr data-player="${this._escapeHtml(p.name)}">
-                                <td class="rank rank-${i + 1}">${i + 1}</td>
-                                <td class="name">${this._escapeHtml(p.name)}</td>
-                                <td class="stat ${sortBy === 'wins' ? 'wins' : ''}">${this._formatStat(p, sortBy)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-
-            // Click on player row to see stats
-            content.querySelectorAll('tr[data-player]').forEach(row => {
-                row.addEventListener('click', () => {
-                    this.showPlayerStats(row.dataset.player);
+            // Click on player to see stats
+            list.querySelectorAll('.mp-score-entry').forEach(entry => {
+                entry.addEventListener('click', () => {
+                    this.showPlayerStats(entry.dataset.player);
                 });
             });
 
         } catch (err) {
             console.error('[MultiplayerLeaderboard] Load error:', err);
-            content.innerHTML = `<div class="leaderboard-error">Erreur: ${err.message}</div>`;
+            list.innerHTML = `<p class="mp-error">Erreur: ${err.message}</p>`;
         }
     }
 
     /**
-     * Format stat value for display
+     * Format main stat value based on sort
      * @private
      */
-    _formatStat(player, sortBy) {
+    _formatMainStat(player, sortBy) {
         switch (sortBy) {
-            case 'wins': return `${player.wins} (${player.gamesPlayed} parties)`;
+            case 'wins': return player.wins;
             case 'score': return player.totalScore.toLocaleString();
             case 'bestScore': return player.bestScore.toLocaleString();
-            case 'winRate': return `${player.winRate}%`;
-            case 'avgScore': return player.avgScore.toLocaleString();
             default: return player.wins;
         }
     }
@@ -522,9 +517,9 @@ export class MultiplayerLeaderboard {
      * @param {string} playerName 
      */
     async showPlayerStats(playerName) {
-        const body = this.statsModal.querySelector('.stats-body');
-        body.innerHTML = '<div class="leaderboard-loading">Chargement...</div>';
-        this.statsModal.querySelector('.stats-title').textContent = playerName;
+        const body = this.statsModal.querySelector('.mp-stats-body');
+        body.innerHTML = '<p class="mp-loading">Chargement...</p>';
+        this.statsModal.querySelector('.mp-stats-title').textContent = playerName;
         this.statsModal.classList.remove('hidden');
 
         try {
@@ -532,72 +527,77 @@ export class MultiplayerLeaderboard {
             const data = await response.json();
 
             if (!data.success) {
-                throw new Error(data.error || 'Player not found');
+                throw new Error(data.error || 'Joueur non trouvé');
             }
 
             const s = data.stats;
             body.innerHTML = `
-                <div class="stats-section">
+                <div class="mp-stats-section">
                     <h4>Performance</h4>
-                    <div class="stats-grid">
-                        <div class="stat-box highlight">
+                    <div class="mp-stats-grid">
+                        <div class="mp-stat-box highlight">
                             <div class="value">${s.wins}</div>
                             <div class="label">Victoires</div>
                         </div>
-                        <div class="stat-box">
+                        <div class="mp-stat-box">
                             <div class="value">${s.gamesPlayed}</div>
                             <div class="label">Parties</div>
                         </div>
-                        <div class="stat-box">
+                        <div class="mp-stat-box">
                             <div class="value">${s.winRate}%</div>
                             <div class="label">Win Rate</div>
                         </div>
                     </div>
                 </div>
-                <div class="stats-section">
+                <div class="mp-stats-section">
                     <h4>Scores</h4>
-                    <div class="stats-grid">
-                        <div class="stat-box highlight">
+                    <div class="mp-stats-grid">
+                        <div class="mp-stat-box highlight">
                             <div class="value">${s.bestScore.toLocaleString()}</div>
-                            <div class="label">Meilleur</div>
+                            <div class="label">Record</div>
                         </div>
-                        <div class="stat-box">
+                        <div class="mp-stat-box">
                             <div class="value">${s.avgScore.toLocaleString()}</div>
                             <div class="label">Moyenne</div>
                         </div>
-                        <div class="stat-box">
+                        <div class="mp-stat-box">
                             <div class="value">${s.totalScore.toLocaleString()}</div>
                             <div class="label">Total</div>
                         </div>
                     </div>
                 </div>
-                <div class="stats-section">
-                    <h4>Statistiques de jeu</h4>
-                    <div class="stats-grid">
-                        <div class="stat-box">
+                <div class="mp-stats-section">
+                    <h4>Statistiques</h4>
+                    <div class="mp-stats-grid">
+                        <div class="mp-stat-box">
                             <div class="value">${s.cellsRevealed.toLocaleString()}</div>
                             <div class="label">Cellules</div>
                         </div>
-                        <div class="stat-box">
+                        <div class="mp-stat-box">
                             <div class="value">${s.correctFlags}</div>
                             <div class="label">Drapeaux ✓</div>
                         </div>
-                        <div class="stat-box">
+                        <div class="mp-stat-box">
                             <div class="value">${s.timesEliminated}</div>
-                            <div class="label">Éliminations</div>
+                            <div class="label">💀 Éliminé</div>
                         </div>
                     </div>
                 </div>
                 ${s.recentGames?.length > 0 ? `
-                <div class="stats-section">
+                <div class="mp-stats-section">
                     <h4>Parties récentes</h4>
-                    <div class="recent-games-list">
+                    <div class="mp-recent-list">
                         ${s.recentGames.map(g => `
-                            <div class="recent-game-item">
-                                <span class="game-info">${g.width}×${g.height} · ${g.bombCount}💣 · ${this._formatDuration(g.duration)}</span>
-                                <span class="game-result ${g.rank === 1 ? 'win' : 'loss'}">
-                                    ${g.rank === 1 ? '🏆 ' + g.score : (g.eliminated ? '💀 ' : '#' + g.rank + ' ')}${g.score}
-                                </span>
+                            <div class="mp-recent-item">
+                                <div class="mp-recent-header">
+                                    <span>${g.width}×${g.height} · ${g.bombCount}💣</span>
+                                    <span>${this._formatDuration(g.duration)}</span>
+                                </div>
+                                <div class="mp-recent-players">
+                                    <span class="mp-recent-player ${g.rank === 1 ? 'winner' : (g.eliminated ? 'eliminated' : 'normal')}">
+                                        ${g.rank === 1 ? '🏆' : (g.eliminated ? '💀' : '#' + g.rank)} ${g.score} pts
+                                    </span>
+                                </div>
                             </div>
                         `).join('')}
                     </div>
@@ -607,17 +607,17 @@ export class MultiplayerLeaderboard {
 
         } catch (err) {
             console.error('[MultiplayerLeaderboard] Stats error:', err);
-            body.innerHTML = `<div class="leaderboard-error">Erreur: ${err.message}</div>`;
+            body.innerHTML = `<p class="mp-error">Erreur: ${err.message}</p>`;
         }
     }
 
     /**
-     * Show recent games
+     * Show recent games modal
      */
     async showRecentGames() {
-        const body = this.statsModal.querySelector('.stats-body');
-        body.innerHTML = '<div class="leaderboard-loading">Chargement...</div>';
-        this.statsModal.querySelector('.stats-title').textContent = '📜 Parties Récentes';
+        const body = this.statsModal.querySelector('.mp-stats-body');
+        body.innerHTML = '<p class="mp-loading">Chargement...</p>';
+        this.statsModal.querySelector('.mp-stats-title').textContent = '📜 Parties Récentes';
         this.statsModal.classList.remove('hidden');
 
         try {
@@ -625,25 +625,25 @@ export class MultiplayerLeaderboard {
             const data = await response.json();
 
             if (!data.success) {
-                throw new Error(data.error || 'Unknown error');
+                throw new Error(data.error || 'Erreur serveur');
             }
 
             if (data.games.length === 0) {
-                body.innerHTML = '<div class="leaderboard-empty">Aucune partie enregistrée</div>';
+                body.innerHTML = '<p class="no-scores">Aucune partie enregistrée</p>';
                 return;
             }
 
             body.innerHTML = `
-                <div class="recent-games-list" style="max-height: 400px;">
+                <div class="mp-recent-list" style="max-height: 400px;">
                     ${data.games.map(g => `
-                        <div class="recent-game-item" style="flex-direction: column; align-items: flex-start;">
-                            <div style="display: flex; justify-content: space-between; width: 100%;">
-                                <span class="game-info">${g.width}×${g.height} · ${g.bombCount}💣 · ${g.playerCount} joueurs</span>
-                                <span class="game-info">${this._formatDuration(g.duration)}</span>
+                        <div class="mp-recent-item">
+                            <div class="mp-recent-header">
+                                <span>${g.width}×${g.height} · ${g.bombCount}💣 · ${g.playerCount}👥</span>
+                                <span>${this._formatDuration(g.duration)}</span>
                             </div>
-                            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                            <div class="mp-recent-players">
                                 ${g.players.map(p => `
-                                    <span style="color: ${p.rank === 1 ? '#4f4' : (p.eliminated ? '#f44' : '#aaa')}">
+                                    <span class="mp-recent-player ${p.rank === 1 ? 'winner' : (p.eliminated ? 'eliminated' : 'normal')}">
                                         ${p.rank === 1 ? '🏆' : (p.eliminated ? '💀' : '')} ${this._escapeHtml(p.name)}: ${p.score}
                                     </span>
                                 `).join('')}
@@ -655,7 +655,7 @@ export class MultiplayerLeaderboard {
 
         } catch (err) {
             console.error('[MultiplayerLeaderboard] Recent games error:', err);
-            body.innerHTML = `<div class="leaderboard-error">Erreur: ${err.message}</div>`;
+            body.innerHTML = `<p class="mp-error">Erreur: ${err.message}</p>`;
         }
     }
 

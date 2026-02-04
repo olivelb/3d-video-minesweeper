@@ -123,6 +123,26 @@ export class StatsDatabase {
 
         // Use a transaction for atomicity
         const saveTransaction = this.db.transaction((record) => {
+            // Check for duplicate names and create unique display names
+            const nameCount = {};
+            record.players.forEach(p => {
+                nameCount[p.name] = (nameCount[p.name] || 0) + 1;
+            });
+            
+            // Create unique names for players with duplicate names
+            const getUniqueName = (player) => {
+                if (nameCount[player.name] > 1) {
+                    return `${player.name} (P${player.number})`;
+                }
+                return player.name;
+            };
+            
+            // Determine winner's unique name
+            const winnerUniqueName = record.winner ? getUniqueName(
+                record.players.find(p => p.name === record.winner.name && 
+                    (!record.winner.number || p.number === record.winner.number)) || record.winner
+            ) : null;
+            
             // Insert game
             const gameResult = insertGame.run(
                 record.width,
@@ -132,7 +152,7 @@ export class StatsDatabase {
                 Math.floor(record.startedAt / 1000),
                 Math.floor(record.endedAt / 1000),
                 record.duration,
-                record.winner?.name || null,
+                winnerUniqueName,
                 record.victory ? 1 : 0
             );
 
@@ -144,9 +164,11 @@ export class StatsDatabase {
             
             for (let i = 0; i < sortedPlayers.length; i++) {
                 const p = sortedPlayers[i];
+                const uniqueName = getUniqueName(p);
+                
                 insertPlayer.run(
                     gameId,
-                    p.name,
+                    uniqueName,
                     p.number,
                     p.score,
                     p.stats.cellsRevealed,
@@ -158,8 +180,8 @@ export class StatsDatabase {
                     i + 1 // Rank (1-based)
                 );
 
-                // Update aggregate stats for this player
-                this._updatePlayerStats(p.name, p, record.winner?.name === p.name);
+                // Update aggregate stats for this player (using unique name)
+                this._updatePlayerStats(uniqueName, p, winnerUniqueName === uniqueName);
             }
 
             return gameId;
