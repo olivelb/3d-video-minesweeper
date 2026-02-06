@@ -209,10 +209,10 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
             if (player) {
                 const result = await gameServer.processAction(player.id, action);
 
-                // If this was the first click that placed mines, send the mine positions to all
-                if (result.firstClickMines) {
-                    io.emit('minesPlaced', { minePositions: result.firstClickMines });
-                }
+                // If this was the first click that placed mines, DO NOT send them to clients (Anti-Cheat)
+                // if (result.firstClickMines) {
+                //    io.emit('minesPlaced', { minePositions: result.firstClickMines });
+                // }
 
                 // If a player was eliminated (but game continues), disconnect just that player after delay
                 if (result.playerEliminated && !result.gameEnded) {

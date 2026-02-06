@@ -102,8 +102,9 @@ export class MinesweeperRenderer {
 
         // LOAD RESOURCES via Manager
         await this.mediaManager.loadResources(this.bgName);
-        // Expose textures for ParticleSystem
+        // Expose textures and font for ParticleSystem and Text rendering
         this.textures = this.mediaManager.textures;
+        this.font = this.mediaManager.font;
 
         this.particleSystem = new ParticleSystem(this.scene, this.textures);
 

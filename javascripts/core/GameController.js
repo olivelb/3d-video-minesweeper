@@ -398,6 +398,8 @@ export class GameController {
                 this.renderer.triggerExplosion();
             }
 
+            // Reveal all mines removed per user request (grid explodes anyway)
+
             setTimeout(() => {
                 if (this.scoreboard && data.finalScores) {
                     this.scoreboard.hide();

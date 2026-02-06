@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { Logger } from '../utils/Logger.js';
 
 /**
@@ -19,6 +20,7 @@ export class MediaTextureManager {
         this.flag2DGeometry = null;
         this.flag2DMaterial = null;
         this.flag2DTexture = null;
+        this.font = null;
     }
 
     /**
@@ -98,6 +100,9 @@ export class MediaTextureManager {
         // Create the 3D flag assets now that we are initialized
         this.create3DFlagAssets();
 
+        // Load Font
+        this.font = await this.loadFont('https://unpkg.com/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json');
+
         Logger.log('MediaManager', 'Resources loaded');
     }
 
@@ -111,6 +116,21 @@ export class MediaTextureManager {
                 resolve(tex);
             }, undefined, () => {
                 console.warn(`Failed to load ${url}`);
+                resolve(null);
+            });
+        });
+    }
+
+    /**
+     * Helper to load font with promise
+     */
+    loadFont(url) {
+        return new Promise((resolve) => {
+            const loader = new FontLoader();
+            loader.load(url, (font) => {
+                resolve(font);
+            }, undefined, () => {
+                console.warn(`Failed to load font ${url}`);
                 resolve(null);
             });
         });

@@ -221,7 +221,7 @@ export class GameServer {
             if (eliminationResult.allEliminated) {
                 // Calculate flag scores at game end
                 this._calculateFinalFlagScores();
-                
+
                 if (this.onBroadcast) {
                     this.onBroadcast('gameOver', {
                         victory: false,
@@ -256,10 +256,10 @@ export class GameServer {
         if (result.type === 'win') {
             // Calculate final flag scores for all players
             this._calculateFinalFlagScores();
-            
+
             // Apply winner bonus
             this._applyWinnerBonus(playerId);
-            
+
             if (this.onBroadcast) {
                 this.onBroadcast('gameOver', {
                     victory: true,
@@ -293,7 +293,7 @@ export class GameServer {
             gameOver: this.game.gameOver,
             victory: this.game.victory,
             elapsedTime: this.game.getElapsedTime(),
-            minePositions: this.game.getMinePositions(),
+            minePositions: [], // Anti-Cheat: Never send mine positions
             revealedBombs: this.game.revealedBombs || [],
             scores: this.getScoreboard(),
             players: Array.from(this.players.entries()).map(([id, p]) => ({
@@ -411,7 +411,7 @@ export class GameServer {
 
         for (const cell of changes) {
             player.stats.cellsRevealed++;
-            
+
             if (cell.value === 0) {
                 // Empty cell
                 player.stats.emptyCells++;
@@ -480,7 +480,7 @@ export class GameServer {
             // TODO: Track individual flag ownership for proper scoring
             const totalFlagsPlaced = Array.from(this.players.values())
                 .reduce((sum, p) => sum + Math.max(0, p.stats.flagsPlaced), 0);
-            
+
             if (totalFlagsPlaced > 0 && player.stats.flagsPlaced > 0) {
                 const playerRatio = player.stats.flagsPlaced / totalFlagsPlaced;
                 const playerCorrect = Math.round(correctFlags * playerRatio);
@@ -489,8 +489,8 @@ export class GameServer {
                 player.stats.correctFlags = playerCorrect;
                 player.stats.incorrectFlags = playerIncorrect;
 
-                const flagPoints = (playerCorrect * GameServer.SCORING.CORRECT_FLAG) + 
-                                   (playerIncorrect * GameServer.SCORING.INCORRECT_FLAG);
+                const flagPoints = (playerCorrect * GameServer.SCORING.CORRECT_FLAG) +
+                    (playerIncorrect * GameServer.SCORING.INCORRECT_FLAG);
                 player.score += flagPoints;
 
                 console.log(`[GameServer] Final flag scores for ${player.name}: ${playerCorrect} correct, ${playerIncorrect} incorrect = ${flagPoints} pts`);
@@ -525,7 +525,7 @@ export class GameServer {
      */
     getScoreboard() {
         const scoreboard = [];
-        
+
         for (const [id, player] of this.players) {
             scoreboard.push({
                 id,
