@@ -841,6 +841,71 @@ export class MinesweeperRenderer {
     }
 
     /**
+     * Play the specific elimination sequence for multiplayer
+     * Triggers a local explosion before spectator mode
+     * @param {number} x - Bomb x coordinate
+     * @param {number} y - Bomb y coordinate
+     */
+    /**
+     * Play the specific elimination sequence for multiplayer
+     * Triggers a global explosion that reverses itself (reassembles) before spectator mode
+     * @param {number} x - Bomb x coordinate
+     * @param {number} y - Bomb y coordinate
+     */
+    playEliminationSequence(x, y) {
+        // 1. Initial local feedback (particle explosion)
+        const pos = new THREE.Vector3(
+            -(this.game.width * 10) + x * 22,
+            0,
+            (this.game.height * 10) - y * 22
+        );
+
+        for (let i = 0; i < 5; i++) {
+            this.particleSystem.createEmitter(pos, 'explosion', {
+                count: 50,
+                speed: 100 + Math.random() * 50,
+                lifeTime: 1.5,
+                colorStart: new THREE.Color(0xff0000),
+                colorEnd: new THREE.Color(0x222222)
+            });
+        }
+        this.updateCellVisual(x, y, 9);
+
+        // 2. Global Explosion (Transient)
+        // Hide UI and overlays temporarily
+        this.updateUIOverlay(false);
+
+        // Hide number meshes so we only see exploding cubes
+        this.numberMeshes.forEach(mesh => mesh.visible = false);
+
+        // Start explosion
+        this.isExploding = true;
+        this.explosionTime = 0;
+        this.isReassembling = false;
+
+        // Schedule Reassembly
+        // 1.5 seconds out (approx 90 frames), then reverse
+        setTimeout(() => {
+            this.isExploding = false;
+            this.isReassembling = true;
+        }, 1500);
+
+        // Schedule Completion (Reassembly done)
+        // 1.5s out + 1.5s in + a little buffer
+        setTimeout(() => {
+            this.isReassembling = false;
+
+            // Hard reset to ensure perfect alignment
+            this.resetExplosion();
+
+            // Re-show numbers that were hidden
+            this.numberMeshes.forEach(mesh => mesh.visible = true);
+
+            // We are done with the visual sequence, GameController will handle the switch to Spectator Mode next
+        }, 3200);
+    }
+
+    /**
      * Enable "Ghost Mode" visual effects (spectator)
      */
     enableGhostMode() {
@@ -874,13 +939,15 @@ export class MinesweeperRenderer {
      */
     resetExplosion() {
         this.isExploding = false;
+        this.isReassembling = false;
+        // ... rest of resetExplosion ... (keep existing implementation)
         this.explosionTime = 0;
-        this.endGameTime = 0; // Fix: reset the auto-return timer
+        this.endGameTime = 0;
 
         if (this.endTextMesh) {
             this.scene.remove(this.endTextMesh);
-            this.endTextMesh.geometry.dispose();
-            this.endTextMesh.material.dispose();
+            if (this.endTextMesh.geometry) this.endTextMesh.geometry.dispose();
+            if (this.endTextMesh.material) this.endTextMesh.material.dispose();
             this.endTextMesh = null;
         }
 
@@ -1008,6 +1075,7 @@ export class MinesweeperRenderer {
     }
 
     animate() {
+        // ... (existing animate start code) ...
         const dt = 0.016;
 
         // Camera Intro
@@ -1027,6 +1095,7 @@ export class MinesweeperRenderer {
         this.particleSystem.update(dt);
 
         // Animate 2D flags when cube is hovered
+        // ... (existing flag animation code) ...
         if (this.hoveredInstanceId !== -1 && this.flagStyle !== 'particle') {
             const hoveredY = this.hoveredInstanceId % this.game.height;
             const hoveredX = Math.floor(this.hoveredInstanceId / this.game.height);
@@ -1065,7 +1134,7 @@ export class MinesweeperRenderer {
             this.endTextMesh.quaternion.copy(this.camera.quaternion);
         }
 
-        // Explosion Animation
+        // Explosion Animation (Exploding OUT)
         if (this.isExploding) {
             this.explosionTime++;
             for (let i = 0; i < this.game.width * this.game.height; i++) {
@@ -1082,6 +1151,34 @@ export class MinesweeperRenderer {
                 }
             }
             this.gridMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        // Explosion Animation (Reassembling IN)
+        if (this.isReassembling) {
+            // Reverse the explosionTime counter, but we modify position directly
+            this.explosionTime--;
+
+            for (let i = 0; i < this.game.width * this.game.height; i++) {
+                this.gridMesh.getMatrixAt(i, this.dummy.matrix);
+                this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
+                if (this.dummy.scale.x > 0.1) {
+                    const vec = this.explosionVectors[i];
+                    // Exact inverse operation of explosion
+                    this.dummy.rotation.x -= 10 * vec.dx;
+                    this.dummy.rotation.y -= 10 * vec.dy;
+                    this.dummy.position.x -= 200 * vec.dx;
+                    this.dummy.position.y -= 200 * vec.dy;
+                    this.dummy.updateMatrix();
+                    this.gridMesh.setMatrixAt(i, this.dummy.matrix);
+                }
+            }
+            this.gridMesh.instanceMatrix.needsUpdate = true;
+
+            // Safety: if we somehow went past 0, just stop
+            if (this.explosionTime <= 0) {
+                this.isReassembling = false;
+                // resetExplosion() will be called by the timeout to ensure perfect alignment
+            }
         }
 
         // Auto-return

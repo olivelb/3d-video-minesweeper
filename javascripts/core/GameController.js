@@ -260,17 +260,40 @@ export class GameController {
         this.events.on(Events.NET_PLAYER_ELIMINATED, (data) => {
             if (data.playerId === networkManager.playerId) {
                 if (data.remainingPlayers > 0) {
-                    Logger.log('GameController', 'Local player eliminated. Entering Spectator Mode.');
-                    this.isSpectating = true;
-                    if (this.game) this.game.isSpectating = true;
-                    if (this.renderer) this.renderer.triggerExplosion(true);
-                    this.events.emit(Events.SPECTATOR_MODE_START);
+                    Logger.log('GameController', 'Local player eliminated. Playing sequence before Spectator Mode.');
+
+                    // 1. Play immediate elimination effect (visuals only)
+                    if (this.renderer) {
+                        this.renderer.playEliminationSequence(data.bombX, data.bombY);
+                    }
+
+                    // 2. Wait 3 seconds, THEN enter Spectator Mode
+                    setTimeout(() => {
+                        this.isSpectating = true;
+                        if (this.game) this.game.isSpectating = true;
+
+                        // Spectator mode visuals (fog, dim lights)
+                        if (this.renderer) {
+                            this.renderer.enableGhostMode();
+                            // We don't call triggerExplosion(true) anymore because we handled the "death" visually already
+                        }
+
+                        this.events.emit(Events.SPECTATOR_MODE_START);
+                    }, 3000);
+
                 } else {
                     Logger.log('GameController', 'Local player was the last one eliminated. Normal Game Over.');
+                    // If last player, standard game over flow handles it
                 }
             } else {
                 if (this.uiManager.multiplayerUI) {
                     this.uiManager.multiplayerUI.showEliminationNotification(data.playerName);
+                }
+
+                // Show the bomb that killed them (if we can see it)
+                if (this.renderer) {
+                    // data.bombX/Y are passed from server
+                    this.renderer.updateCellVisual(data.bombX, data.bombY, 10); // 10 = Revealed Bomb
                 }
             }
         });
