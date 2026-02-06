@@ -96,4 +96,20 @@ export class HUDController {
     showHintButton() {
         if (this.hintBtn) this.hintBtn.style.display = 'inline-flex';
     }
+
+    hideHintButton() {
+        if (this.hintBtn) this.hintBtn.style.display = 'none';
+    }
+
+    showNoHintFeedback() {
+        if (this.hintBtn) {
+            this.hintBtn.classList.add('no-hint');
+            setTimeout(() => this.hintBtn.classList.remove('no-hint'), 500);
+        }
+    }
+
+    onRetryUsed() {
+        this.hideRetryButton();
+        this.showHintButton();
+    }
 }

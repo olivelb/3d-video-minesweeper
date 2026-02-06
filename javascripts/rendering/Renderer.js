@@ -8,10 +8,10 @@ import { networkManager } from '../network/NetworkManager.js';
 import { Events } from '../core/EventBus.js';
 
 export class MinesweeperRenderer {
-    constructor(game, containerId, scoreManager = null, useHoverHelper = true, bgName = 'Unknown', eventBus = null) {
+    constructor(game, containerId, useHoverHelper = true, bgName = 'Unknown', eventBus = null) {
         this.game = game;
         this.container = document.getElementById(containerId);
-        this.scoreManager = scoreManager;
+        // this.scoreManager removed (logic moved to GameController)
         this.useHoverHelper = useHoverHelper;
         this.bgName = bgName;
         this.events = eventBus;

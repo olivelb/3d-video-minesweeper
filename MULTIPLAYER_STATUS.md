@@ -47,6 +47,8 @@
 2. **Synchronisation du Lobby** - Utilisation d'un composant `MultiplayerUI.js` dédié pour éviter les duplications de logique dans `UIManager`.
 3. **Mise en page Lobby** - Refonte du CSS pour éviter les chevauchements et améliorer la lisibilité de la liste des joueurs.
 4. **Quoting Script Déploiement** - Correction des erreurs de parsing PowerShell dans `deploy.ps1`.
+5. **Gestionnaire de Score** - Implémentation de `getScores()` pour filtrer le leaderboard correctement.
+6. **Reset Multijoueur** - Implémentation d'un reset propre côté client et serveur après chaque partie.
 
 ## Prochaines Étapes 🚀
 

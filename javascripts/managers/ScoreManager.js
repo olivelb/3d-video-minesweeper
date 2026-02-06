@@ -140,6 +140,31 @@ export class ScoreManager {
     }
 
     /**
+     * Récupère les scores, éventuellement filtrés par difficulté
+     * @param {string} difficulty - Filtre ('all', 'easy', 'medium', 'hard')
+     * @returns {Array} Liste des scores filtrée
+     */
+    getScores(difficulty = 'all') {
+        const scores = this.getAllScores();
+        if (difficulty === 'all') return scores;
+
+        const presets = {
+            easy: { width: 8, height: 8, bombs: 10 },
+            medium: { width: 16, height: 16, bombs: 40 },
+            hard: { width: 30, height: 16, bombs: 99 }
+        };
+
+        const preset = presets[difficulty];
+        if (!preset) return scores; // Custom or unknown
+
+        return scores.filter(s =>
+            s.width === preset.width &&
+            s.height === preset.height &&
+            s.bombs === preset.bombs
+        );
+    }
+
+    /**
      * Formate le temps en MM:SS
      * @param {number} seconds - Temps en secondes
      * @returns {string} Temps formaté

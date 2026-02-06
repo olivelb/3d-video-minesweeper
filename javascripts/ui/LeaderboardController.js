@@ -1,10 +1,10 @@
 /**
- * LeaderboardManager Module
+ * LeaderboardController Module
  * 
  * Manages the display and interaction with leaderboard/high scores UI.
  * Handles fetching, displaying, and formatting score data.
  * 
- * @module LeaderboardManager
+ * @module LeaderboardController
  */
 
 /**
@@ -21,7 +21,7 @@ const DIFFICULTY_PRESETS = {
  * Manages leaderboard display and interactions
  * @class
  */
-export class LeaderboardManager {
+export class LeaderboardController {
     /**
      * Create a leaderboard manager
      * @param {Object} scoreManager - Reference to the score manager
@@ -29,13 +29,13 @@ export class LeaderboardManager {
     constructor(scoreManager) {
         /** @type {Object} Score manager reference */
         this.scoreManager = scoreManager;
-        
+
         /** @type {HTMLElement|null} Leaderboard content container */
-        this.contentEl = document.getElementById('leaderboard-content');
-        
+        this.contentEl = document.getElementById('leaderboard-list');
+
         /** @type {HTMLElement|null} Leaderboard panel */
-        this.panelEl = document.getElementById('leaderboard-panel');
-        
+        this.panelEl = document.querySelector('.leaderboard-box');
+
         /** @type {string} Currently selected difficulty filter */
         this.currentFilter = 'all';
     }
@@ -52,28 +52,19 @@ export class LeaderboardManager {
      * @private
      */
     _bindEvents() {
-        // Show leaderboard button
-        document.getElementById('btn-leaderboard')?.addEventListener('click', () => {
-            this.show();
+        // Clear scores button
+        const clearBtn = document.getElementById('clear-scores-btn') || document.getElementById('btn-clear-scores');
+        clearBtn?.addEventListener('click', () => {
+            this._confirmClearScores();
         });
 
-        // Close button
-        document.getElementById('btn-close-leaderboard')?.addEventListener('click', () => {
-            this.hide();
-        });
-
-        // Difficulty filter buttons
+        // If filter buttons exist (legacy or future), bind them
         document.querySelectorAll('.leaderboard-filter').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const difficulty = e.target.dataset.difficulty;
                 this._setActiveFilter(e.target);
                 this.loadScores(difficulty);
             });
-        });
-
-        // Clear scores button
-        document.getElementById('btn-clear-scores')?.addEventListener('click', () => {
-            this._confirmClearScores();
         });
     }
 
@@ -109,14 +100,14 @@ export class LeaderboardManager {
      */
     loadScores(difficulty = 'all') {
         this.currentFilter = difficulty;
-        
+
         if (!this.scoreManager) {
             this._renderEmpty('Score manager non disponible');
             return;
         }
 
         const scores = this.scoreManager.getScores(difficulty);
-        
+
         if (!scores || scores.length === 0) {
             this._renderEmpty('Aucun score enregistré');
             return;
@@ -133,36 +124,23 @@ export class LeaderboardManager {
     _renderScores(scores) {
         if (!this.contentEl) return;
 
-        const html = scores.map((score, index) => {
-            const rank = this._formatRank(index + 1);
-            const time = this._formatTime(score.time);
-            const date = this._formatDate(score.date);
-            const config = this._formatConfig(score);
-            const difficulty = this._formatDifficulty(score);
+        const html = scores.slice(0, 10).map((score, index) => {
+            const rank = index + 1; // Simplified rank
+            const time = this._formatTime(score.time); // Keep formatting helper
+            const config = `${score.width}×${score.height}`; // Simplified config
 
+            // Use the structure from UIManager.js to maintain styling
             return `
-                <div class="leaderboard-row ${index < 3 ? 'top-' + (index + 1) : ''}">
-                    <span class="rank">${rank}</span>
-                    <span class="player-name">${this._escapeHtml(score.name || 'Anonyme')}</span>
-                    <span class="score-time">${time}</span>
-                    <span class="score-config">${config}</span>
-                    <span class="score-difficulty">${difficulty}</span>
-                    <span class="score-date">${date}</span>
+                <div class="score-entry">
+                    <span class="rank">#${rank}</span>
+                    <span class="score-value">${score.score.toLocaleString()}</span>
+                    <span class="score-details">${config} • ${time}s</span>
                 </div>
             `;
         }).join('');
 
-        this.contentEl.innerHTML = `
-            <div class="leaderboard-header">
-                <span class="rank">#</span>
-                <span class="player-name">Joueur</span>
-                <span class="score-time">Temps</span>
-                <span class="score-config">Grille</span>
-                <span class="score-difficulty">Difficulté</span>
-                <span class="score-date">Date</span>
-            </div>
-            ${html}
-        `;
+        // No header needed for the simple list style in index.html
+        this.contentEl.innerHTML = html;
     }
 
     /**
@@ -172,7 +150,7 @@ export class LeaderboardManager {
      */
     _renderEmpty(message) {
         if (!this.contentEl) return;
-        
+
         this.contentEl.innerHTML = `
             <div class="leaderboard-empty">
                 <p>${message}</p>
@@ -218,7 +196,7 @@ export class LeaderboardManager {
      */
     _formatDate(date) {
         if (!date) return '-';
-        
+
         try {
             const d = new Date(date);
             return d.toLocaleDateString('fr-FR', {
@@ -251,16 +229,16 @@ export class LeaderboardManager {
      */
     _formatDifficulty(score) {
         const { width, height, bombs } = score;
-        
+
         // Check against presets
         for (const [name, preset] of Object.entries(DIFFICULTY_PRESETS)) {
-            if (preset.width === width && 
-                preset.height === height && 
+            if (preset.width === width &&
+                preset.height === height &&
                 preset.bombs === bombs) {
                 return this._getDifficultyLabel(name);
             }
         }
-        
+
         return 'Custom';
     }
 
@@ -298,9 +276,9 @@ export class LeaderboardManager {
      */
     _confirmClearScores() {
         const confirmed = confirm('Êtes-vous sûr de vouloir supprimer tous les scores ?');
-        
+
         if (confirmed && this.scoreManager) {
-            this.scoreManager.clearScores();
+            this.scoreManager.clearAllScores();
             this.loadScores(this.currentFilter);
         }
     }
@@ -324,7 +302,7 @@ export class LeaderboardManager {
     addScore(scoreData) {
         if (this.scoreManager) {
             this.scoreManager.addScore(scoreData);
-            
+
             // Refresh if panel is visible
             if (!this.panelEl?.classList.contains('hidden')) {
                 this.loadScores(this.currentFilter);

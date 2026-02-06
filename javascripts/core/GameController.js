@@ -85,10 +85,8 @@ export class GameController {
             if (hint) {
                 this.renderer.showHint(hint.x, hint.y, hint.type);
             } else {
-                const hintBtn = document.getElementById('hint-btn');
-                if (hintBtn) {
-                    hintBtn.classList.add('no-hint');
-                    setTimeout(() => hintBtn.classList.remove('no-hint'), 500);
+                if (this.uiManager?.hudController) {
+                    this.uiManager.hudController.showNoHintFeedback();
                 }
             }
         });
@@ -98,8 +96,10 @@ export class GameController {
             if (!this.game || !this.renderer) return;
             if (this.game.retryLastMove()) {
                 this.renderer.resetExplosion();
-                document.getElementById('retry-btn').style.display = 'none';
-                document.getElementById('hint-btn').style.display = 'inline-flex';
+                this.renderer.resetExplosion();
+                if (this.uiManager?.hudController) {
+                    this.uiManager.hudController.onRetryUsed();
+                }
             }
         });
 
@@ -200,7 +200,6 @@ export class GameController {
         this.renderer = new MinesweeperRenderer(
             this.game,
             'container',
-            this.scoreManager,
             config.useHoverHelper,
             config.bgName,
             this.events
@@ -225,10 +224,11 @@ export class GameController {
         }
 
         // Show Controls
-        document.getElementById('hint-btn').style.display = 'inline-flex';
+        if (this.uiManager?.hudController) {
+            this.uiManager.hudController.showHintButton();
+        }
 
         // Setup legacy renderer interactions (to be refactored in Phase 3)
-        // Note: onGameEnd is now handled via EventBus, so we don't assign it here.
     }
 
     /**
@@ -237,8 +237,10 @@ export class GameController {
     endGame() {
         console.log('[GameController] Ending game...');
 
-        document.getElementById('hint-btn').style.display = 'none';
-        document.getElementById('retry-btn').style.display = 'none';
+        if (this.uiManager?.hudController) {
+            this.uiManager.hudController.hideHintButton();
+            this.uiManager.hudController.hideRetryButton();
+        }
 
         if (this.renderer) {
             this.renderer.dispose();
@@ -251,15 +253,7 @@ export class GameController {
         if (networkManager.isConnected) {
             console.log('[GameController] Disconnecting multiplayer...');
             networkManager.disconnect();
-
-            // Reset UI
-            document.getElementById('mp-connect').classList.remove('hidden');
-            document.getElementById('mp-host-lobby').classList.add('hidden');
-            document.getElementById('mp-guest-lobby').classList.add('hidden');
-            document.getElementById('host-waiting').classList.add('hidden');
-            document.getElementById('host-actions').classList.remove('hidden');
-            document.getElementById('guest-waiting').classList.remove('hidden');
-            document.getElementById('guest-ready').classList.add('hidden');
+            // UI reset is handled by UIManager listening to GAME_ENDED
         }
     }
 
@@ -406,7 +400,8 @@ export class GameController {
                 if (this.scoreboard && data.finalScores) {
                     this.scoreboard.hide();
                     this.scoreboard.showResults(data, () => {
-                        this.endGame();
+                        // GameController.js
+                        this.events.emit(Events.GAME_ENDED);
                         if (this.scoreboard) this.scoreboard.hideResults();
                     });
                 }
