@@ -8,6 +8,7 @@ export class ScoreManager {
         this.analyticsKey = 'minesweeper3d_analytics';
         this.playerIdKey = 'minesweeper3d_player_id';
         this.initPlayer();
+        this.clickTimestamps = [];
     }
 
     initPlayer() {
@@ -223,5 +224,46 @@ export class ScoreManager {
         const topScores = this.getTopScores(10);
         if (topScores.length < 10) return true;
         return score > topScores[topScores.length - 1].score;
+    }
+    /**
+ * Reset click analytics for a new game
+ */
+    resetAnalytics() {
+        this.clickTimestamps = [];
+    }
+
+    /**
+     * Track a click event for analytics
+     */
+    trackClick() {
+        const now = Date.now();
+        if (this.clickTimestamps.length > 0) {
+            const delta = now - this.clickTimestamps[this.clickTimestamps.length - 1].time;
+            this.clickTimestamps.push({ time: now, delta: delta });
+        } else {
+            this.clickTimestamps.push({ time: now, delta: 0 });
+        }
+    }
+
+    /**
+     * Calculate click timing analytics
+     * @returns {Object} Click timing metrics
+     */
+    getClickAnalytics() {
+        if (this.clickTimestamps.length === 0) {
+            return { avgDecisionTime: 0, maxPause: 0, clickCount: 0, hesitations: 0 };
+        }
+
+        const deltas = this.clickTimestamps.map(c => c.delta);
+        const avgDecisionTime = Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length);
+        const maxPause = Math.max(...deltas);
+        const hesitations = deltas.filter(d => d > 5000).length;
+
+        return {
+            avgDecisionTime,
+            maxPause,
+            clickCount: this.clickTimestamps.length,
+            hesitations
+        };
     }
 }
