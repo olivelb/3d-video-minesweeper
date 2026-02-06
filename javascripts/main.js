@@ -10,6 +10,7 @@ import { UIManager } from './ui/UIManager.js';
 import { Scoreboard } from './ui/Scoreboard.js';
 import { MultiplayerLeaderboard } from './ui/MultiplayerLeaderboard.js';
 import { networkManager } from './network/NetworkManager.js';
+import { EventBus, Events } from './core/EventBus.js';
 
 // Global state
 let game = null;
@@ -18,12 +19,13 @@ const scoreManager = new ScoreManager();
 let uiManager = null;
 let scoreboard = null;
 let mpLeaderboard = null;
+const events = new EventBus();
 
 /**
  * Initialize the application
  */
 function init() {
-    uiManager = new UIManager(null, null, scoreManager);
+    uiManager = new UIManager(null, null, scoreManager, events);
     window._minesweeperUIManager = uiManager;
 
     // Initialize scoreboard for multiplayer
@@ -39,9 +41,72 @@ function init() {
 
     setupNetworkCallbacks();
 
-    uiManager.onStartGame = (width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines, initialState) => {
-        startGame(width, height, bombs, useHoverHelper, noGuessMode, bgName, replayMines, initialState);
-    };
+
+
+    // Listen for Game Start Event
+    events.on(Events.GAME_START, (config) => {
+        startGame(
+            config.width,
+            config.height,
+            config.bombs,
+            config.useHoverHelper,
+            config.noGuessMode,
+            config.bgName,
+            config.replayMines,
+            config.initialState
+        );
+    });
+
+    // Handle Game End (Return to Menu)
+    events.on(Events.GAME_ENDED, () => {
+        document.getElementById('hint-btn').style.display = 'none';
+        document.getElementById('retry-btn').style.display = 'none';
+        if (renderer) {
+            renderer.dispose();
+            renderer = null;
+        }
+        game = null;
+        uiManager.showMenu();
+
+        // Multiplayer cleanup if needed
+        if (networkManager.isConnected) {
+            console.log('[Main] Game ended, cleaning up multiplayer UI');
+            networkManager.disconnect();
+            // Reset multiplayer panel
+            document.getElementById('mp-connect').classList.remove('hidden');
+            document.getElementById('mp-host-lobby').classList.add('hidden');
+            document.getElementById('mp-guest-lobby').classList.add('hidden');
+            document.getElementById('host-waiting').classList.add('hidden');
+            document.getElementById('host-actions').classList.remove('hidden');
+            document.getElementById('guest-waiting').classList.remove('hidden');
+            document.getElementById('guest-ready').classList.add('hidden');
+        }
+    });
+
+    // Handle Hint Request
+    events.on(Events.REQUEST_HINT, () => {
+        if (!game || !renderer) return;
+        const hint = game.getHint();
+        if (hint) {
+            renderer.showHint(hint.x, hint.y, hint.type);
+        } else {
+            const hintBtn = document.getElementById('hint-btn');
+            if (hintBtn) {
+                hintBtn.classList.add('no-hint');
+                setTimeout(() => hintBtn.classList.remove('no-hint'), 500);
+            }
+        }
+    });
+
+    // Handle Retry Request
+    events.on(Events.REQUEST_RETRY, () => {
+        if (!game || !renderer) return;
+        if (game.retryLastMove()) {
+            renderer.resetExplosion();
+            document.getElementById('retry-btn').style.display = 'none';
+            document.getElementById('hint-btn').style.display = 'inline-flex';
+        }
+    });
 
     setupTimerAndScoreUpdates();
 }
@@ -71,7 +136,7 @@ async function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgNa
         videoElement.play().catch(() => { });
     }
 
-    renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper, bgName);
+    renderer = new MinesweeperRenderer(game, 'container', scoreManager, useHoverHelper, bgName, events);
 
     // Wait for renderer to fully initialize before applying state sync
     // This ensures gridMesh and other resources are ready
@@ -89,7 +154,7 @@ async function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgNa
     // If we have an initial state (multiplayer join), apply it immediately
     if (initialState) {
         applyStateSync(initialState);
-        
+
         // Show scoreboard in multiplayer mode
         if (scoreboard && initialState.scores) {
             scoreboard.updateScores(initialState.scores);
@@ -97,34 +162,10 @@ async function startGame(width, height, bombs, useHoverHelper, noGuessMode, bgNa
         }
     }
 
-    setupGameControls();
+    // Show game controls
+    document.getElementById('hint-btn').style.display = 'inline-flex';
+
     setupRendererCallbacks();
-}
-
-/**
- * Setup game control buttons (hint, retry)
- */
-function setupGameControls() {
-    const hintBtn = document.getElementById('hint-btn');
-    hintBtn.style.display = 'inline-flex';
-    hintBtn.onclick = () => {
-        const hint = game.getHint();
-        if (hint) {
-            renderer.showHint(hint.x, hint.y, hint.type);
-        } else {
-            hintBtn.classList.add('no-hint');
-            setTimeout(() => hintBtn.classList.remove('no-hint'), 500);
-        }
-    };
-
-    const retryBtn = document.getElementById('retry-btn');
-    retryBtn.onclick = () => {
-        if (game.retryLastMove()) {
-            renderer.resetExplosion();
-            retryBtn.style.display = 'none';
-            document.getElementById('hint-btn').style.display = 'block';
-        }
-    };
 }
 
 /**
@@ -140,14 +181,7 @@ function setupRendererCallbacks() {
         }
     }, 100);
 
-    renderer.onGameEnd = () => {
-        document.getElementById('hint-btn').style.display = 'none';
-        document.getElementById('retry-btn').style.display = 'none';
-        renderer.dispose();
-        renderer = null;
-        game = null;
-        uiManager.showMenu();
-    };
+    renderer.onGameEnd = null; // Using EventBus.GAME_ENDED instead
 }
 
 /**
@@ -282,7 +316,7 @@ function setupNetworkCallbacks() {
         } else {
             applyStateSync(state);
         }
-        
+
         // Update scoreboard with initial scores
         if (state.scores && scoreboard) {
             scoreboard.updateScores(state.scores);
@@ -318,7 +352,7 @@ function setupNetworkCallbacks() {
             game.flags[result.x][result.y] = result.active;
             renderer.updateFlagVisual(result.x, result.y, result.active);
         }
-        
+
         // Update scoreboard with new scores
         if (update.scores && scoreboard) {
             scoreboard.updateScores(update.scores);
@@ -328,12 +362,12 @@ function setupNetworkCallbacks() {
     // Handle player elimination in multiplayer
     networkManager.onPlayerEliminated = (data) => {
         console.log('[Main] Player eliminated:', data.playerName, 'isMe:', data.playerId === networkManager.playerId);
-        
+
         if (data.playerId === networkManager.playerId) {
             // I was eliminated - show explosion effect but stay to watch
             if (game) game.gameOver = true;
             if (renderer) renderer.triggerExplosion();
-            
+
             // Show elimination message but keep watching
             // Scoreboard stays visible showing us as eliminated
             // We'll see the final results when the game ends
@@ -348,16 +382,16 @@ function setupNetworkCallbacks() {
     networkManager.onGameOver = (data) => {
         if (!game) return;
         console.log('[Main] Game Over received:', data);
-        
+
         if (data.victory) {
             // Check if I'm the winner
             const isMyWin = data.winnerId === networkManager.playerId;
-            
+
             if (!game.victory) {
                 game.victory = true;
                 renderer.triggerWin();
             }
-            
+
             // Show winner notification for others
             if (!isMyWin && data.winnerName) {
                 console.log(`[Main] ${data.winnerName} won! Reason: ${data.reason}`);
@@ -367,7 +401,7 @@ function setupNetworkCallbacks() {
             game.gameOver = true;
             renderer.triggerExplosion();
         }
-        
+
         // Show results modal with final scores after animation
         setTimeout(() => {
             if (scoreboard && data.finalScores) {
@@ -376,11 +410,11 @@ function setupNetworkCallbacks() {
                     // Menu button callback - return to menu
                     console.log('[Main] Results modal menu clicked, returning to menu');
                     networkManager.disconnect();
-                    
+
                     if (scoreboard) {
                         scoreboard.hideResults();
                     }
-                    
+
                     if (renderer) {
                         renderer.dispose();
                         renderer = null;
@@ -398,7 +432,7 @@ function setupNetworkCallbacks() {
                 });
             }
         }, 2000);
-        
+
         // Server will send gameEnded after delay, which will return to menu
     };
 
@@ -412,13 +446,13 @@ function setupNetworkCallbacks() {
     networkManager.onGameEnded = () => {
         console.log('[Main] Game ended, returning to menu');
         networkManager.disconnect();
-        
+
         // Hide scoreboard and results
         if (scoreboard) {
             scoreboard.hide();
             scoreboard.hideResults();
         }
-        
+
         if (renderer) {
             renderer.dispose();
             renderer = null;

@@ -5,14 +5,16 @@ import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { SoundManager } from '../audio/SoundManager.js';
 import { ParticleSystem } from './ParticleSystem.js';
 import { networkManager } from '../network/NetworkManager.js';
+import { Events } from '../core/EventBus.js';
 
 export class MinesweeperRenderer {
-    constructor(game, containerId, scoreManager = null, useHoverHelper = true, bgName = 'Unknown') {
+    constructor(game, containerId, scoreManager = null, useHoverHelper = true, bgName = 'Unknown', eventBus = null) {
         this.game = game;
         this.container = document.getElementById(containerId);
         this.scoreManager = scoreManager;
         this.useHoverHelper = useHoverHelper;
         this.bgName = bgName;
+        this.events = eventBus;
 
         this.scene = null;
         this.camera = null;
@@ -118,7 +120,7 @@ export class MinesweeperRenderer {
         }
         this.textures['flag'] = textureLoader.load('images/star.png');
         this.textures['particle'] = textureLoader.load('images/flare.png');
-        
+
         // Create bomb texture for revealed bombs (value 10)
         this.textures['bomb'] = this._createBombTexture();
 
@@ -517,24 +519,24 @@ export class MinesweeperRenderer {
         canvas.width = 128;
         canvas.height = 128;
         const ctx = canvas.getContext('2d');
-        
+
         // Clear with transparency
         ctx.clearRect(0, 0, 128, 128);
-        
+
         // Draw bomb body (black circle with spikes)
         const cx = 64, cy = 64;
         const radius = 35;
-        
+
         // Outer glow (red/orange danger glow)
         ctx.shadowColor = '#ff4400';
         ctx.shadowBlur = 20;
-        
+
         // Main bomb body
         ctx.fillStyle = '#222222';
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Spikes
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#222222';
@@ -543,7 +545,7 @@ export class MinesweeperRenderer {
             const angle = (i / spikeCount) * Math.PI * 2 - Math.PI / 2;
             const spikeLength = 18;
             const spikeWidth = 8;
-            
+
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(angle);
@@ -555,7 +557,7 @@ export class MinesweeperRenderer {
             ctx.fill();
             ctx.restore();
         }
-        
+
         // Inner highlight (gives 3D effect)
         const grad = ctx.createRadialGradient(cx - 10, cy - 10, 0, cx, cy, radius);
         grad.addColorStop(0, 'rgba(100, 100, 100, 0.6)');
@@ -565,13 +567,13 @@ export class MinesweeperRenderer {
         ctx.beginPath();
         ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Fuse hole
         ctx.fillStyle = '#444444';
         ctx.beginPath();
         ctx.arc(cx, cy - radius + 8, 6, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Fuse
         ctx.strokeStyle = '#8B4513';
         ctx.lineWidth = 4;
@@ -580,7 +582,7 @@ export class MinesweeperRenderer {
         ctx.moveTo(cx, cy - radius + 2);
         ctx.quadraticCurveTo(cx + 15, cy - radius - 15, cx + 5, cy - radius - 25);
         ctx.stroke();
-        
+
         // Spark at fuse tip
         ctx.fillStyle = '#ffaa00';
         ctx.shadowColor = '#ff6600';
@@ -588,7 +590,7 @@ export class MinesweeperRenderer {
         ctx.beginPath();
         ctx.arc(cx + 5, cy - radius - 25, 5, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Red X overlay to indicate "revealed/dead" bomb
         ctx.shadowBlur = 0;
         ctx.strokeStyle = '#ff0000';
@@ -600,7 +602,7 @@ export class MinesweeperRenderer {
         ctx.moveTo(98, 30);
         ctx.lineTo(30, 98);
         ctx.stroke();
-        
+
         // White border on X for visibility
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
@@ -610,7 +612,7 @@ export class MinesweeperRenderer {
         ctx.moveTo(98, 30);
         ctx.lineTo(30, 98);
         ctx.stroke();
-        
+
         const texture = new THREE.CanvasTexture(canvas);
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
@@ -1532,8 +1534,15 @@ export class MinesweeperRenderer {
         // Auto-return
         if (this.game.gameOver || this.game.victory) {
             this.endGameTime++;
-            if (this.endGameTime > 300 && this.onGameEnd) {
-                this.onGameEnd();
+            if (this.endGameTime > 300) {
+                if (this.events) {
+                    this.events.emit(Events.GAME_ENDED);
+                }
+
+                // Legacy fallback
+                if (this.onGameEnd) {
+                    this.onGameEnd();
+                }
             }
         }
 

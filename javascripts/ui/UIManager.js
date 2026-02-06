@@ -1,14 +1,16 @@
 import { networkManager } from '../network/NetworkManager.js';
 import { MultiplayerUI } from './MultiplayerUI.js';
+import { Events } from '../core/EventBus.js';
 
 // Configuration: Dedicated server URL (Raspberry Pi)
 const DEDICATED_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
 
 export class UIManager {
-    constructor(game, renderer, scoreManager) {
+    constructor(game, renderer, scoreManager, eventBus) {
         this.game = game;
         this.renderer = renderer;
         this.scoreManager = scoreManager;
+        this.events = eventBus;
 
         // UI Elements
         this.menuOverlay = document.getElementById('menu-overlay');
@@ -32,6 +34,7 @@ export class UIManager {
         this.hintBtn = document.getElementById('hint-btn');
         this.flagStyleBtn = document.getElementById('flag-style-btn');
         this.replayBtn = document.getElementById('replay-btn');
+        this.inGameRetryBtn = document.getElementById('retry-btn');
 
         // Difficulty Presets
         this.createDifficultyButtons();
@@ -62,6 +65,20 @@ export class UIManager {
         this.multiplayerUI.onGameStart = async (state) => {
             const bgResult = await this.setupBackground();
             this.menuOverlay.style.display = 'none';
+
+            if (this.events) {
+                this.events.emit(Events.GAME_START, {
+                    width: state.width,
+                    height: state.height,
+                    bombs: state.bombCount,
+                    useHoverHelper: true,
+                    noGuessMode: false,
+                    bgName: bgResult,
+                    replayMines: state.minePositions,
+                    initialState: state
+                });
+            }
+
             if (this.onStartGame) {
                 this.onStartGame(state.width, state.height, state.bombCount, true, false, bgResult, state.minePositions, state);
             }
@@ -164,6 +181,15 @@ export class UIManager {
                 this.videoFilename.textContent = 'Utilise le préréglage ci-dessus';
             });
         });
+
+        // In-game controls
+        this.hintBtn?.addEventListener('click', () => {
+            if (this.events) this.events.emit(Events.REQUEST_HINT);
+        });
+
+        this.inGameRetryBtn?.addEventListener('click', () => {
+            if (this.events) this.events.emit(Events.REQUEST_RETRY);
+        });
     }
 
     bindDragAndDropEvents() {
@@ -212,6 +238,13 @@ export class UIManager {
         // Hide menu and start
         this.menuOverlay.style.display = 'none';
 
+        if (this.events) {
+            this.events.emit(Events.GAME_START, {
+                width, height, bombs, useHoverHelper, noGuessMode, bgName: bgResult
+            });
+        }
+
+        // Legacy fallback (can remove after full migration)
         if (this.onStartGame) {
             this.onStartGame(width, height, bombs, useHoverHelper, noGuessMode, bgResult);
         }
@@ -320,6 +353,18 @@ export class UIManager {
             this.bombInput.value = config.bombs;
 
             this.menuOverlay.style.display = 'none';
+
+            if (this.events) {
+                this.events.emit(Events.GAME_START, {
+                    width: config.width,
+                    height: config.height,
+                    bombs: config.bombs,
+                    useHoverHelper: config.hoverHelper ?? true,
+                    noGuessMode: config.noGuess ?? false,
+                    bgName: config.bgName || 'Replay',
+                    replayMines: mines
+                });
+            }
 
             if (this.onStartGame) {
                 this.onStartGame(
