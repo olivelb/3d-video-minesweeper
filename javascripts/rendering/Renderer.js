@@ -888,20 +888,35 @@ export class MinesweeperRenderer {
         setTimeout(() => {
             this.isExploding = false;
             this.isReassembling = true;
+            this.reassemblyProgress = 0.0;
+            this.reassemblyDuration = 1.6; // Slight bump to 1.6 to account for longer travel (true start pos)
+
+            // Capture EXACT start positions to prevent jumping
+            this.reassemblyStartPositions = [];
+            this.reassemblyStartRotations = [];
+            
+            for (let i = 0; i < this.game.width * this.game.height; i++) {
+                this.gridMesh.getMatrixAt(i, this.dummy.matrix);
+                this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
+                
+                this.reassemblyStartPositions[i] = this.dummy.position.clone();
+                this.reassemblyStartRotations[i] = this.dummy.rotation.clone();
+            }
+            // Capture initial light intensities
+            this.scene.traverse(obj => {
+                if (obj.isLight && obj.userData.originalIntensity === undefined) {
+                    obj.userData.originalIntensity = obj.intensity;
+                }
+            });
         }, 1500);
 
         // Schedule Completion (Reassembly done)
         // 1.5s out + 1.5s in + a little buffer
         setTimeout(() => {
             this.isReassembling = false;
-
-            // Hard reset to ensure perfect alignment
             this.resetExplosion();
-
-            // Re-show numbers that were hidden
+            this.enableGhostMode();
             this.numberMeshes.forEach(mesh => mesh.visible = true);
-
-            // We are done with the visual sequence, GameController will handle the switch to Spectator Mode next
         }, 3200);
     }
 
@@ -1153,32 +1168,71 @@ export class MinesweeperRenderer {
             this.gridMesh.instanceMatrix.needsUpdate = true;
         }
 
-        // Explosion Animation (Reassembling IN)
+        // Explosion Animation (Reassembling IN - with Easing & Ghost Transition)
         if (this.isReassembling) {
-            // Reverse the explosionTime counter, but we modify position directly
-            this.explosionTime--;
+            this.reassemblyProgress += dt / this.reassemblyDuration;
+            if (this.reassemblyProgress > 1.0) this.reassemblyProgress = 1.0;
+
+            const t = this.reassemblyProgress;
+            
+            // Ease-In Exponential (t^6)
+            // User requested: "little bit slower at beginning" and "faster at end"
+            // The jump fix makes the path longer, so we need strong easing to keep the start slow.
+            const easeFactor = t * t * t * t * t * t; 
+            
+            // Synchronize visuals
+            const targetFogDensity = 0.001; 
+            const currentDensity = 0.0 + (targetFogDensity * easeFactor);
+            this.scene.fog = new THREE.FogExp2(0x1a1a1a, currentDensity);
+            
+            const targetLightFactor = 0.85;
+            const currentLightFactor = 1.0 - ((1.0 - targetLightFactor) * easeFactor);
+            
+            this.scene.traverse(obj => {
+                if (obj.isLight && obj.userData.originalIntensity !== undefined) {
+                    obj.intensity = obj.userData.originalIntensity * currentLightFactor;
+                }
+            });
+            
+            const targetScale = new THREE.Vector3(0.9, 0.9, 0.9);
 
             for (let i = 0; i < this.game.width * this.game.height; i++) {
-                this.gridMesh.getMatrixAt(i, this.dummy.matrix);
-                this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-                if (this.dummy.scale.x > 0.1) {
-                    const vec = this.explosionVectors[i];
-                    // Exact inverse operation of explosion
-                    this.dummy.rotation.x -= 10 * vec.dx;
-                    this.dummy.rotation.y -= 10 * vec.dy;
-                    this.dummy.position.x -= 200 * vec.dx;
-                    this.dummy.position.y -= 200 * vec.dy;
-                    this.dummy.updateMatrix();
-                    this.gridMesh.setMatrixAt(i, this.dummy.matrix);
-                }
+                // 1. Get Target (Original) Position
+                const x = i % this.game.width;
+                const y = Math.floor(i / this.game.width);
+                const targetPos = new THREE.Vector3(
+                    (x - this.game.width / 2) * 22 + 10,
+                    0,
+                    (y - this.game.height / 2) * 22 + 10
+                );
+                
+                // 2. Get Start Position (Captured)
+                // Default to target if missing (safety)
+                const startPos = this.reassemblyStartPositions && this.reassemblyStartPositions[i] 
+                    ? this.reassemblyStartPositions[i] 
+                    : targetPos;
+                
+                const startRot = this.reassemblyStartRotations && this.reassemblyStartRotations[i]
+                    ? this.reassemblyStartRotations[i]
+                    : new THREE.Euler(0, 0, 0);
+
+                // 3. Interchange
+                // We Lerp from Start -> Target
+                this.dummy.position.lerpVectors(startPos, targetPos, easeFactor);
+                
+                // Rotation Lerp (approximate with Euler)
+                this.dummy.rotation.set(
+                    startRot.x * (1 - easeFactor), // Target rotation is 0,0,0
+                    startRot.y * (1 - easeFactor),
+                    startRot.z * (1 - easeFactor)
+                );
+                
+                this.dummy.scale.copy(targetScale);
+                
+                this.dummy.updateMatrix();
+                this.gridMesh.setMatrixAt(i, this.dummy.matrix);
             }
             this.gridMesh.instanceMatrix.needsUpdate = true;
-
-            // Safety: if we somehow went past 0, just stop
-            if (this.explosionTime <= 0) {
-                this.isReassembling = false;
-                // resetExplosion() will be called by the timeout to ensure perfect alignment
-            }
         }
 
         // Auto-return
