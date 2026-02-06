@@ -51,9 +51,11 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 
 ## 📖 Documentation
 
-- [Multiplayer Status](./MULTIPLAYER_STATUS.md): Current features and dev progress.
+- [Multiplayer Status](./docs/MULTIPLAYER_STATUS.md): Current features and dev progress.
+- [Architecture Guide](./docs/ARCHITECTURE.md): Technical module hierarchy and data flow.
+- [Sensitivity Analysis](./docs/SENSITIVITY_ANALYSIS.md): Behavioural analysis system details.
 - [Deployment Guide](./DEPLOYMENT.md): Instructions for Raspberry Pi and Cloudflare deployment.
-- [Implementation Plan](./docs/IMPLEMENTATION_PLAN_MULTIPLAYER.md): Technical architecture and data flow.
+- [Implementation Plan](./docs/IMPLEMENTATION_PLAN_MULTIPLAYER.md): Technical plan.
 
 ## 🐞 Debugging
 

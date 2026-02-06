@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant User
+    participant Input as InputManager
+    participant Net as NetworkManager
+    participant Server as GameServer
+    participant Client2 as Other Client
+    participant Render as Renderer
+
+    User->>Input: Click Cell (10, 5)
+    Input->>Net: sendAction('reveal', 10, 5)
+    Net->>Server: emit('action', ...)
+    
+    Note over Server: Validate & Process
+    Server->>Server: Game.reveal(10, 5)
+    
+    par Broadcast
+        Server->>Net: emit('gameUpdate', result)
+        Server->>Client2: emit('gameUpdate', result)
+    end
+    
+    Net->>Render: handleGameUpdate(result)
+    Render->>Render: updateCellVisual()
+    Render-->>User: Visual Feedback

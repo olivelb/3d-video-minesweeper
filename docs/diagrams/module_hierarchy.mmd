@@ -1,0 +1,27 @@
+graph TD
+    Main[main.js] --> GC[GameController]
+    
+    subgraph Core
+        GC --> Game[Game.js]
+        GC --> EB[EventBus]
+    end
+    
+    subgraph Managers
+        GC --> SM[ScoreManager]
+        GC --> UIM[UIManager]
+        GC --> NM[NetworkManager]
+    end
+    
+    subgraph Rendering
+        GC --> Renderer[Renderer.js]
+        Renderer --> GM[GridManager]
+        Renderer --> IM[InputManager]
+        Renderer --> MTM[MediaTextureManager]
+        Renderer --> FM[FlagManager]
+        Renderer --> PS[ParticleSystem]
+    end
+
+    subgraph Utilities
+        GC --> Logger[Logger.js]
+        SM --> Logger
+    end

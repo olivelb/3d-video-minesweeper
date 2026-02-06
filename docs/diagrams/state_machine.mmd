@@ -1,0 +1,22 @@
+stateDiagram-v2
+    [*] --> Init
+    Init --> Lobby : Connect to Server
+    
+    state Lobby {
+        [*] --> Waiting
+        Waiting --> Ready : 2+ Players
+        Ready --> Waiting : Player Left
+    }
+
+    Lobby --> Playing : Host Starts Game
+    
+    state Playing {
+        [*] --> FirstClick
+        FirstClick --> Active : Place Mines
+        Active --> Active : Reveal/Flag
+        Active --> Eliminated : Click Bomb
+        Eliminated --> Spectating : 3s Delay
+    }
+
+    Playing --> GameOver : Win / All Eliminated
+    GameOver --> Lobby : Reset (10s)

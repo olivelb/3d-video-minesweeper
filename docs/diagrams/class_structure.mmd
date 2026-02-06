@@ -1,0 +1,54 @@
+classDiagram
+    class Main {
+        +init()
+    }
+    class GameController {
+        +init()
+        +startGame()
+        +endGame()
+    }
+    class EventBus {
+        +emit(event, data)
+        +on(event, callback)
+    }
+    class NetworkManager {
+        +socket
+        +connect()
+        +sendAction()
+    }
+    class ScoreManager {
+        +trackClick()
+        +saveScore()
+    }
+    class Renderer {
+        +scene
+        +camera
+        +render()
+        +updateCellVisual()
+    }
+    class GridManager {
+        +instancedMesh
+        +update()
+    }
+    class InputManager {
+        +raycaster
+        +onMouseClick()
+    }
+    class UIManager {
+        +updateLobby()
+        +showGameOver()
+    }
+
+    Main --> GameController : Initializes
+    GameController --> EventBus : Uses
+    GameController --> NetworkManager : Manages
+    GameController --> ScoreManager : Uses
+    GameController --> Renderer : Controls
+    GameController --> UIManager : Coordinates
+    
+    Renderer --> GridManager : Updates
+    Renderer --> InputManager : Polls
+    Renderer --> MediaTextureManager : Uses
+    
+    NetworkManager ..> GameController : Events
+    InputManager ..> GameController : Events
