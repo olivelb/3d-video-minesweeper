@@ -93,19 +93,24 @@ HOST           NetworkManager          Server              GameServer
   │◄──Show Waiting──│                     │                    │
 ```
 
-### 3. Game Start Flow (Guest Joins)
+### 3. Game Start Flow (Host Control)
 
 ```
 GUEST          NetworkManager          Server              GameServer
   │                 │                     │                    │
   │──joinGame()────►│                     │                    │
   │                 │──emit('joinGame')───►│                   │
-  │                 │                     │──addPlayer(P2)────►│
-  │                 │                     │                    │──gameStarted=true
-  │                 │                     │──getFullState()───►│
-  │                 │                     │◄──{state}──────────│
-  │                 │◄──'gameStart'───────│──broadcast to all──│
+  │                 │                     │──addPlayer(PX)────►│
+  │                 │                     │◄──'lobbyUpdate'────│
+  │                 │◄──'lobbyUpdate'─────│──broadcast to all──│
+  │◄──Update Lobby──│                     │                    │
   │                 │                     │                    │
+HOST              │                     │                    │
+  │──startGame()───►│                     │                    │
+  │                 │──emit('startGame')──►│                   │
+  │                 │                     │──gameStarted=true──►│
+  │                 │                     │──getFullState()───►│
+  │                 │◄──'gameStart'───────│──broadcast to all──│
   │◄──startGame()───│                     │                    │
 ```
 
@@ -454,14 +459,19 @@ CMD ["node", "server.js"]
 
 ## 📝 Changelog
 
-### v2.0 (Current)
+### v2.1 (Current)
+- **Host-defined max players (2-8)**
+- **Manual Game Start**: Host can start whenever ≥2 players are present
+- **MultiplayerUI Component**: Improved modularity and UI stability
+- **Lobby Styling**: Better synchronization and player list display
+
+### v2.0
 - **Competitive mode with player elimination**
 - Click a bomb = eliminated, other players continue
 - Revealed bombs visible to all (cell value 10)
 - No auto-win: last player must complete grid
 - `playerEliminated` event for notifications
 - Host elimination no longer ends game for others
-- Support for unlimited players (scalable)
 
 ### v1.0
 ---

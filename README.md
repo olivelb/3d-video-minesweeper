@@ -1,0 +1,63 @@
+# 💣 3D Video Minesweeper
+
+A modern, immersive, and social take on the classic Minesweeper. Built with **Three.js** for stunning 3D visuals, and **Socket.io** for intense competitive multiplayer.
+
+![Project Status](https://img.shields.io/badge/status-active-brightgreen)
+![Tech Stack](https://img.shields.io/badge/tech-Three.js%20%7C%20Node.js%20%7C%20Socket.io-blue)
+
+## ✨ Features
+
+- **Immersive 3D Grid**: Navigate a floating minefield in a 3D space with smooth animations and lighting.
+- **Video Backgrounds**: Play with high-quality video backgrounds for a more dynamic experience.
+- **Competitive Multiplayer**:
+    - **Lobby System**: Support for up to 8 players.
+    - **Host Control**: Configure grid size, bomb count, and player limits.
+    - **Elimination Mode**: Click a bomb? You're out! But the game continues for the rest.
+    - **Real-time Sync**: Watch your friends' cursors and actions in real-time.
+- **Premium UI**: Sleek, modern interface built with a glassmorphism aesthetic.
+- **First-Click Safety**: Never lose on your first move.
+- **Headless Server**: Authoritative server logic ensures a fair and synchronized game.
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Node.js** (v20 or higher)
+- **yt-dlp** (Required for video features on the server)
+
+### Quick Start (Local)
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/olivelb/3d-video-minesweeper.git
+   cd 3d-video-minesweeper
+   ```
+
+2. Install and start the multiplayer server:
+   ```bash
+   cd server-multiplayer
+   npm install
+   npm start
+   ```
+
+3. Open `index.html` in your browser (via a local server like Live Server or `npx serve .`).
+
+## 🛠 Project Structure
+
+- `javascripts/`: Core frontend logic, Three.js rendering, and UI components.
+- `server-multiplayer/`: Node.js authoritative game server.
+- `css/`: Modern styling and animations.
+- `docs/`: Technical documentation and implementation plans.
+
+## 📖 Documentation
+
+- [Multiplayer Status](./MULTIPLAYER_STATUS.md): Current features and dev progress.
+- [Deployment Guide](./DEPLOYMENT.md): Instructions for Raspberry Pi and Cloudflare deployment.
+- [Implementation Plan](./docs/IMPLEMENTATION_PLAN_MULTIPLAYER.md): Technical architecture and data flow.
+
+## 🤝 Contributing
+
+This is a personal project, but feedback and contributions are always welcome! Feel free to open an issue or submit a pull request.
+
+---
+*Created with ❤️ by the 3D Minesweeper Team*

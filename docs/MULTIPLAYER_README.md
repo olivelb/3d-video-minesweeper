@@ -1,8 +1,8 @@
 # 🎮 3D Minesweeper - Competitive Multiplayer
 
 > **Branch:** `coop-2player`  
-> **Status:** Feature complete, production-tested  
-> **Last Updated:** February 2026
+> **Status:** Production-ready (v2.1)  
+> **Last Updated:** February 6, 2026
 
 ## Overview
 
@@ -19,7 +19,8 @@ This branch extends the 3D Video Minesweeper with **real-time competitive multip
 - **Elimination Notifications** - "Player X eliminated!" toast message
 - **Real-time Synchronization** - Actions are instantly synced across all clients
 - **Live Cursor Tracking** - See other players' cursor positions in real-time
-- **Lobby System** - Host creates a game, others join when ready
+- **Dynamic Lobby** - Support for up to 8 players with host-defined limits
+- **Manual Start** - Host decides when to begin once at least 2 players are present
 
 ### Elimination System
 When a player clicks a bomb:
@@ -53,7 +54,9 @@ When a player clicks a bomb:
 │   ├── Game.js                   # Client-side game logic (solo mode)
 │   ├── Renderer.js               # Three.js 3D rendering engine
 │   ├── NetworkManager.js         # Socket.io client wrapper
-│   ├── UIManager.js              # UI management with multiplayer panels
+│   ├── ui/
+│   │   ├── UIManager.js          # Global UI management
+│   │   └── MultiplayerUI.js      # Dedicated multiplayer lobby component
 │   ├── ScoreManager.js           # Score calculation & leaderboard
 │   ├── MinesweeperSolver.js      # AI solver for "No Guess" mode
 │   └── ...

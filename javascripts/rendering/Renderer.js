@@ -16,6 +16,15 @@ export class MinesweeperRenderer {
         this.bgName = bgName;
         this.events = eventBus;
 
+        if (this.events) {
+            this.events.on(Events.TOGGLE_MUTE, (isMuted) => {
+                if (this.soundManager) this.soundManager.setMute(isMuted);
+            });
+            this.events.on(Events.FLAG_STYLE_CHANGED, (style) => {
+                this.setFlagStyle(style);
+            });
+        }
+
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -56,10 +65,6 @@ export class MinesweeperRenderer {
 
         // Partner cursor (multiplayer)
         this.partnerCursor = null;
-
-        // Click timing analytics
-        this.clickTimestamps = [];
-        this.lastClickTime = 0;
 
         // Bound event listeners for proper removal
         this._boundOnMouseMove = (e) => this.onMouseMove(e);
@@ -874,6 +879,8 @@ export class MinesweeperRenderer {
                     // Multiplayer: send to network
                     networkManager.sendAction({ type: 'reveal', x, y });
                 } else {
+                    // Emit interaction event for analytics
+                    if (this.events) this.events.emit(Events.USER_INTERACTION);
                     // Handling Async Reveal with UI
                     if (this.game.firstClick && this.game.noGuessMode) {
                         const loadingOverlay = document.getElementById('loading-overlay');
@@ -913,6 +920,8 @@ export class MinesweeperRenderer {
                     // Multiplayer: send to network
                     networkManager.sendAction({ type: 'flag', x, y });
                 } else {
+                    // Emit interaction event for analytics
+                    if (this.events) this.events.emit(Events.USER_INTERACTION);
                     const result = this.game.toggleFlag(x, y);
                     this.handleGameUpdate(result);
                 }
@@ -961,32 +970,6 @@ export class MinesweeperRenderer {
     }
 
     handleGameUpdate(result) {
-        // Track click timing for analytics
-        const now = Date.now();
-
-        // For the first click, use gameStartTime if available, otherwise use a default
-        if (this.lastClickTime === 0) {
-            // First click - calculate delta from game start time
-            const startTime = this.game.gameStartTime || now;
-            const delta = now - startTime;
-            // Only record if it's a meaningful decision time (at least 100ms)
-            if (delta >= 100) {
-                this.clickTimestamps.push({
-                    time: now,
-                    delta: delta,
-                    type: result.type
-                });
-            }
-        } else {
-            const delta = now - this.lastClickTime;
-            this.clickTimestamps.push({
-                time: now,
-                delta: delta,
-                type: result.type
-            });
-        }
-        this.lastClickTime = now;
-
         if (result.type === 'reveal' || result.type === 'win') {
             result.changes.forEach(change => {
                 this.updateCellVisual(change.x, change.y, change.value);
@@ -1273,17 +1256,9 @@ export class MinesweeperRenderer {
         // Hide UIs
         this.updateUIOverlay(false);
 
-        // Track loss analytics
-        if (this.scoreManager) {
-            this.scoreManager.trackGameEvent({
-                type: 'loss',
-                background: this.bgName,
-                width: this.game.width,
-                height: this.game.height,
-                bombs: this.game.bombCount,
-                time: this.game.getElapsedTime(),
-                clickData: this.getClickAnalytics()
-            });
+        // Notify GameController
+        if (this.events) {
+            this.events.emit(Events.GAME_OVER, { victory: false });
         }
     }
 
@@ -1337,39 +1312,9 @@ export class MinesweeperRenderer {
         this.game.victory = true;
         // Win sound removed - only video sound
 
-        if (this.scoreManager) {
-            const finalTime = this.game.getElapsedTime();
-            const options = {
-                noGuessMode: this.game.noGuessMode,
-                hintCount: this.game.hintCount,
-                retryCount: this.game.retryCount
-            };
-            const finalScore = this.scoreManager.calculateScore(
-                this.game.width, this.game.height, this.game.bombCount, finalTime, options
-            );
-            this.game.finalScore = finalScore;
-            this.scoreManager.saveScore({
-                width: this.game.width,
-                height: this.game.height,
-                bombs: this.game.bombCount,
-                time: finalTime,
-                score: finalScore,
-                noGuessMode: this.game.noGuessMode,
-                hintCount: this.game.hintCount,
-                retryCount: this.game.retryCount,
-                background: this.bgName
-            });
-
-            // Track win analytics
-            this.scoreManager.trackGameEvent({
-                type: 'win',
-                background: this.bgName,
-                width: this.game.width,
-                height: this.game.height,
-                bombs: this.game.bombCount,
-                time: finalTime,
-                clickData: this.getClickAnalytics()
-            });
+        // Notify GameController
+        if (this.events) {
+            this.events.emit(Events.GAME_OVER, { victory: true });
         }
 
         this.showText("BRAVO", 0x00ff00);

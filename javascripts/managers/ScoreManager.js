@@ -106,7 +106,11 @@ export class ScoreManager {
         // Garder seulement les 50 meilleurs scores
         const topScores = scores.slice(0, 50);
 
-        localStorage.setItem(this.storageKey, JSON.stringify(topScores));
+        try {
+            localStorage.setItem(this.storageKey, JSON.stringify(topScores));
+        } catch (e) {
+            console.error('[ScoreManager] Failed to save to localStorage:', e);
+        }
 
         return topScores;
     }

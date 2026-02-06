@@ -22,6 +22,9 @@ export class GameController {
         this.scoreboard = null;
         this.mpLeaderboard = null;
 
+        // Analytics
+        this.clickTimestamps = [];
+
         // Configuration
         this.isReady = false;
 
@@ -99,6 +102,58 @@ export class GameController {
                 document.getElementById('hint-btn').style.display = 'inline-flex';
             }
         });
+
+        // Analytics Interaction
+        this.events.on(Events.USER_INTERACTION, () => {
+            this.trackClick();
+        });
+
+        // Game Over Logic (Score & Analytics)
+        this.events.on(Events.GAME_OVER, (data) => {
+
+            if (this.scoreManager) {
+                const finalTime = this.game.getElapsedTime();
+                const analytics = this.getClickAnalytics();
+                const gameState = {
+                    width: this.game.width,
+                    height: this.game.height,
+                    bombs: this.game.bombCount,
+                    time: finalTime,
+                    background: this.renderer ? this.renderer.bgName : 'Unknown',
+                    clickData: analytics
+                };
+
+                if (data.victory) {
+                    const options = {
+                        noGuessMode: this.game.noGuessMode,
+                        hintCount: this.game.hintCount,
+                        retryCount: this.game.retryCount
+                    };
+                    const finalScore = this.scoreManager.calculateScore(
+                        gameState.width, gameState.height, gameState.bombs, finalTime, options
+                    );
+                    this.game.finalScore = finalScore;
+
+                    this.scoreManager.saveScore({
+                        ...gameState,
+                        score: finalScore,
+                        noGuessMode: options.noGuessMode,
+                        hintCount: options.hintCount,
+                        retryCount: options.retryCount
+                    });
+
+                    this.scoreManager.trackGameEvent({
+                        type: 'win',
+                        ...gameState
+                    });
+                } else {
+                    this.scoreManager.trackGameEvent({
+                        type: 'loss',
+                        ...gameState
+                    });
+                }
+            }
+        });
     }
 
     /**
@@ -107,6 +162,14 @@ export class GameController {
      */
     async startGame(config) {
         console.log('[GameController] Starting game...', config);
+
+        // Reset UI via HUD Controller (Only for Solo Mode)
+        if (this.uiManager && this.uiManager.hudController) {
+            this.uiManager.hudController.reset();
+            if (!config.isMultiplayer) {
+                this.uiManager.hudController.show();
+            }
+        }
 
         // Clean up existing renderer if any
         if (this.renderer) {
@@ -143,6 +206,11 @@ export class GameController {
             this.events
         );
         this.uiManager.renderer = this.renderer; // Update reference
+
+        // Set flag style if provided
+        if (config.flagStyle) {
+            this.renderer.setFlagStyle(config.flagStyle);
+        }
 
         // Wait for Renderer Readiness (The Fix for setTimeout)
         await this.waitForRendererReady();
@@ -342,7 +410,7 @@ export class GameController {
                         if (this.scoreboard) this.scoreboard.hideResults();
                     });
                 }
-            }, 2000);
+            }, 3000);
         };
 
         networkManager.onMinesPlaced = (minePositions) => {
@@ -359,18 +427,67 @@ export class GameController {
      */
     setupTimerAndScoreUpdates() {
         setInterval(() => {
-            if (this.game && !this.game.gameOver && !this.game.victory && this.game.startTime) {
-                const elapsed = Math.floor((Date.now() - this.game.startTime) / 1000);
-                const timerEl = document.getElementById('timer');
-                if (timerEl) timerEl.innerText = elapsed;
+            if (this.game && !this.game.gameOver && !this.game.victory && this.game.gameStartTime) {
+                const elapsed = Math.floor((Date.now() - this.game.gameStartTime) / 1000);
+
+                if (this.uiManager && this.uiManager.hudController) {
+                    this.uiManager.hudController.updateTimer(elapsed);
+                }
 
                 // Update score
                 if (this.scoreManager) {
-                    this.scoreManager.updateTime(elapsed);
-                    const scoreEl = document.getElementById('score');
-                    if (scoreEl) scoreEl.innerText = this.scoreManager.score;
+                    const currentScore = this.scoreManager.calculateScore(
+                        this.game.width,
+                        this.game.height,
+                        this.game.bombCount,
+                        elapsed,
+                        {
+                            noGuessMode: this.game.noGuessMode,
+                            hintCount: this.game.hintCount,
+                            retryCount: this.game.retryCount
+                        }
+                    );
+
+                    if (this.uiManager && this.uiManager.hudController) {
+                        this.uiManager.hudController.updateScore(currentScore);
+                    }
                 }
             }
         }, 100);
+    }
+
+    /**
+     * Track a click event for analytics
+     */
+    trackClick() {
+        const now = Date.now();
+        if (this.clickTimestamps.length > 0) {
+            const delta = now - this.clickTimestamps[this.clickTimestamps.length - 1].time;
+            this.clickTimestamps.push({ time: now, delta: delta });
+        } else {
+            this.clickTimestamps.push({ time: now, delta: 0 });
+        }
+    }
+
+    /**
+     * Calculate click timing analytics
+     * @returns {Object} Click timing metrics
+     */
+    getClickAnalytics() {
+        if (this.clickTimestamps.length === 0) {
+            return { avgDecisionTime: 0, maxPause: 0, clickCount: 0, hesitations: 0 };
+        }
+
+        const deltas = this.clickTimestamps.map(c => c.delta);
+        const avgDecisionTime = Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length);
+        const maxPause = Math.max(...deltas);
+        const hesitations = deltas.filter(d => d > 5000).length;
+
+        return {
+            avgDecisionTime,
+            maxPause,
+            clickCount: this.clickTimestamps.length,
+            hesitations
+        };
     }
 }

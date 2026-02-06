@@ -287,21 +287,19 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
     let resetPending = false;
 
     // Reset server state completely
+    // Reset server game instance but KEEP players connected
     function resetServer() {
         if (resetPending) return;
-        // If already reset (no game and no players), skip
-        if (!gameServer && socketToPlayer.size === 0) return;
 
         resetPending = true;
-        console.log('[GameServer] Full server reset');
+        console.log('[GameServer] Game instance reset (keeping lobby)');
 
         gameServer = null;
-        hostSocketId = null;
-        // Disconnect all players and clear state
-        for (const [sid] of socketToPlayer) {
-            io.to(sid).emit('gameEnded');
-        }
-        socketToPlayer.clear();
+        // hostSocketId remains the same if they didn't leave
+
+        // Notify players that game ended and lobby is open again
+        io.emit('gameEnded');
+        io.emit('lobbyUpdate', getLobbyState());
 
         // Release lock after delay
         setTimeout(() => { resetPending = false; }, 1000);

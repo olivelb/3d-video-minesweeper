@@ -53,6 +53,7 @@ export const Events = {
     REQUEST_HINT: 'action:hint',        // User clicked "Besoin d'aide"
     REQUEST_RETRY: 'action:retry',      // User clicked "Reessayer"
     REQUEST_MUTE: 'action:mute',        // User toggled mute
+    TOGGLE_MUTE: 'ui:toggle_mute',      // User toggled mute (new event)
 
     // UI Events
     UI_SHOW_MENU: 'ui:show_menu',       // Return to menu
@@ -60,5 +61,8 @@ export const Events = {
 
     // Multiplayer Events
     MP_CONNECTED: 'mp:connected',
-    MP_STATE_SYNC: 'mp:state_sync'
+    MP_STATE_SYNC: 'mp:state_sync',
+
+    // Analytics
+    USER_INTERACTION: 'analytics:interaction'
 };

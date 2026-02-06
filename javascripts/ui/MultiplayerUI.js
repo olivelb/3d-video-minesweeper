@@ -330,6 +330,16 @@ export class MultiplayerUI {
     }
 
     /**
+     * Reset UI after a game ends (keep connection but reset views)
+     */
+    /**
+     * Reset UI after a game ends (disconnect and return to start)
+     */
+    resetAfterGame() {
+        this.leaveMultiplayer();
+    }
+
+    /**
      * Reset UI to initial state
      * @private
      */
@@ -369,6 +379,8 @@ export class MultiplayerUI {
         document.getElementById('mp-host-lobby')?.classList.remove('hidden');
         document.getElementById('mp-guest-lobby')?.classList.add('hidden');
         if (this.createBtn) this.createBtn.disabled = false;
+
+        // Always show setup form initially or on reset
         document.getElementById('host-setup')?.classList.remove('hidden');
         document.getElementById('host-waiting')?.classList.add('hidden');
     }

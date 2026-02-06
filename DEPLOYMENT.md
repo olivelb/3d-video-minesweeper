@@ -96,9 +96,9 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
 
 2. **Clone/update the server code**
    ```bash
-   cd ~/3d-video-minesweeper/server
+   cd ~/3d-video-minesweeper/server-multiplayer
    git pull origin main
-   npm install --production
+   npm install --omit=dev
    ```
 
 3. **Install yt-dlp**
@@ -119,7 +119,7 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
 5. **Setup PM2**
    ```bash
    npm install -g pm2
-   pm2 start index.js --name minesweeper-server
+   pm2 start server.js --name minesweeper-multiplayer
    pm2 save
    pm2 startup  # Follow instructions to enable on boot
    ```
@@ -179,17 +179,16 @@ location.reload();
 
 ### Quick Deploy to Pi (from local machine)
 
+The project includes a PowerShell script to automate deployment:
+
 ```powershell
-# PowerShell script to deploy server to Pi
-$PI_HOST = "olivier@raspberrol"
-$PI_PATH = "~/3d-video-minesweeper/server"
-
-# Copy server files
-scp -r server/* ${PI_HOST}:${PI_PATH}/
-
-# Restart server
-ssh $PI_HOST "cd ${PI_PATH} && npm install --production && pm2 restart minesweeper-server"
+.\.github\skills\raspberry-pi-manager\deploy.ps1
 ```
+
+This script:
+1. Compresses the `server-multiplayer` folder (excluding node_modules).
+2. Transfers the archive to the Pi via SCP.
+3. Extracts, installs dependencies, and restarts the PM2 process.
 
 ### Restart Cloudflare Tunnel
 
