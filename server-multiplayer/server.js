@@ -118,7 +118,7 @@ const gameConfig = {
     width: parseInt(process.env.GAME_WIDTH) || 30,
     height: parseInt(process.env.GAME_HEIGHT) || 16,
     bombCount: parseInt(process.env.GAME_BOMBS) || 99,
-    maxPlayers: 2
+    maxPlayers: 8
 };
 
 createGameServer(io, gameConfig, statsDb);

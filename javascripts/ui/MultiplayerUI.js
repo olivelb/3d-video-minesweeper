@@ -36,10 +36,10 @@ export class MultiplayerUI {
     constructor(networkManager) {
         /** @type {Object} Network manager reference */
         this.networkManager = networkManager;
-        
+
         /** @type {string|null} Dedicated server URL if available */
         this.dedicatedServerUrl = null;
-        
+
         /** @type {string} Current connection status */
         this.connectionStatus = ConnectionStatus.OFFLINE;
 
@@ -101,6 +101,17 @@ export class MultiplayerUI {
         document.getElementById('btn-leave-guest')?.addEventListener('click', () => {
             this.leaveMultiplayer();
         });
+
+        // Cancel host (before creation)
+        document.getElementById('btn-cancel-host')?.addEventListener('click', () => {
+            this._resetUI();
+            this._showHostLobby();
+        });
+
+        // Start game (for host)
+        document.getElementById('btn-start-multiplayer')?.addEventListener('click', () => {
+            this.networkManager.startGame();
+        });
     }
 
     /**
@@ -111,12 +122,14 @@ export class MultiplayerUI {
         const widthInput = document.getElementById('grid-width');
         const heightInput = document.getElementById('grid-height');
         const bombInput = document.getElementById('bomb-count');
+        const maxPlayersInput = document.getElementById('mp-max-players');
 
         const w = parseInt(widthInput?.value) || 30;
         const h = parseInt(heightInput?.value) || 20;
         const b = parseInt(bombInput?.value) || 50;
+        const mp = parseInt(maxPlayersInput?.value) || 2;
 
-        this.networkManager.createGame(w, h, b);
+        this.networkManager.createGame(w, h, b, mp);
         this._showHostWaiting();
     }
 
@@ -184,7 +197,7 @@ export class MultiplayerUI {
             this._setupNetworkHandlers();
 
             const welcomeData = await this.networkManager.connectToServer(
-                this.dedicatedServerUrl, 
+                this.dedicatedServerUrl,
                 playerName
             );
 
@@ -242,17 +255,70 @@ export class MultiplayerUI {
      * @param {Object} lobbyState - Lobby state from server
      */
     _handleLobbyUpdate(lobbyState) {
+        console.log('[MultiplayerUI] Rendering lobby:', lobbyState);
+        const { players, gameCreated, config } = lobbyState;
+
+        // Render player list for host or guest
+        const listId = this.networkManager.isHost ? 'host-player-list' : 'guest-player-list';
+        this._renderPlayerList(players, listId);
+
+        // Show start button for host if >= 2 players
+        if (this.networkManager.isHost) {
+            const startBtn = document.getElementById('btn-start-multiplayer');
+            if (startBtn) {
+                if (players.length >= 2) {
+                    startBtn.classList.remove('hidden');
+                } else {
+                    startBtn.classList.add('hidden');
+                }
+            }
+        }
+
         // If game is created and we're the guest, show join button
-        if (lobbyState.gameCreated && !this.networkManager.isHost) {
+        if (gameCreated && !this.networkManager.isHost) {
             document.getElementById('guest-waiting')?.classList.add('hidden');
             document.getElementById('guest-ready')?.classList.remove('hidden');
 
-            const cfg = lobbyState.config;
             const configEl = document.getElementById('guest-config');
-            if (configEl && cfg) {
-                configEl.textContent = `Partie: ${cfg.width}×${cfg.height} avec ${cfg.bombCount} 💣`;
+            if (configEl && config) {
+                configEl.textContent = `${config.width}×${config.height} • ${config.bombCount} 💣 (Max: ${config.maxPlayers} joueurs)`;
             }
         }
+    }
+
+    /**
+     * Render the list of players in the lobby
+     * @private
+     * @param {Array} players - List of player objects
+     * @param {string} listElementId - ID of the UL element
+     */
+    _renderPlayerList(players, listElementId) {
+        const listEl = document.getElementById(listElementId);
+        if (!listEl) return;
+
+        listEl.innerHTML = '';
+        players.forEach(p => {
+            const li = document.createElement('li');
+            li.className = 'player-item';
+            if (p.id === this.networkManager.playerId) li.classList.add('is-me');
+
+            li.innerHTML = `
+                <span class="player-number">#${p.number}</span>
+                <span class="player-name">${this._escapeHtml(p.name)}</span>
+                ${p.isHost ? '<span class="player-badge host">HÔTE</span>' : ''}
+            `;
+            listEl.appendChild(li);
+        });
+    }
+
+    /**
+     * Escape HTML special characters
+     * @private
+     */
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     /**
@@ -275,10 +341,16 @@ export class MultiplayerUI {
         if (this.createBtn) this.createBtn.disabled = false;
         if (this.joinBtn) this.joinBtn.disabled = false;
 
-        document.getElementById('host-actions')?.classList.remove('hidden');
+        document.getElementById('host-setup')?.classList.remove('hidden');
         document.getElementById('host-waiting')?.classList.add('hidden');
         document.getElementById('guest-waiting')?.classList.remove('hidden');
         document.getElementById('guest-ready')?.classList.add('hidden');
+
+        // Clear lists
+        const hostList = document.getElementById('host-player-list');
+        if (hostList) hostList.innerHTML = '';
+        const guestList = document.getElementById('guest-player-list');
+        if (guestList) guestList.innerHTML = '';
     }
 
     /**
@@ -297,7 +369,7 @@ export class MultiplayerUI {
         document.getElementById('mp-host-lobby')?.classList.remove('hidden');
         document.getElementById('mp-guest-lobby')?.classList.add('hidden');
         if (this.createBtn) this.createBtn.disabled = false;
-        document.getElementById('host-actions')?.classList.remove('hidden');
+        document.getElementById('host-setup')?.classList.remove('hidden');
         document.getElementById('host-waiting')?.classList.add('hidden');
     }
 
@@ -306,7 +378,7 @@ export class MultiplayerUI {
      * @private
      */
     _showHostWaiting() {
-        document.getElementById('host-actions')?.classList.add('hidden');
+        document.getElementById('host-setup')?.classList.add('hidden');
         document.getElementById('host-waiting')?.classList.remove('hidden');
     }
 
@@ -335,7 +407,7 @@ export class MultiplayerUI {
                 <span class="elimination-msg">a été éliminé!</span>
             </div>
         `;
-        
+
         // Add styles inline for immediate effect
         notification.style.cssText = `
             position: fixed;
@@ -355,20 +427,20 @@ export class MultiplayerUI {
             animation: eliminationSlideIn 0.5s ease forwards;
             font-family: 'Arial', sans-serif;
         `;
-        
+
         const icon = notification.querySelector('.elimination-icon');
         icon.style.cssText = `
             font-size: 48px;
             animation: eliminationPulse 0.5s ease infinite alternate;
         `;
-        
+
         const textDiv = notification.querySelector('.elimination-text');
         textDiv.style.cssText = `
             display: flex;
             flex-direction: column;
             color: white;
         `;
-        
+
         const nameSpan = notification.querySelector('.elimination-name');
         nameSpan.style.cssText = `
             font-size: 24px;
@@ -376,14 +448,14 @@ export class MultiplayerUI {
             color: #ffcccc;
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         `;
-        
+
         const msgSpan = notification.querySelector('.elimination-msg');
         msgSpan.style.cssText = `
             font-size: 18px;
             color: #ffffff;
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         `;
-        
+
         // Add keyframe animations
         const style = document.createElement('style');
         style.textContent = `
@@ -401,9 +473,9 @@ export class MultiplayerUI {
             }
         `;
         document.head.appendChild(style);
-        
+
         document.body.appendChild(notification);
-        
+
         // Remove after 3 seconds with fade out
         setTimeout(() => {
             notification.style.animation = 'eliminationSlideOut 0.5s ease forwards';

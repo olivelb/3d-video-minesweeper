@@ -156,12 +156,23 @@
                 <!-- Host Lobby (P1 creates game) -->
                 <div id="mp-host-lobby" class="hidden">
                     <h4>🎮 Créer une partie</h4>
-                    <div id="host-waiting" class="hidden">
-                        <p>⏳ En attente d'un autre joueur...</p>
+                    <div id="host-setup">
+                        <div class="input-group" style="margin-bottom: 10px;">
+                            <label>Nombre de joueurs (2-8)</label>
+                            <input type="number" id="mp-max-players" value="2" min="2" max="8">
+                        </div>
+                        <div id="host-actions">
+                            <button id="btn-create-game" class="primary">Créer la partie</button>
+                            <button id="btn-leave-host">Quitter</button>
+                        </div>
                     </div>
-                    <div id="host-actions">
-                        <button id="btn-create-game" class="primary">Créer la partie</button>
-                        <button id="btn-leave-host">Quitter</button>
+                    <div id="host-waiting" class="hidden">
+                        <p>⏳ En attente des joueurs...</p>
+                        <div class="player-list-container">
+                            <ul id="host-player-list" class="lobby-player-list"></ul>
+                        </div>
+                        <button id="btn-start-multiplayer" class="primary hidden">Démarrer la partie</button>
+                        <button id="btn-cancel-host">Annuler</button>
                     </div>
                 </div>
 
@@ -173,6 +184,9 @@
                     </div>
                     <div id="guest-ready" class="hidden">
                         <p id="guest-config">Partie prête !</p>
+                        <div class="player-list-container">
+                            <ul id="guest-player-list" class="lobby-player-list"></ul>
+                        </div>
                         <button id="btn-join-game" class="primary">Rejoindre la partie</button>
                     </div>
                     <button id="btn-leave-guest">Quitter</button>

@@ -1,4 +1,5 @@
 import { networkManager } from '../network/NetworkManager.js';
+import { MultiplayerUI } from './MultiplayerUI.js';
 
 // Configuration: Dedicated server URL (Raspberry Pi)
 const DEDICATED_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
@@ -56,8 +57,16 @@ export class UIManager {
         this.displayPlayerInfo();
         this.bindDragAndDropEvents();
 
-        // Multiplayer UI init
-        this.initMultiplayerUI();
+        // New Multiplayer UI Component
+        this.multiplayerUI = new MultiplayerUI(networkManager);
+        this.multiplayerUI.onGameStart = async (state) => {
+            const bgResult = await this.setupBackground();
+            this.menuOverlay.style.display = 'none';
+            if (this.onStartGame) {
+                this.onStartGame(state.width, state.height, state.bombCount, true, false, bgResult, state.minePositions, state);
+            }
+        };
+        this.multiplayerUI.init();
     }
 
     createDifficultyButtons() {
@@ -188,211 +197,6 @@ export class UIManager {
             input.files = dt.files;
             input.dispatchEvent(new Event('change'));
         }
-    }
-
-    initMultiplayerUI() {
-        // Check multiplayer server availability
-        this.checkServerAvailability();
-
-        // Connect button
-        document.getElementById('btn-connect-server')?.addEventListener('click', () => {
-            this.connectToServer();
-        });
-
-        // Bind Host/Guest actions here (once) to prevent duplicate listeners
-        this.bindMultiplayerActions();
-    }
-
-    bindMultiplayerActions() {
-        // Create Game (Host)
-        const createBtn = document.getElementById('btn-create-game');
-        createBtn?.addEventListener('click', () => {
-            if (createBtn.disabled) return;
-            createBtn.disabled = true; // Prevent double click
-
-            const w = parseInt(this.widthInput.value) || 30;
-            const h = parseInt(this.heightInput.value) || 20;
-            const b = parseInt(this.bombInput.value) || 50;
-
-            networkManager.createGame(w, h, b);
-
-            // Show waiting state
-            document.getElementById('host-actions')?.classList.add('hidden');
-            document.getElementById('host-waiting')?.classList.remove('hidden');
-        });
-
-        // Leave Host
-        document.getElementById('btn-leave-host')?.addEventListener('click', () => {
-            this.leaveMultiplayer();
-        });
-
-        // Join Game (Guest)
-        const joinBtn = document.getElementById('btn-join-game');
-        joinBtn?.addEventListener('click', () => {
-            if (joinBtn.disabled) return;
-            joinBtn.disabled = true; // Prevent double click
-            networkManager.joinGame();
-        });
-
-        // Leave Guest
-        document.getElementById('btn-leave-guest')?.addEventListener('click', () => {
-            this.leaveMultiplayer();
-        });
-    }
-
-    async checkServerAvailability() {
-        const indicator = document.getElementById('server-indicator');
-        const statusText = document.getElementById('server-status-text');
-        const connectBtn = document.getElementById('btn-connect-server');
-
-        if (!indicator || !statusText) return;
-
-        indicator.className = 'checking';
-        statusText.textContent = 'Vérification du serveur...';
-
-        try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 3000);
-
-            const response = await fetch(`${DEDICATED_SERVER_URL}/health`, {
-                signal: controller.signal
-            });
-            clearTimeout(timeout);
-
-            if (response.ok) {
-                indicator.className = 'online';
-                statusText.textContent = 'Serveur disponible';
-                this.dedicatedServerUrl = DEDICATED_SERVER_URL;
-                if (connectBtn) connectBtn.disabled = false;
-            } else {
-                throw new Error('Server error');
-            }
-        } catch (err) {
-            indicator.className = 'offline';
-            statusText.textContent = 'Serveur hors ligne';
-            this.dedicatedServerUrl = null;
-            if (connectBtn) connectBtn.disabled = true;
-        }
-    }
-
-    async connectToServer() {
-        const playerName = document.getElementById('server-name')?.value || 'Joueur';
-
-        if (!this.dedicatedServerUrl) {
-            alert('Serveur non disponible');
-            return;
-        }
-
-        try {
-            // Setup event handlers BEFORE connecting so we don't miss early messages (lobby updates)
-            this.setupNetworkHandlers();
-
-            const welcomeData = await networkManager.connectToServer(this.dedicatedServerUrl, playerName);
-
-            // Hide connect panel
-            document.getElementById('mp-connect')?.classList.add('hidden');
-
-            // Show appropriate lobby based on role
-            if (networkManager.isHost) {
-                this.showHostLobby();
-            } else {
-                this.showGuestLobby();
-            }
-
-        } catch (err) {
-            console.error('[UI] Connection error:', err);
-            alert('Connexion au serveur échouée');
-        }
-    }
-
-    showHostLobby() {
-        document.getElementById('mp-host-lobby')?.classList.remove('hidden');
-        document.getElementById('mp-guest-lobby')?.classList.add('hidden');
-
-        // Reset button state
-        const createBtn = document.getElementById('btn-create-game');
-        if (createBtn) createBtn.disabled = false;
-
-        document.getElementById('host-actions')?.classList.remove('hidden');
-        document.getElementById('host-waiting')?.classList.add('hidden');
-    }
-
-    showGuestLobby() {
-        document.getElementById('mp-guest-lobby')?.classList.remove('hidden');
-        document.getElementById('mp-host-lobby')?.classList.add('hidden');
-
-        // Reset button state
-        const joinBtn = document.getElementById('btn-join-game');
-        if (joinBtn) joinBtn.disabled = false;
-    }
-
-    setupNetworkHandlers() {
-        // Lobby updates
-        networkManager.onLobbyUpdate = (lobbyState) => {
-            console.log('[UI] Lobby update:', lobbyState);
-
-            // If game is created and we're the guest, show join button
-            if (lobbyState.gameCreated && !networkManager.isHost) {
-                document.getElementById('guest-waiting')?.classList.add('hidden');
-                document.getElementById('guest-ready')?.classList.remove('hidden');
-
-                const cfg = lobbyState.config;
-                const configEl = document.getElementById('guest-config');
-                if (configEl && cfg) {
-                    configEl.textContent = `Partie: ${cfg.width}×${cfg.height} avec ${cfg.bombCount} 💣`;
-                }
-            }
-        };
-
-        // Game created (for host, shows waiting message)
-        networkManager.onGameCreated = (data) => {
-            console.log('[UI] Game created:', data);
-        };
-
-        // Game starts
-        networkManager.onGameStart = async (state) => {
-            console.log('[UI] Game starting with state:', state);
-
-            // Set multiplayer mode flag
-            networkManager._isMultiplayer = true;
-
-            // Setup background using the same logic as solo mode
-            const bgResult = await this.setupBackground();
-            this.menuOverlay.style.display = 'none';
-
-            if (this.onStartGame) {
-                // Pass mine positions from server, chosen background, and the full initial state
-                this.onStartGame(state.width, state.height, state.bombCount, true, false, bgResult, state.minePositions, state);
-            }
-        };
-
-        // Host left
-        networkManager.onHostLeft = () => {
-            alert('L\'hôte a quitté la partie');
-            this.leaveMultiplayer();
-        };
-    }
-
-    leaveMultiplayer() {
-        networkManager.disconnect();
-        document.getElementById('mp-host-lobby')?.classList.add('hidden');
-        document.getElementById('mp-guest-lobby')?.classList.add('hidden');
-        document.getElementById('mp-connect')?.classList.remove('hidden');
-
-        // Re-enable buttons just in case
-        const createBtn = document.getElementById('btn-create-game');
-        if (createBtn) createBtn.disabled = false;
-
-        const joinBtn = document.getElementById('btn-join-game');
-        if (joinBtn) joinBtn.disabled = false;
-
-        // Reset host UI
-        document.getElementById('host-actions')?.classList.remove('hidden');
-        document.getElementById('host-waiting')?.classList.add('hidden');
-
-        // Reset guest UI
-        document.getElementById('guest-waiting')?.classList.remove('hidden');
-        document.getElementById('guest-ready')?.classList.add('hidden');
     }
 
     async handleStartClick() {

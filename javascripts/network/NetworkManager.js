@@ -152,14 +152,23 @@ export class NetworkManager {
     /**
      * Host creates a game with config
      */
-    createGame(width, height, bombCount) {
+    createGame(width, height, bombCount, maxPlayers) {
         if (this.socket) {
-            this.socket.emit('createGame', { width, height, bombCount });
+            this.socket.emit('createGame', { width, height, bombCount, maxPlayers });
         }
     }
 
     /**
-     * Player 2 joins the created game
+     * Host starts the game manually
+     */
+    startGame() {
+        if (this.socket) {
+            this.socket.emit('startGame');
+        }
+    }
+
+    /**
+     * Player joins the created game
      */
     joinGame() {
         if (this.socket) {
