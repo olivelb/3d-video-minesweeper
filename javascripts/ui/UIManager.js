@@ -29,7 +29,7 @@ export class UIManager {
         this.detectGpuTier();
 
         // New Multiplayer UI Component
-        this.multiplayerUI = new MultiplayerUI(networkManager);
+        this.multiplayerUI = new MultiplayerUI(networkManager, this.events);
         this.multiplayerUI.onGameStart = async (state) => {
             // Force menu hide via controller
             this.menuController.hide();

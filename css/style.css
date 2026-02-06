@@ -1440,3 +1440,147 @@ body::before {
 
 
 /* End of Multiplayer Lobby */
+
+/* Spectator Mode Overlay */
+.spectator-overlay {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translate(-50%, 0);
+    background: rgba(15, 15, 20, 0.85);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 20px 35px;
+    z-index: 5000;
+    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5);
+    animation: spectatorSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.spectator-content {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+}
+
+.spectator-status {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.spectator-status .skull {
+    font-size: 40px;
+    filter: drop-shadow(0 0 10px rgba(255, 50, 50, 0.5));
+    animation: ghostFloat 3s ease-in-out infinite;
+}
+
+.status-texts h3 {
+    font-size: 1.2em;
+    font-weight: 800;
+    color: #ff4d4d;
+    margin-bottom: 2px;
+    letter-spacing: 1px;
+}
+
+.status-texts p {
+    font-size: 0.9em;
+    opacity: 0.7;
+    margin: 0;
+}
+
+.spectator-overlay .quit-btn {
+    background: linear-gradient(135deg, #444 0%, #222 100%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 25px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.5px;
+}
+
+.spectator-overlay .quit-btn:hover {
+    background: linear-gradient(135deg, #555 0%, #333 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes spectatorSlideUp {
+    from {
+        transform: translate(-50%, 100px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes ghostFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+/* Ghost Mode Visual Effects */
+.ghost-mode #container canvas,
+.ghost-mode #container {
+    filter: grayscale(100%) contrast(1.1) brightness(0.95) blur(0.8px) !important;
+    transition: filter 2s ease-in-out;
+}
+
+.ghost-mode::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, transparent 30%, rgba(0, 0, 0, 0.7) 100%);
+    pointer-events: none;
+    z-index: 4000;
+    mix-blend-mode: multiply;
+}
+
+/* Fuzzy noise effect */
+.ghost-mode::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 4001;
+    animation: grain 0.3s steps(2) infinite;
+}
+
+@keyframes grain {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    33% {
+        transform: translate(-2%, -1%);
+    }
+
+    66% {
+        transform: translate(1%, 2%);
+    }
+}

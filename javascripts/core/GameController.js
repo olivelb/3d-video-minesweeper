@@ -29,6 +29,7 @@ export class GameController {
 
         // Configuration
         this.isReady = false;
+        this.isSpectating = false;
 
         // Expose for debugging/legacy access
         window._gameController = this;
@@ -376,8 +377,17 @@ export class GameController {
 
         networkManager.onPlayerEliminated = (data) => {
             if (data.playerId === networkManager.playerId) {
-                if (this.game) this.game.gameOver = true;
-                if (this.renderer) this.renderer.triggerExplosion();
+                // Only enter spectator mode if there are remaining players to watch
+                if (data.remainingPlayers > 0) {
+                    Logger.log('GameController', 'Local player eliminated. Entering Spectator Mode.');
+                    this.isSpectating = true;
+                    if (this.game) this.game.isSpectating = true;
+                    if (this.renderer) this.renderer.triggerExplosion(true); // Soft explosion
+                    this.events.emit(Events.SPECTATOR_MODE_START);
+                } else {
+                    Logger.log('GameController', 'Local player was the last one eliminated. Normal Game Over.');
+                    // Don't set isSpectating, let onGameOver handle the hard explosion
+                }
             } else {
                 if (this.uiManager.multiplayerUI) {
                     this.uiManager.multiplayerUI.showEliminationNotification(data.playerName);

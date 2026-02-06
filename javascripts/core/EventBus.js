@@ -62,6 +62,7 @@ export const Events = {
     // Multiplayer Events
     MP_CONNECTED: 'mp:connected',
     MP_STATE_SYNC: 'mp:state_sync',
+    SPECTATOR_MODE_START: 'mp:spectator_start',
 
     // Analytics
     USER_INTERACTION: 'analytics:interaction'

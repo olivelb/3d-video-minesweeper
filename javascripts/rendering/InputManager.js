@@ -45,7 +45,7 @@ export class InputManager {
     }
 
     onMouseMove(event) {
-        if (this.game.gameOver || this.game.victory) return;
+        if (this.game.gameOver || this.game.victory || this.game.isSpectating) return;
 
         const rect = this.renderer.domElement.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -64,7 +64,7 @@ export class InputManager {
     }
 
     async onMouseClick(event) {
-        if (this.game.gameOver || this.game.victory) return;
+        if (this.game.gameOver || this.game.victory || this.game.isSpectating) return;
 
         // Use cached hover if available, otherwise arraycast (robustness)
         if (this.hoveredInstanceId === -1) {

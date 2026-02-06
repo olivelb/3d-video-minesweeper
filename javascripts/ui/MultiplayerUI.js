@@ -8,6 +8,7 @@
  */
 
 import { Logger } from '../utils/Logger.js';
+import { Events } from '../core/EventBus.js';
 
 /**
  * Default server URL for multiplayer connections
@@ -35,9 +36,10 @@ export class MultiplayerUI {
      * Create a multiplayer UI manager
      * @param {Object} networkManager - Reference to the network manager
      */
-    constructor(networkManager) {
+    constructor(networkManager, eventBus) {
         /** @type {Object} Network manager reference */
         this.networkManager = networkManager;
+        this.events = eventBus;
 
         /** @type {string|null} Dedicated server URL if available */
         this.dedicatedServerUrl = null;
@@ -249,6 +251,50 @@ export class MultiplayerUI {
             alert('L\'hôte a quitté la partie');
             this.leaveMultiplayer();
         };
+
+        // Spectator Mode
+        if (this.events) {
+            this.events.on(Events.SPECTATOR_MODE_START, () => {
+                this._showSpectatorOverlay();
+            });
+        }
+    }
+
+    /**
+     * Show spectator overlay when eliminated
+     * @private
+     */
+    _showSpectatorOverlay() {
+        if (document.getElementById('spectator-overlay')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'spectator-overlay';
+        overlay.className = 'spectator-overlay';
+        overlay.innerHTML = `
+            <div class="spectator-content">
+                <div class="spectator-status">
+                    <span class="skull">💀</span>
+                    <div class="status-texts">
+                        <h3>ÉLIMINÉ</h3>
+                        <p>Mode Spectateur Actif</p>
+                    </div>
+                </div>
+                <button id="btn-quit-spectator" class="quit-btn">QUITTER LA PARTIE</button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.classList.add('ghost-mode');
+
+        document.getElementById('btn-quit-spectator')?.addEventListener('click', () => {
+            overlay.remove();
+            document.body.classList.remove('ghost-mode');
+            this.leaveMultiplayer();
+            // Force return to menu via EventBus
+            if (this.events) {
+                this.events.emit(Events.GAME_ENDED);
+            }
+        });
     }
 
     /**
@@ -339,6 +385,9 @@ export class MultiplayerUI {
      */
     resetAfterGame() {
         this.leaveMultiplayer();
+        const overlay = document.getElementById('spectator-overlay');
+        if (overlay) overlay.remove();
+        document.body.classList.remove('ghost-mode');
     }
 
     /**

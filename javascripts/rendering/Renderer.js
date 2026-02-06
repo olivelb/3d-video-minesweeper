@@ -8,6 +8,7 @@ import { MediaTextureManager } from './MediaTextureManager.js';
 import { InputManager } from './InputManager.js';
 import { networkManager } from '../network/NetworkManager.js';
 import { Events } from '../core/EventBus.js';
+import { Logger } from '../utils/Logger.js';
 
 export class MinesweeperRenderer {
     constructor(game, containerId, useHoverHelper = true, bgName = 'Unknown', eventBus = null) {
@@ -17,6 +18,11 @@ export class MinesweeperRenderer {
         this.useHoverHelper = useHoverHelper;
         this.bgName = bgName;
         this.events = eventBus;
+
+        if (this.events) {
+            this.events.on(Events.SPECTATOR_MODE_START, () => this.enableGhostMode());
+            this.events.on(Events.GAME_START, () => this.disableGhostMode());
+        }
 
         if (this.events) {
             this.events.on(Events.TOGGLE_MUTE, (isMuted) => {
@@ -797,18 +803,33 @@ export class MinesweeperRenderer {
         return this.flagStyle;
     }
 
-    triggerExplosion() {
+    triggerExplosion(isSpectating = false) {
         if (this.isExploding) return;
-        this.isExploding = true;
-        this.showText("PERDU", 0xff0000);
-        this.numberMeshes.forEach(mesh => mesh.visible = false);
-        this.particleSystem.stopAll();
 
-        // Clear all flags (particle and 2D)
-        this.flagEmitters.forEach(emitter => emitter.alive = false);
-        this.flagEmitters.clear();
-        this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
-        this.flag3DMeshes.clear();
+        // Show "PERDU" text (only for hard explosion)
+        if (!isSpectating) {
+            this.showText("PERDU", 0xff0000);
+        }
+
+        if (!isSpectating) {
+            this.isExploding = true;
+            // Hard explosion: hide everything (Single player or end of game)
+            this.numberMeshes.forEach(mesh => mesh.visible = false);
+            this.particleSystem.stopAll();
+
+            // Clear all flags (particle and 2D)
+            this.flagEmitters.forEach(emitter => emitter.alive = false);
+            this.flagEmitters.clear();
+            this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
+            this.flag3DMeshes.clear();
+
+            if (this.gridManager) this.gridManager.triggerExplosion();
+        } else {
+            // Soft explosion: keep the grid visible for spectating
+            Logger.log('Renderer', 'Soft explosion for Spectator Mode');
+            // We just let the GridManager know we're in end-game state visually if needed,
+            // but we don't hide the board.
+        }
 
         // Hide UIs
         this.updateUIOverlay(false);
@@ -817,6 +838,35 @@ export class MinesweeperRenderer {
         if (this.events) {
             this.events.emit(Events.GAME_OVER, { victory: false });
         }
+    }
+
+    /**
+     * Enable "Ghost Mode" visual effects (spectator)
+     */
+    enableGhostMode() {
+        Logger.log('Renderer', 'Enabling Ghost Mode visuals');
+        // Much thinner fog for better distant visibility
+        this.scene.fog = new THREE.FogExp2(0x1a1a1a, 0.001);
+
+        // Darken lights slightly (less aggressive than before)
+        this.scene.traverse(obj => {
+            if (obj.isLight) {
+                obj.userData.originalIntensity = obj.intensity;
+                obj.intensity *= 0.85; // Much lighter (was 0.6)
+            }
+        });
+    }
+
+    /**
+     * Disable Ghost Mode visuals
+     */
+    disableGhostMode() {
+        this.scene.fog = null;
+        this.scene.traverse(obj => {
+            if (obj.isLight && obj.userData.originalIntensity !== undefined) {
+                obj.intensity = obj.userData.originalIntensity;
+            }
+        });
     }
 
     /**
