@@ -30,15 +30,15 @@ Detailed lifecycle of a multiplayer session.
 ![State Machine](./diagrams/state_machine.png)
 
 ### 1. Core (`javascripts/core/`)
-*   **`GameController.js`**: The central orchestrator. It connects the Game Logic, UI, Renderer, and Network. It delegates specific tasks to managers to avoid being a "God Object".
+*   **`GameController.js`**: The central orchestrator. It connects the Game Logic, UI, Renderer, and Network via **EventBus**. It listens for `CELL_INTERACTION` and `NET_*` events to drive the game state.
 *   **`Game.js`**: Pure game logic (Grid state, Rules, Win/Loss conditions). No DOM/WebGL references.
-*   **`EventBus.js`**: Pub/Sub system for decoupled communication (e.g., `Events.GAME_OVER`).
+*   **`EventBus.js`**: Pub/Sub system for decoupled communication (e.g., `Events.GAME_OVER`, `Events.NET_GAME_START`).
 
 ### 2. Rendering (`javascripts/rendering/`)
 *   **`Renderer.js`**: The Three.js entry point. Manages the Scene, Camera, and Loop.
     *   *Refactoring Note*: Still contains some legacy logic for Grid creation that should be moved to `GridManager`.
 *   **`GridManager.js`**: Handles the logic for the 3D Grid (`InstancedMesh`), cell visibility, and hover effects.
-*   **`InputManager.js`**: Handles Mouse/Touch Raycasting and interaction events.
+*   **`InputManager.js`**: Handles Raycasting. **Decoupled**: Emits `CELL_INTERACTION` events instead of calling logic directly.
 *   **`MediaTextureManager.js`**: Manages loading of Textures, Videos, and Fonts.
 *   **`FlagManager.js`**: Manages 3D Flag instances and particle effects for flags.
 
@@ -47,7 +47,7 @@ Detailed lifecycle of a multiplayer session.
 *   **`UIManager.js`**: Manages HTML overlays (Menu, HUD, Modals) and DOM event listeners.
 
 ### 4. Network (`javascripts/network/`)
-*   **`NetworkManager.js`**: Singleton wrapper around `Socket.io-client`. Handles connection, synchronized state, and events.
+*   **`NetworkManager.js`**: Singleton wrapper around `Socket.io-client`. **Decoupled**: Emits `NET_*` events to `EventBus` instead of accepting callbacks.
 
 ---
 
@@ -55,17 +55,19 @@ Detailed lifecycle of a multiplayer session.
 
 ### 1. Local Single Player
 1.  **Input**: User clicks canvas -> `InputManager` detects intersection.
-2.  **Logic**: `InputManager` -> `Game.reveal(x,y)`.
-3.  **Result**: `Game` returns a `Result` object (e.g., `{ type: 'reveal', changes: [...] }`).
-4.  **Update**: `InputManager` passes result to `Renderer` -> `GridManager` updates visuals.
-5.  **Analytics**: `ScoreManager` tracks the click.
+2.  **Event**: `InputManager` emits `CELL_INTERACTION` ({ x, y, type }).
+3.  **Logic**: `GameController` hears event -> calls `Game.reveal(x,y)`.
+4.  **Result**: `Game` returns a `Result` object.
+5.  **Update**: `GameController` passes result to `Renderer` -> visuals update.
 
 ### 2. Multiplayer (Coop/Vs)
-1.  **Input**: User clicks -> `InputManager`.
-2.  **Network**: `NetworkManager` sends action to Server (`socket.emit('action')`).
-3.  **Server**: Authoritative `Game.js` on Node.js processes the move.
-4.  **Broadcast**: Server emits `gameUpdate` to ALL clients.
-5.  **Client Update**: `GameController` receives update -> updates local `Game` state -> `Renderer` updates visuals.
+1.  **Input**: User clicks -> `InputManager` emits `CELL_INTERACTION`.
+2.  **Orchestrator**: `GameController` detects multiplayer mode -> calls `NetworkManager.sendAction`.
+3.  **Network**: `NetworkManager` emits socket event.
+4.  **Server**: Authoritative `Game.js` processes move.
+5.  **Broadcast**: Server emits `gameUpdate` to clients.
+6.  **Client Listen**: `NetworkManager` emits `NET_GAME_UPDATE` to `EventBus`.
+7.  **Update**: `GameController` hears event -> updates local `Game` -> updates `Renderer`.
 
 ---
 

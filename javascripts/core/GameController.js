@@ -55,8 +55,8 @@ export class GameController {
             this.mpLeaderboard.show();
         }
 
-        // Setup Network Callbacks (Moved from main.js)
-        this.setupNetworkCallbacks();
+        // Initialize Network Manager with EventBus
+        networkManager.setEventBus(this.events);
 
         // Bind Global Events
         this.bindEvents();
@@ -106,7 +106,35 @@ export class GameController {
             }
         });
 
-        // Analytics Interaction
+        // Input Interaction (Decoupled)
+        this.events.on(Events.CELL_INTERACTION, async ({ x, y, type }) => {
+            if (!this.game || !this.renderer) return;
+
+            // Analytics
+            this.trackClick();
+
+            if (networkManager.mode === 'multiplayer') {
+                networkManager.sendAction({ type, x, y });
+            } else {
+                // Local Logic
+                let result;
+                if (type === 'reveal') {
+                    result = await this.game.reveal(x, y);
+                } else if (type === 'flag') {
+                    result = this.game.toggleFlag(x, y);
+                }
+
+                // Update Visuals via Renderer
+                if (result) {
+                    // Reuse the existing renderer method for handling results
+                    if (this.renderer.handleGameUpdate) {
+                        this.renderer.handleGameUpdate(result);
+                    }
+                }
+            }
+        });
+
+        // Analytics Interaction (Legacy/Generic)
         this.events.on(Events.USER_INTERACTION, () => {
             this.trackClick();
         });
@@ -156,6 +184,123 @@ export class GameController {
                     });
                 }
             }
+        });
+
+        // =================================================================
+        // Network Events Binding
+        // =================================================================
+
+        this.events.on(Events.MP_CONNECTED, (data) => {
+            Logger.log('Network', 'Connected');
+            if (this.scoreboard && data.playerId) {
+                this.scoreboard.setLocalPlayer(data.playerId);
+            }
+        });
+
+        this.events.on(Events.NET_PLAYER_JOINED, (data) => Logger.log('Network', 'Player joined:', data));
+        this.events.on(Events.NET_PLAYER_LEFT, (data) => Logger.log('Network', 'Player left:', data));
+        this.events.on(Events.NET_GAME_READY, (config) => Logger.log('Network', 'Game ready:', config));
+
+        this.events.on(Events.MP_STATE_SYNC, async (state) => {
+            if (!this.game) {
+                // Join running game
+                this.startGame({
+                    width: state.width,
+                    height: state.height,
+                    bombs: state.bombCount,
+                    useHoverHelper: true,
+                    noGuessMode: false,
+                    bgName: 'Multiplayer',
+                    replayMines: state.minePositions,
+                    initialState: state,
+                    isMultiplayer: true
+                });
+            } else {
+                this.applyStateSync(state);
+            }
+
+            if (state.scores && this.scoreboard) {
+                this.scoreboard.updateScores(state.scores);
+                this.scoreboard.show();
+            }
+        });
+
+
+
+        this.events.on(Events.NET_GAME_UPDATE, (update) => {
+            if (!this.game || !this.renderer) return;
+
+            const result = update.result;
+            if (result.type === 'reveal' || result.type === 'win') {
+                result.changes.forEach(c => {
+                    this.game.visibleGrid[c.x][c.y] = c.value;
+                    this.renderer.updateCellVisual(c.x, c.y, c.value);
+                });
+                if (result.type === 'win' && !this.game.victory) {
+                    this.game.victory = true;
+                    this.renderer.triggerWin();
+                }
+            } else if (result.type === 'revealedBomb') {
+                this.game.visibleGrid[result.x][result.y] = 10;
+                this.renderer.updateCellVisual(result.x, result.y, 10);
+            } else if (result.type === 'explode' && !this.game.gameOver) {
+                this.game.gameOver = true;
+                this.game.visibleGrid[update.action.x][update.action.y] = 9;
+                this.renderer.triggerExplosion();
+            } else if (result.type === 'flag') {
+                this.game.flags[result.x][result.y] = result.active;
+                this.renderer.updateFlagVisual(result.x, result.y, result.active);
+            }
+
+            if (update.scores && this.scoreboard) {
+                this.scoreboard.updateScores(update.scores);
+            }
+        });
+
+        this.events.on(Events.NET_PLAYER_ELIMINATED, (data) => {
+            if (data.playerId === networkManager.playerId) {
+                if (data.remainingPlayers > 0) {
+                    Logger.log('GameController', 'Local player eliminated. Entering Spectator Mode.');
+                    this.isSpectating = true;
+                    if (this.game) this.game.isSpectating = true;
+                    if (this.renderer) this.renderer.triggerExplosion(true);
+                    this.events.emit(Events.SPECTATOR_MODE_START);
+                } else {
+                    Logger.log('GameController', 'Local player was the last one eliminated. Normal Game Over.');
+                }
+            } else {
+                if (this.uiManager.multiplayerUI) {
+                    this.uiManager.multiplayerUI.showEliminationNotification(data.playerName);
+                }
+            }
+        });
+
+        this.events.on(Events.NET_GAME_OVER, (data) => {
+            if (!this.game) return;
+
+            if (data.victory) {
+                if (!this.game.victory) {
+                    this.game.victory = true;
+                    this.renderer.triggerWin();
+                }
+            } else if (!data.victory && !this.game.gameOver) {
+                this.game.gameOver = true;
+                this.renderer.triggerExplosion();
+            }
+
+            setTimeout(() => {
+                if (this.scoreboard && data.finalScores) {
+                    this.scoreboard.hide();
+                    this.scoreboard.showResults(data, () => {
+                        this.events.emit(Events.GAME_ENDED);
+                        if (this.scoreboard) this.scoreboard.hideResults();
+                    });
+                }
+            }, 3000);
+        });
+
+        this.events.on(Events.NET_MINES_PLACED, (minePositions) => {
+            if (this.game) this.game.setMinesFromPositions(minePositions);
         });
     }
 
@@ -230,8 +375,6 @@ export class GameController {
         if (this.uiManager?.hudController) {
             this.uiManager.hudController.showHintButton();
         }
-
-        // Setup legacy renderer interactions (to be refactored in Phase 3)
     }
 
     /**
@@ -305,130 +448,6 @@ export class GameController {
         if (state.minePositions) {
             this.game.setMinesFromPositions(state.minePositions);
         }
-    }
-
-    /**
-     * Setup Network Callbacks
-     */
-    setupNetworkCallbacks() {
-        networkManager.onConnected = (data) => {
-            Logger.log('Network', 'Connected');
-            if (this.scoreboard && data.playerId) {
-                this.scoreboard.setLocalPlayer(data.playerId);
-            }
-        };
-
-        networkManager.onPlayerJoined = (data) => Logger.log('Network', 'Player joined:', data);
-        networkManager.onPlayerLeft = (data) => Logger.log('Network', 'Player left:', data);
-        networkManager.onGameReady = (config) => Logger.log('Network', 'Game ready:', config);
-
-        networkManager.onStateSync = async (state) => {
-            if (!this.game) {
-                // Join running game
-                this.startGame({
-                    width: state.width,
-                    height: state.height,
-                    bombs: state.bombCount,
-                    useHoverHelper: true,
-                    noGuessMode: false,
-                    bgName: 'Multiplayer',
-                    replayMines: state.minePositions,
-                    initialState: state
-                });
-            } else {
-                this.applyStateSync(state);
-            }
-
-            if (state.scores && this.scoreboard) {
-                this.scoreboard.updateScores(state.scores);
-                this.scoreboard.show();
-            }
-        };
-
-        networkManager.onGameUpdate = (update) => {
-            if (!this.game || !this.renderer) return;
-
-            const result = update.result;
-            if (result.type === 'reveal' || result.type === 'win') {
-                result.changes.forEach(c => {
-                    this.game.visibleGrid[c.x][c.y] = c.value;
-                    this.renderer.updateCellVisual(c.x, c.y, c.value);
-                });
-                if (result.type === 'win' && !this.game.victory) {
-                    this.game.victory = true;
-                    this.renderer.triggerWin();
-                }
-            } else if (result.type === 'revealedBomb') {
-                this.game.visibleGrid[result.x][result.y] = 10;
-                this.renderer.updateCellVisual(result.x, result.y, 10);
-            } else if (result.type === 'explode' && !this.game.gameOver) {
-                this.game.gameOver = true;
-                this.game.visibleGrid[update.action.x][update.action.y] = 9;
-                this.renderer.triggerExplosion();
-            } else if (result.type === 'flag') {
-                this.game.flags[result.x][result.y] = result.active;
-                this.renderer.updateFlagVisual(result.x, result.y, result.active);
-            }
-
-            if (update.scores && this.scoreboard) {
-                this.scoreboard.updateScores(update.scores);
-            }
-        };
-
-        networkManager.onPlayerEliminated = (data) => {
-            if (data.playerId === networkManager.playerId) {
-                // Only enter spectator mode if there are remaining players to watch
-                if (data.remainingPlayers > 0) {
-                    Logger.log('GameController', 'Local player eliminated. Entering Spectator Mode.');
-                    this.isSpectating = true;
-                    if (this.game) this.game.isSpectating = true;
-                    if (this.renderer) this.renderer.triggerExplosion(true); // Soft explosion
-                    this.events.emit(Events.SPECTATOR_MODE_START);
-                } else {
-                    Logger.log('GameController', 'Local player was the last one eliminated. Normal Game Over.');
-                    // Don't set isSpectating, let onGameOver handle the hard explosion
-                }
-            } else {
-                if (this.uiManager.multiplayerUI) {
-                    this.uiManager.multiplayerUI.showEliminationNotification(data.playerName);
-                }
-            }
-        };
-
-        networkManager.onGameOver = (data) => {
-            if (!this.game) return;
-
-            if (data.victory) {
-                if (!this.game.victory) {
-                    this.game.victory = true;
-                    this.renderer.triggerWin();
-                }
-            } else if (!data.victory && !this.game.gameOver) {
-                this.game.gameOver = true;
-                this.renderer.triggerExplosion();
-            }
-
-            // Reveal all mines removed per user request (grid explodes anyway)
-
-            setTimeout(() => {
-                if (this.scoreboard && data.finalScores) {
-                    this.scoreboard.hide();
-                    this.scoreboard.showResults(data, () => {
-                        // GameController.js
-                        this.events.emit(Events.GAME_ENDED);
-                        if (this.scoreboard) this.scoreboard.hideResults();
-                    });
-                }
-            }, 3000);
-        };
-
-        networkManager.onMinesPlaced = (minePositions) => {
-            if (this.game) this.game.setMinesFromPositions(minePositions);
-        };
-
-        networkManager.onGameEnded = () => {
-            this.endGame();
-        };
     }
 
     /**

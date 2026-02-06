@@ -227,37 +227,35 @@ export class MultiplayerUI {
      */
     _setupNetworkHandlers() {
         // Lobby updates
-        this.networkManager.onLobbyUpdate = (lobbyState) => {
+        this.events.on(Events.NET_LOBBY_UPDATE, (lobbyState) => {
             Logger.log('MultiplayerUI', 'Lobby update:', lobbyState);
             this._handleLobbyUpdate(lobbyState);
-        };
+        });
 
         // Game created (host sees waiting message)
-        this.networkManager.onGameCreated = (data) => {
+        this.events.on(Events.NET_GAME_CREATED, (data) => {
             Logger.log('MultiplayerUI', 'Game created:', data);
-        };
+        });
 
         // Game starts
-        this.networkManager.onGameStart = async (state) => {
+        this.events.on(Events.NET_GAME_START, async (state) => {
             Logger.log('MultiplayerUI', 'Game starting:', state);
-            this.networkManager._isMultiplayer = true;
+            // networkManager._isMultiplayer is already true from connection
             if (this.onGameStart) {
                 await this.onGameStart(state);
             }
-        };
+        });
 
         // Host left
-        this.networkManager.onHostLeft = () => {
+        this.events.on(Events.NET_HOST_LEFT, () => {
             alert('L\'hôte a quitté la partie');
             this.leaveMultiplayer();
-        };
+        });
 
         // Spectator Mode
-        if (this.events) {
-            this.events.on(Events.SPECTATOR_MODE_START, () => {
-                this._showSpectatorOverlay();
-            });
-        }
+        this.events.on(Events.SPECTATOR_MODE_START, () => {
+            this._showSpectatorOverlay();
+        });
     }
 
     /**

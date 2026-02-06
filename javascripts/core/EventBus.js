@@ -63,6 +63,23 @@ export const Events = {
     MP_CONNECTED: 'mp:connected',
     MP_STATE_SYNC: 'mp:state_sync',
     SPECTATOR_MODE_START: 'mp:spectator_start',
+    NET_LOBBY_UPDATE: 'net:lobby_update',
+
+    // Network Events (Socket.io mapping)
+    NET_GAME_CREATED: 'net:game_created',
+    NET_GAME_START: 'net:game_start',
+    NET_HOST_LEFT: 'net:host_left',
+    NET_PLAYER_JOINED: 'net:player_joined',
+    NET_PLAYER_LEFT: 'net:player_left',
+    NET_GAME_READY: 'net:game_ready',
+    NET_GAME_UPDATE: 'net:game_update',
+    NET_GAME_OVER: 'net:game_over',
+    NET_PLAYER_ELIMINATED: 'net:player_eliminated',
+    NET_MINES_PLACED: 'net:mines_placed',
+    NET_ERROR: 'net:error',
+
+    // Input Events
+    CELL_INTERACTION: 'input:cell_interaction', // { x, y, type: 'reveal'|'flag' }
 
     // Analytics
     USER_INTERACTION: 'analytics:interaction'

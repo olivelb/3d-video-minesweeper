@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { Events } from '../core/EventBus.js';
-import { networkManager } from '../network/NetworkManager.js';
 
 /**
  * InputManager
@@ -56,8 +55,6 @@ export class InputManager {
 
         if (intersection.length > 0) {
             this.hoveredInstanceId = intersection[0].instanceId;
-
-            // Cursor sync removed
         } else {
             this.hoveredInstanceId = -1;
         }
@@ -82,50 +79,10 @@ export class InputManager {
             const x = Math.floor(instanceId / this.game.height);
 
             if (event.button === 0) { // Left Click
-                if (networkManager.mode) {
-                    networkManager.sendAction({ type: 'reveal', x, y });
-                } else {
-                    // Analytics
-                    if (this.events) this.events.emit(Events.USER_INTERACTION);
-
-                    // Direct Action
-                    const result = await this.game.reveal(x, y);
-                    this.handleGameResult(result);
-                }
+                this.events.emit(Events.CELL_INTERACTION, { x, y, type: 'reveal' });
             } else if (event.button === 2) { // Right Click
-                if (networkManager.mode) {
-                    networkManager.sendAction({ type: 'flag', x, y });
-                } else {
-                    if (this.events) this.events.emit(Events.USER_INTERACTION);
-                    const result = this.game.toggleFlag(x, y);
-                    this.handleGameResult(result);
-                }
+                this.events.emit(Events.CELL_INTERACTION, { x, y, type: 'flag' });
             }
-        }
-    }
-
-    /**
-     * Dispatch game updates to Renderer (via callback or event)
-     * For now, we'll emit an event that the Renderer listens to, OR 
-     * call a method on the renderer if we pass it in. 
-     * To keep it decoupled, let's emit a local processing event or call a direct callback.
-     * 
-     * Actually, since Renderer owns InputManager, Renderer can pass a "onGameAction" callback.
-     * But for now, let's assume Renderer exposes 'handleGameUpdate' public method.
-     */
-    handleGameResult(result) {
-        // We need to trigger visual updates
-        // To avoid circular dependency or weird coupling, we can use the EventBus 
-        // OR simply rely on the fact that Renderer passed 'game' and we modified it.
-        // But Renderer needs to know WHAT changed to update visuals efficiently.
-
-        // Option A: EventBus (cleanest)
-        // this.events.emit('game:update', result);
-
-        // Option B: Direct callback (fastest)
-        // The Renderer likely has `handleGameUpdate(result)`
-        if (this.renderer.handleGameUpdate) {
-            this.renderer.handleGameUpdate(result);
         }
     }
 
