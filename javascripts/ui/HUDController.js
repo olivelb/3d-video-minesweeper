@@ -1,9 +1,10 @@
 
 import { Events } from '../core/EventBus.js';
+import { Logger } from '../utils/Logger.js';
 
 export class HUDController {
     constructor(eventBus, scoreManager) {
-        console.log('[HUDController] Initializing...');
+        Logger.log('HUDController', 'Initializing...');
         this.events = eventBus;
         this.scoreManager = scoreManager;
 

@@ -55,6 +55,12 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 - [Deployment Guide](./DEPLOYMENT.md): Instructions for Raspberry Pi and Cloudflare deployment.
 - [Implementation Plan](./docs/IMPLEMENTATION_PLAN_MULTIPLAYER.md): Technical architecture and data flow.
 
+## 🐞 Debugging
+
+- **Console Logs**: By default, the game runs quietly. To enable detailed verbose logs:
+    - Add `?debug=true` to your URL (e.g., `http://localhost:3000/?debug=true`).
+    - Or run `localStorage.setItem('minesweeper_debug', 'true')` in the DevTools console and reload.
+
 ## 🤝 Contributing
 
 This is a personal project, but feedback and contributions are always welcome! Feel free to open an issue or submit a pull request.

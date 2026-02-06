@@ -1,3 +1,4 @@
+import { Logger } from '../utils/Logger.js';
 import { networkManager } from '../network/NetworkManager.js';
 import { MultiplayerUI } from './MultiplayerUI.js';
 import { MenuController } from './MenuController.js';
@@ -10,7 +11,7 @@ const DEDICATED_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http
 
 export class UIManager {
     constructor(game, renderer, scoreManager, eventBus) {
-        console.log('[UIManager] Initializing...');
+        Logger.log('UIManager', 'Initializing...');
         this.game = game;
         this.renderer = renderer;
         this.scoreManager = scoreManager;
@@ -72,7 +73,7 @@ export class UIManager {
             const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
             if (debugInfo) {
                 const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-                console.log('[UIManager] GPU:', renderer);
+                Logger.log('UIManager', 'GPU:', renderer);
             }
         }
     }

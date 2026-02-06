@@ -3,6 +3,9 @@
  * Simplified version - only supports Socket.io server mode
  */
 
+// NetworkManager.js
+import { Logger } from '../utils/Logger.js';
+
 export class NetworkManager {
     constructor() {
         this.socket = null;
@@ -45,13 +48,13 @@ export class NetworkManager {
         }
 
         return new Promise((resolve, reject) => {
-            console.log('[NetworkManager] Connecting to:', serverUrl);
+            Logger.log('NetworkManager', 'Connecting to:', serverUrl);
             this.socket = io(serverUrl, {
                 // Let Socket.io negotiate the best transport (WebSocket vs Polling)
             });
 
             this.socket.on('connect', () => {
-                console.log('[NetworkManager] Connected to server! ID:', this.socket.id);
+                Logger.log('NetworkManager', 'Connected to server! ID:', this.socket.id);
                 this.socket.emit('join', { playerName });
             });
 
@@ -59,7 +62,7 @@ export class NetworkManager {
                 this.playerId = data.playerId;
                 this.playerNumber = data.playerNumber;
                 this.isHost = data.isHost;
-                console.log('[NetworkManager] Joined as player', this.playerNumber, this.isHost ? '(host)' : '');
+                Logger.log('NetworkManager', 'Joined as player', this.playerNumber, this.isHost ? '(host)' : '');
                 if (this.onConnected) this.onConnected(data);
                 resolve(data);
             });
@@ -105,17 +108,17 @@ export class NetworkManager {
             });
 
             this.socket.on('playerEliminated', (data) => {
-                console.log('[NetworkManager] Player eliminated:', data.playerName);
+                Logger.log('NetworkManager', 'Player eliminated:', data.playerName);
                 if (this.onPlayerEliminated) this.onPlayerEliminated(data);
             });
 
             this.socket.on('minesPlaced', (data) => {
-                console.log('[NetworkManager] Received minesPlaced:', data.minePositions?.length, 'mines');
+                Logger.log('NetworkManager', 'Received minesPlaced:', data.minePositions?.length, 'mines');
                 if (this.onMinesPlaced) this.onMinesPlaced(data.minePositions);
             });
 
             this.socket.on('gameEnded', () => {
-                console.log('[NetworkManager] Game session ended by server');
+                Logger.log('NetworkManager', 'Game session ended by server');
                 if (this.onGameEnded) this.onGameEnded();
             });
 
@@ -129,7 +132,7 @@ export class NetworkManager {
             });
 
             this.socket.on('connect_error', (err) => {
-                console.error('[NetworkManager] Connection error:', err);
+                Logger.error('NetworkManager', 'Connection error:', err);
                 if (this.onError) this.onError('Connexion échouée');
                 reject(err);
             });
@@ -182,10 +185,10 @@ export class NetworkManager {
      */
     sendAction(action) {
         if (this.socket) {
-            console.log('[NetworkManager] Sending action:', action);
+            Logger.log('NetworkManager', 'Sending action:', action);
             this.socket.emit('action', action);
         } else {
-            console.warn('[NetworkManager] No socket, cannot send action');
+            Logger.warn('NetworkManager', 'No socket, cannot send action');
         }
     }
 

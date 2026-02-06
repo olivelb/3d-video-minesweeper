@@ -4,8 +4,8 @@ import { MinesweeperSolver } from './MinesweeperSolver.js';
 const isBrowser = typeof window !== 'undefined';
 const storage = isBrowser ? localStorage : {
     getItem: () => null,
-    setItem: () => {},
-    removeItem: () => {}
+    setItem: () => { },
+    removeItem: () => { }
 };
 
 /**
@@ -206,7 +206,11 @@ export class MinesweeperGame {
                     alert(`Note : La génération a été ${reason}. La grille n'est pas garantie 100% logique.`);
                 }
                 // In headless mode, just log it
-                console.log(`[GameServer] Board generation: ${reason}`);
+                if (typeof Logger !== 'undefined') {
+                    Logger.log('GameServer', `Board generation: ${reason}`);
+                } else {
+                    console.log(`[GameServer] Board generation: ${reason}`);
+                }
             }
 
             this.firstClick = false;

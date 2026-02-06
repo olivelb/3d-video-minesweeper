@@ -1,9 +1,10 @@
 
 import { Events } from '../core/EventBus.js';
+import { Logger } from '../utils/Logger.js';
 
 export class MenuController {
     constructor(eventBus) {
-        console.log('[MenuController] Initializing...');
+        Logger.log('MenuController', 'Initializing...');
         this.events = eventBus;
 
         // UI Elements
@@ -214,7 +215,7 @@ export class MenuController {
                 this.mediaType = 'webcam';
                 return 'Webcam';
             } catch (e) {
-                console.warn('Webcam failed, using default');
+                Logger.warn('MenuController', 'Webcam failed, using default');
             }
         }
 
@@ -273,7 +274,7 @@ export class MenuController {
                 const blob = await heic2any({ blob: file, toType: 'image/jpeg' });
                 url = URL.createObjectURL(blob);
             } catch (e) {
-                console.error('HEIC conversion failed:', e);
+                Logger.error('MenuController', 'HEIC conversion failed:', e);
             }
         }
 

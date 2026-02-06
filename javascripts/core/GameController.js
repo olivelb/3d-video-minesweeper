@@ -7,6 +7,8 @@ import { MultiplayerLeaderboard } from '../ui/MultiplayerLeaderboard.js';
 import { networkManager } from '../network/NetworkManager.js';
 import { EventBus, Events } from './EventBus.js';
 
+import { Logger } from '../utils/Logger.js';
+
 /**
  * GameController - The Central Brain of the Application
  * Manages game state, initialization, and coordination between components.
@@ -36,7 +38,7 @@ export class GameController {
      * Initialize the application
      */
     init() {
-        console.log('[GameController] Initializing...');
+        Logger.log('GameController', 'Initializing...');
 
         // Initialize UI Manager
         this.uiManager = new UIManager(null, null, this.scoreManager, this.events);
@@ -61,7 +63,7 @@ export class GameController {
         // Start UI Timer system
         this.setupTimerAndScoreUpdates();
 
-        console.log('[GameController] Initialization complete.');
+        Logger.log('GameController', 'Initialization complete.');
     }
 
     /**
@@ -161,7 +163,7 @@ export class GameController {
      * @param {Object} config - Game configuration
      */
     async startGame(config) {
-        console.log('[GameController] Starting game...', config);
+        Logger.log('GameController', 'Starting game...', config);
 
         // Reset UI via HUD Controller (Only for Solo Mode)
         if (this.uiManager && this.uiManager.hudController) {
@@ -235,7 +237,7 @@ export class GameController {
      * End current game session
      */
     endGame() {
-        console.log('[GameController] Ending game...');
+        Logger.log('GameController', 'Ending game...');
 
         if (this.uiManager?.hudController) {
             this.uiManager.hudController.hideHintButton();
@@ -251,7 +253,7 @@ export class GameController {
 
         // Multiplayer cleanup
         if (networkManager.isConnected) {
-            console.log('[GameController] Disconnecting multiplayer...');
+            Logger.log('GameController', 'Disconnecting multiplayer...');
             networkManager.disconnect();
             // UI reset is handled by UIManager listening to GAME_ENDED
         }
@@ -280,7 +282,7 @@ export class GameController {
      */
     applyStateSync(state) {
         if (!this.game || !state.grid) return;
-        console.log('[GameController] Syncing state...');
+        Logger.log('GameController', 'Syncing state...');
 
         // Restore grid
         for (let x = 0; x < this.game.width; x++) {
@@ -309,15 +311,15 @@ export class GameController {
      */
     setupNetworkCallbacks() {
         networkManager.onConnected = (data) => {
-            console.log('[Network] Connected');
+            Logger.log('Network', 'Connected');
             if (this.scoreboard && data.playerId) {
                 this.scoreboard.setLocalPlayer(data.playerId);
             }
         };
 
-        networkManager.onPlayerJoined = (data) => console.log('[Network] Player joined:', data);
-        networkManager.onPlayerLeft = (data) => console.log('[Network] Player left:', data);
-        networkManager.onGameReady = (config) => console.log('[Network] Game ready:', config);
+        networkManager.onPlayerJoined = (data) => Logger.log('Network', 'Player joined:', data);
+        networkManager.onPlayerLeft = (data) => Logger.log('Network', 'Player left:', data);
+        networkManager.onGameReady = (config) => Logger.log('Network', 'Game ready:', config);
 
         networkManager.onStateSync = async (state) => {
             if (!this.game) {

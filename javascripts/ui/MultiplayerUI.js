@@ -7,6 +7,8 @@
  * @module MultiplayerUI
  */
 
+import { Logger } from '../utils/Logger.js';
+
 /**
  * Default server URL for multiplayer connections
  * @constant
@@ -211,7 +213,7 @@ export class MultiplayerUI {
 
             return welcomeData;
         } catch (err) {
-            console.error('[MultiplayerUI] Connection error:', err);
+            Logger.error('MultiplayerUI', 'Connection error:', err);
             alert('Connexion au serveur échouée');
             return null;
         }
@@ -224,18 +226,18 @@ export class MultiplayerUI {
     _setupNetworkHandlers() {
         // Lobby updates
         this.networkManager.onLobbyUpdate = (lobbyState) => {
-            console.log('[MultiplayerUI] Lobby update:', lobbyState);
+            Logger.log('MultiplayerUI', 'Lobby update:', lobbyState);
             this._handleLobbyUpdate(lobbyState);
         };
 
         // Game created (host sees waiting message)
         this.networkManager.onGameCreated = (data) => {
-            console.log('[MultiplayerUI] Game created:', data);
+            Logger.log('MultiplayerUI', 'Game created:', data);
         };
 
         // Game starts
         this.networkManager.onGameStart = async (state) => {
-            console.log('[MultiplayerUI] Game starting:', state);
+            Logger.log('MultiplayerUI', 'Game starting:', state);
             this.networkManager._isMultiplayer = true;
             if (this.onGameStart) {
                 await this.onGameStart(state);
@@ -255,7 +257,7 @@ export class MultiplayerUI {
      * @param {Object} lobbyState - Lobby state from server
      */
     _handleLobbyUpdate(lobbyState) {
-        console.log('[MultiplayerUI] Rendering lobby:', lobbyState);
+        Logger.log('MultiplayerUI', 'Rendering lobby:', lobbyState);
         const { players, gameCreated, config } = lobbyState;
 
         // Render player list for host or guest
