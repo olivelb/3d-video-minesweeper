@@ -122,9 +122,7 @@ export class NetworkManager {
                 if (this.onGameEnded) this.onGameEnded();
             });
 
-            this.socket.on('cursorUpdate', (data) => {
-                if (this.onCursorUpdate) this.onCursorUpdate(data);
-            });
+            // Cursor update removed
 
             this.socket.on('error', (data) => {
                 if (this.onError) this.onError(data.message);
@@ -195,11 +193,7 @@ export class NetworkManager {
     /**
      * Send cursor position update
      */
-    sendCursor(x, y) {
-        if (this.socket) {
-            this.socket.emit('cursor', { x, y });
-        }
-    }
+    // sendCursor removed
 
     /**
      * Disconnect and cleanup

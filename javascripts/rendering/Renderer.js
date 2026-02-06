@@ -4,6 +4,8 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { SoundManager } from '../audio/SoundManager.js';
 import { ParticleSystem } from './ParticleSystem.js';
+import { MediaTextureManager } from './MediaTextureManager.js';
+import { InputManager } from './InputManager.js';
 import { networkManager } from '../network/NetworkManager.js';
 import { Events } from '../core/EventBus.js';
 
@@ -32,15 +34,16 @@ export class MinesweeperRenderer {
         this.soundManager = null;
         this.particleSystem = null;
 
+        this.particleSystem = null;
+
         this.gridMesh = null;
         this.dummy = new THREE.Object3D();
         this.textGroup = new THREE.Group();
 
-        this.raycaster = new THREE.Raycaster();
-        this.mouse = new THREE.Vector2();
-        this.hoveredInstanceId = -1;
+        // New Managers
+        this.mediaManager = new MediaTextureManager();
+        this.inputManager = null; // Initialized after scene creation
 
-        this.textures = {};
         this.flagEmitters = new Map();
         this.flag3DMeshes = new Map(); // For 3D flag models
         this.numberMeshes = [];
@@ -66,11 +69,7 @@ export class MinesweeperRenderer {
         // Partner cursor (multiplayer)
         this.partnerCursor = null;
 
-        // Bound event listeners for proper removal
-        this._boundOnMouseMove = (e) => this.onMouseMove(e);
-        this._boundOnMouseClick = (e) => this.onMouseClick(e);
         this._boundOnWindowResize = () => this.onWindowResize();
-        this._videoEventListeners = [];
 
         this.init();
     }
@@ -101,274 +100,28 @@ export class MinesweeperRenderer {
         this.scene.add(ambientLight);
         this.scene.add(this.textGroup);
 
-        await this.loadResources();
+        // LOAD RESOURCES via Manager
+        await this.mediaManager.loadResources(this.bgName);
+        // Expose textures for ParticleSystem
+        this.textures = this.mediaManager.textures;
 
         this.particleSystem = new ParticleSystem(this.scene, this.textures);
 
-        // Create reusable 3D flag geometry and material
-        this.create3DFlagAssets();
+        // Create reusable 3D flag geometry and material via Manager
+        this.mediaManager.create3DFlagAssets();
 
         this.createGrid();
 
+        // Initialize Input Manager
+        this.inputManager = new InputManager(this.renderer, this.camera, this.gridMesh, this.game, this.events);
+        // Monkey-patch renderer to handle updates from input manager
+        this.renderer.handleGameUpdate = (result) => this.handleGameUpdate(result);
+
         window.addEventListener('resize', this._boundOnWindowResize, false);
-        this.renderer.domElement.addEventListener('pointerdown', this._boundOnMouseClick, false);
-        this.renderer.domElement.addEventListener('pointermove', this._boundOnMouseMove, false);
         this.renderer.setAnimationLoop(() => this.animate());
     }
 
-    async loadResources() {
-        const textureLoader = new THREE.TextureLoader();
-        const fontLoader = new FontLoader();
-
-        for (let i = 1; i <= 8; i++) {
-            this.textures[i] = textureLoader.load(`images/j${i}.png`);
-        }
-        this.textures['flag'] = textureLoader.load('images/star.png');
-        this.textures['particle'] = textureLoader.load('images/flare.png');
-
-        // Create bomb texture for revealed bombs (value 10)
-        this.textures['bomb'] = this._createBombTexture();
-
-        // Initialize media texture - check for custom uploaded image first, then fall back to video
-        const customImage = document.getElementById('custom-image-source');
-        const video = document.getElementById('image');
-
-        if (customImage && customImage.src && customImage.src !== '' && customImage.src !== window.location.href) {
-            // User uploaded an image before starting the game
-            this.mediaType = 'image';
-            // Wait for image to load if needed
-            if (customImage.complete && customImage.naturalWidth > 0) {
-                this.mediaTexture = new THREE.Texture(customImage);
-                this.mediaTexture.needsUpdate = true;
-            } else {
-                // Image not loaded yet, create texture and update when loaded
-                this.mediaTexture = new THREE.Texture(customImage);
-                customImage.onload = () => {
-                    this.mediaTexture.needsUpdate = true;
-                };
-            }
-        } else if (video) {
-            // Default to video texture
-            this.mediaType = 'video';
-
-            // Check if this is a streaming video (network source)
-            // Includes: Localhost proxy, Koyeb proxy, Direct YouTube (googlevideo), and generic HTTPS
-            const isNetworkStream = video.src && (video.src.startsWith('http') || video.src.startsWith('blob:'));
-
-            if (isNetworkStream) {
-                // Check if UIManager already has loading state (video pre-buffered)
-                const uiManager = window._minesweeperUIManager;
-                const loadingState = uiManager?.getVideoLoadingState?.() || null;
-
-                // Only skip placeholder if video has ACTUAL visible frames (dimensions > 0)
-                const videoHasFrames = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
-
-                if (videoHasFrames) {
-                    // Video already has frames - use it directly
-                    this.mediaTexture = new THREE.VideoTexture(video);
-                    this.mediaTexture.minFilter = THREE.LinearFilter;
-                    this.mediaTexture.magFilter = THREE.LinearFilter;
-                    this.mediaTexture.colorSpace = THREE.SRGBColorSpace;
-                    this.videoTextureReady = true;
-                    this.videoTexture = this.mediaTexture;
-                    this.setupVideoTextureUpdater(video);
-                    video.play().catch(() => { });
-                } else {
-                    // Create a high-quality placeholder canvas for loading animation
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 512;
-                    canvas.height = 512;
-                    this._placeholderCanvas = canvas;
-                    this._placeholderCtx = canvas.getContext('2d');
-
-                    // Continue from UIManager's progress if available
-                    this._loadingProgress = loadingState?.progress || 0;
-                    this._loadingStartTime = loadingState?.startTime || Date.now();
-                    this._drawLoadingPlaceholder(this._loadingProgress);
-                    this.mediaTexture = new THREE.CanvasTexture(canvas);
-                    this.mediaTexture.minFilter = THREE.LinearFilter;
-                    this.mediaTexture.magFilter = THREE.LinearFilter;
-                    this.placeholderTexture = this.mediaTexture;
-
-                    // Function to check if video has ACTUAL visible frames
-                    const hasVideoFrames = () => {
-                        // Must have both data (readyState >= 2) AND dimensions
-                        return video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
-                    };
-
-                    // When video is ready with actual frames, switch to video texture
-                    const switchToVideoTexture = () => {
-                        if (this.videoTextureReady) return; // Already switched
-
-                        // Dispose placeholder texture immediately
-                        if (this.mediaTexture) {
-                            this.mediaTexture.dispose();
-                        }
-                        this._placeholderCanvas = null;
-                        this._placeholderCtx = null;
-
-                        this.videoTextureReady = true;
-                        this.mediaTexture = new THREE.VideoTexture(video);
-                        this.mediaTexture.minFilter = THREE.LinearFilter;
-                        this.mediaTexture.magFilter = THREE.LinearFilter;
-                        this.mediaTexture.colorSpace = THREE.SRGBColorSpace;
-                        this.videoTexture = this.mediaTexture;
-                        this.setupVideoTextureUpdater(video);
-                        this.updateCubeMaterial();
-                    };
-
-                    const onVideoReady = () => {
-                        if (hasVideoFrames()) {
-                            switchToVideoTexture();
-                            video.removeEventListener('loadeddata', onVideoReady);
-                            video.removeEventListener('canplay', onVideoReady);
-                            video.removeEventListener('playing', onVideoReady);
-                            if (this.videoCheckInterval) {
-                                clearInterval(this.videoCheckInterval);
-                                this.videoCheckInterval = null;
-                            }
-                        }
-                    };
-
-                    // Track loading progress - realistic curve for ~12s total (11s extraction + streaming)
-                    const updateProgress = () => {
-                        const elapsed = (Date.now() - this._loadingStartTime) / 1000;
-                        // Realistic curve: 50% at 5s, 80% at 10s, 95% at 12s
-                        const simulatedProgress = Math.min(95, 100 * (1 - Math.exp(-elapsed / 5)));
-
-                        // Also check actual buffer if available
-                        let bufferProgress = 0;
-                        if (video.buffered && video.buffered.length > 0 && video.duration > 0) {
-                            const buffered = video.buffered.end(video.buffered.length - 1);
-                            bufferProgress = Math.min(95, (buffered / Math.min(10, video.duration)) * 100);
-                        }
-
-                        // Use the higher of simulated or actual
-                        this.setLoadingProgress(Math.max(simulatedProgress, bufferProgress));
-                    };
-
-                    // Check if already ready (for replay with same video)
-                    if (hasVideoFrames()) {
-                        switchToVideoTexture();
-                    } else {
-                        // Listen for events
-                        video.addEventListener('loadeddata', onVideoReady);
-                        video.addEventListener('canplay', onVideoReady);
-                        video.addEventListener('playing', onVideoReady);
-
-                        // Also poll periodically in case events are missed (some browsers/streams)
-                        this.videoCheckInterval = setInterval(() => {
-                            if (hasVideoFrames()) {
-                                onVideoReady();
-                            }
-                            // Update progress and animate
-                            updateProgress();
-                            this._animateLoadingPlaceholder();
-                        }, 100);
-
-                        // Timeout after 15 seconds - realistic for yt-dlp extraction
-                        setTimeout(() => {
-                            if (this.videoCheckInterval) {
-                                clearInterval(this.videoCheckInterval);
-                                this.videoCheckInterval = null;
-                            }
-                            // Force switch if video has ANY data
-                            if (!this.videoTextureReady && video.readyState >= 1) {
-                                switchToVideoTexture();
-                            }
-                        }, 15000);
-                    }
-
-                    // Try to play
-                    video.play().catch(() => { });
-                } // End of placeholder else block
-            } else {
-                this.mediaTexture = new THREE.VideoTexture(video);
-            }
-        }
-
-        if (this.mediaTexture) {
-            this.mediaTexture.minFilter = THREE.LinearFilter;
-            this.mediaTexture.magFilter = THREE.LinearFilter;
-            this.mediaTexture.colorSpace = THREE.SRGBColorSpace;
-        }
-        // Keep reference for backwards compatibility
-        this.videoTexture = this.mediaTexture;
-
-        return new Promise((resolve) => {
-            fontLoader.load('https://unpkg.com/three@0.160.0/examples/fonts/optimer_bold.typeface.json', (font) => {
-                this.font = font;
-                resolve();
-            });
-        });
-    }
-
-    /**
-     * Wait for video element to have enough data to start playing
-     * @param {HTMLVideoElement} video
-     * @returns {Promise<void>}
-     */
-    waitForVideoReady(video) {
-        return new Promise((resolve) => {
-            // If video already has data, resolve immediately
-            if (video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
-                resolve();
-                return;
-            }
-
-            const onCanPlay = () => {
-                video.removeEventListener('canplay', onCanPlay);
-                video.removeEventListener('loadeddata', onCanPlay);
-                video.removeEventListener('error', onError);
-                resolve();
-            };
-
-            const onError = () => {
-                video.removeEventListener('canplay', onCanPlay);
-                video.removeEventListener('loadeddata', onCanPlay);
-                video.removeEventListener('error', onError);
-                console.warn('Video failed to load, continuing anyway');
-                resolve();
-            };
-
-            video.addEventListener('canplay', onCanPlay);
-            video.addEventListener('loadeddata', onCanPlay);
-            video.addEventListener('error', onError);
-
-            // Timeout after 10 seconds
-            setTimeout(() => {
-                video.removeEventListener('canplay', onCanPlay);
-                video.removeEventListener('loadeddata', onCanPlay);
-                video.removeEventListener('error', onError);
-                console.warn('Video load timeout, continuing anyway');
-                resolve();
-            }, 10000);
-        });
-    }
-
-    /**
-     * Set up periodic texture updates for streaming video sources
-     * @param {HTMLVideoElement} video
-     */
-    setupVideoTextureUpdater(video) {
-        // Force texture updates when video time updates
-        const onTimeUpdate = () => {
-            if (this.mediaTexture) {
-                this.mediaTexture.needsUpdate = true;
-            }
-        };
-        video.addEventListener('timeupdate', onTimeUpdate);
-        this._videoEventListeners.push({ element: video, type: 'timeupdate', listener: onTimeUpdate });
-
-        // Also update on play
-        const onPlay = () => {
-            if (this.mediaTexture) {
-                this.mediaTexture.needsUpdate = true;
-            }
-        };
-        video.addEventListener('play', onPlay);
-        this._videoEventListeners.push({ element: video, type: 'play', listener: onPlay });
-    }
+    // Media loading logic removed - delegated to MediaTextureManager
 
     /**
      * Update the grid mesh cube material with the current media texture
@@ -681,7 +434,8 @@ export class MinesweeperRenderer {
 
     createGrid() {
         const geometry = new THREE.BoxGeometry(20, 20, 20);
-        const videoMaterial = new THREE.MeshBasicMaterial({ map: this.mediaTexture });
+        // Use texture from manager
+        const videoMaterial = new THREE.MeshBasicMaterial({ map: this.mediaManager.getBackgroundTexture() });
 
         videoMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.uGridSize = { value: new THREE.Vector2(this.game.width, this.game.height) };
@@ -832,142 +586,9 @@ export class MinesweeperRenderer {
         this.gridMesh.instanceColor.needsUpdate = true;
     }
 
-    onMouseMove(event) {
-        if (this.game.gameOver || this.game.victory) return;
+    // onMouseMove removed - delegated to InputManager
 
-        const rect = this.renderer.domElement.getBoundingClientRect();
-        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-        this.raycaster.setFromCamera(this.mouse, this.camera);
-        const intersection = this.raycaster.intersectObject(this.gridMesh);
-
-        if (intersection.length > 0) {
-            this.hoveredInstanceId = intersection[0].instanceId;
-
-            // Send cursor position to partner in multiplayer
-            if (networkManager.mode) {
-                const y = this.hoveredInstanceId % this.game.height;
-                const x = Math.floor(this.hoveredInstanceId / this.game.height);
-                networkManager.sendCursor(x, y);
-            }
-        } else {
-            this.hoveredInstanceId = -1;
-        }
-    }
-
-    async onMouseClick(event) {
-        if (this.game.gameOver || this.game.victory) return;
-
-        // Use cached hover if available, otherwise arraycast
-        if (this.hoveredInstanceId === -1) {
-            const rect = this.renderer.domElement.getBoundingClientRect();
-            this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-            this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersection = this.raycaster.intersectObject(this.gridMesh);
-            if (intersection.length > 0) this.hoveredInstanceId = intersection[0].instanceId;
-        }
-
-        if (this.hoveredInstanceId !== -1) {
-            const instanceId = this.hoveredInstanceId;
-            const y = instanceId % this.game.height;
-            const x = Math.floor(instanceId / this.game.height);
-
-            if (event.button === 0) {
-                if (networkManager.mode) {
-                    // Multiplayer: send to network
-                    networkManager.sendAction({ type: 'reveal', x, y });
-                } else {
-                    // Emit interaction event for analytics
-                    if (this.events) this.events.emit(Events.USER_INTERACTION);
-                    // Handling Async Reveal with UI
-                    if (this.game.firstClick && this.game.noGuessMode) {
-                        const loadingOverlay = document.getElementById('loading-overlay');
-                        const loadingDetails = document.getElementById('loading-details');
-                        const cancelBtn = document.getElementById('cancel-gen-btn');
-
-                        loadingOverlay.style.display = 'flex';
-                        loadingDetails.textContent = "Initialisation...";
-
-                        const onProgress = (attempt, max) => {
-                            loadingDetails.textContent = `Tentative ${attempt} / ${max}`;
-                        };
-
-                        // Wire up cancel button
-                        const cancelHandler = () => {
-                            this.game.cancelGeneration = true;
-                        };
-                        cancelBtn.onclick = cancelHandler;
-
-                        try {
-                            const result = await this.game.reveal(x, y, onProgress);
-                            this.handleGameUpdate(result);
-                        } catch (e) {
-                            console.error("Error during generation", e);
-                        } finally {
-                            loadingOverlay.style.display = 'none';
-                            cancelBtn.onclick = null; // cleanup
-                        }
-                    } else {
-                        // Standard click (fast)
-                        const result = await this.game.reveal(x, y);
-                        this.handleGameUpdate(result);
-                    }
-                }
-            } else if (event.button === 2) {
-                if (networkManager.mode) {
-                    // Multiplayer: send to network
-                    networkManager.sendAction({ type: 'flag', x, y });
-                } else {
-                    // Emit interaction event for analytics
-                    if (this.events) this.events.emit(Events.USER_INTERACTION);
-                    const result = this.game.toggleFlag(x, y);
-                    this.handleGameUpdate(result);
-                }
-            }
-        }
-    }
-
-    createPartnerCursor() {
-        this.partnerCursor = document.createElement('div');
-        this.partnerCursor.className = 'partner-cursor hidden';
-        this.partnerCursor.id = 'partner-cursor';
-        document.body.appendChild(this.partnerCursor);
-    }
-
-    gridToScreen(x, y) {
-        const worldPos = new THREE.Vector3(
-            -(this.game.width * 10) + x * 22,
-            0,
-            (this.game.height * 10) - y * 22
-        );
-
-        worldPos.project(this.camera);
-
-        const rect = this.renderer.domElement.getBoundingClientRect();
-        return {
-            x: rect.left + (worldPos.x * 0.5 + 0.5) * rect.width,
-            y: rect.top + (-worldPos.y * 0.5 + 0.5) * rect.height
-        };
-    }
-
-    updatePartnerCursor(x, y) {
-        if (!this.partnerCursor) this.createPartnerCursor();
-
-        const screenPos = this.gridToScreen(x, y);
-        if (screenPos) {
-            this.partnerCursor.style.left = `${screenPos.x}px`;
-            this.partnerCursor.style.top = `${screenPos.y}px`;
-            this.partnerCursor.classList.remove('hidden');
-        }
-    }
-
-    hidePartnerCursor() {
-        if (this.partnerCursor) {
-            this.partnerCursor.classList.add('hidden');
-        }
-    }
+    // Partner cursor methods removed
 
     handleGameUpdate(result) {
         if (result.type === 'reveal' || result.type === 'win') {
@@ -1086,81 +707,16 @@ export class MinesweeperRenderer {
         }
     }
 
-    /**
-     * Create reusable 2D flag geometry and material (same size as numbers: 16x16)
-     */
-    create3DFlagAssets() {
-        // 2D horizontal plane, same size as number textures
-        this.flag2DGeometry = new THREE.PlaneGeometry(16, 16);
-
-        // Create a canvas texture for the flag icon - bold stylized design
-        const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 128;
-        const ctx = canvas.getContext('2d');
-
-        // Clear with full transparency
-        ctx.clearRect(0, 0, 128, 128);
-
-        // Outer glow effect (makes it visible on any background)
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 15;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-
-        // Bold triangular flag - large and visible
-        ctx.fillStyle = '#ff2222';
-        ctx.beginPath();
-        ctx.moveTo(20, 15);      // Top-left of flag
-        ctx.lineTo(108, 45);     // Right point
-        ctx.lineTo(20, 75);      // Bottom-left of flag
-        ctx.closePath();
-        ctx.fill();
-
-        // Inner highlight
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#ff6666';
-        ctx.beginPath();
-        ctx.moveTo(25, 25);
-        ctx.lineTo(75, 42);
-        ctx.lineTo(25, 55);
-        ctx.closePath();
-        ctx.fill();
-
-        // Bold white border for visibility
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(20, 15);
-        ctx.lineTo(108, 45);
-        ctx.lineTo(20, 75);
-        ctx.closePath();
-        ctx.stroke();
-
-        // Pole - thick and visible
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(12, 10, 8, 108);
-        ctx.fillStyle = '#cccccc';
-        ctx.fillRect(12, 10, 4, 108);
-
-        this.flag2DTexture = new THREE.CanvasTexture(canvas);
-        this.flag2DTexture.minFilter = THREE.LinearFilter;
-        this.flag2DTexture.magFilter = THREE.LinearFilter;
-        this.flag2DMaterial = new THREE.MeshBasicMaterial({
-            map: this.flag2DTexture,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            side: THREE.DoubleSide
-        });
-    }
+    // create3DFlagAssets removed - logic to be moved to MediaTextureManager
 
     /**
      * Create a single 2D flag mesh at a given position
      */
     create3DFlag(position, x, y) {
-        const mesh = new THREE.Mesh(this.flag2DGeometry, this.flag2DMaterial);
+        const mesh = new THREE.Mesh(
+            this.mediaManager.flag2DGeometry,
+            this.mediaManager.flag2DMaterial
+        );
         mesh.position.copy(position);
         mesh.position.y = 12; // Slightly above cube surface
         mesh.rotation.x = -Math.PI / 2; // Horizontal like numbers
@@ -1445,7 +1001,8 @@ export class MinesweeperRenderer {
             });
         }
 
-        // Hover Effect
+        // Hover Effect - Use InputManager's hovered ID
+        this.hoveredInstanceId = this.inputManager ? this.inputManager.getHoveredInstanceId() : -1;
         this.updateSelectionBox(this.hoveredInstanceId);
 
         // End Text Billboard
@@ -1507,19 +1064,9 @@ export class MinesweeperRenderer {
             this.particleSystem.dispose();
         }
 
-        // Clean up video check interval
-        if (this.videoCheckInterval) {
-            clearInterval(this.videoCheckInterval);
-            this.videoCheckInterval = null;
-        }
-
-        // Dispose all managed textures
-        Object.values(this.textures).forEach(tex => {
-            if (tex) tex.dispose();
-        });
-        if (this.mediaTexture) this.mediaTexture.dispose();
-        if (this.flag2DTexture) this.flag2DTexture.dispose();
-        if (this.placeholderTexture) this.placeholderTexture.dispose();
+        // Dispose Managers
+        if (this.mediaManager) this.mediaManager.dispose();
+        if (this.inputManager) this.inputManager.detachListeners();
 
         this.scene.traverse((object) => {
             if (object.geometry) object.geometry.dispose();
@@ -1543,18 +1090,6 @@ export class MinesweeperRenderer {
 
         // Remove window listeners
         window.removeEventListener('resize', this._boundOnWindowResize);
-
-        // Remove video element listeners
-        this._videoEventListeners.forEach(({ element, type, listener }) => {
-            element.removeEventListener(type, listener);
-        });
-        this._videoEventListeners = [];
-
-        // Remove renderer element listeners
-        if (this.renderer && this.renderer.domElement) {
-            this.renderer.domElement.removeEventListener('pointerdown', this._boundOnMouseClick);
-            this.renderer.domElement.removeEventListener('pointermove', this._boundOnMouseMove);
-        }
 
         if (this.partnerCursor && this.partnerCursor.parentNode) {
             this.partnerCursor.parentNode.removeChild(this.partnerCursor);
