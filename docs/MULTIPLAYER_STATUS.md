@@ -1,7 +1,7 @@
 # État du Multijoueur Compétitif - Session de Dev
 
 **Dernière mise à jour**: 6 Février 2026  
-**Serveur**: Raspberry Pi `raspberrol` @ 192.168.1.232:3001  
+**Serveur**: Raspberry Pi `raspberrol` @ `your-pi-ip:3001`  
 **Déploiement**: PM2 (minesweeper-multiplayer)
 
 ## Fonctionnalités Implémentées ✅
