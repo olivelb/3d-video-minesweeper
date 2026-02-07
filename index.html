@@ -143,8 +143,27 @@
 
                 <!-- Server Status -->
                 <div id="mp-server-status">
-                    <span id="server-indicator">●</span>
+                    <span id="server-indicator" class="offline">●</span>
                     <span id="server-status-text">Vérification du serveur...</span>
+                </div>
+
+                <!-- Server Configuration (Hidden by default) -->
+                <div id="mp-config-toggle"
+                    style="font-size: 0.8em; text-align: right; cursor: pointer; color: #aaa; margin-bottom: 8px; text-decoration: underline;">
+                    ⚙️ Configurer le serveur
+                </div>
+                <div id="mp-config-panel" class="hidden"
+                    style="margin-bottom: 15px; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                    <label style="font-size: 0.8em; display: block; margin-bottom: 8px; color: #ccc;">URL du serveur
+                        (Tunnel Cloudflare / IP):</label>
+                    <input type="text" id="custom-server-url" placeholder="https://votre-id.trycloudflare.com"
+                        style="width: calc(100% - 20px); font-size: 0.9em; margin-bottom: 10px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: white; padding: 8px 10px; border-radius: 4px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button id="btn-save-config" class="primary"
+                            style="font-size: 0.8em; padding: 6px 12px; flex: 1;">Enregistrer</button>
+                        <button id="btn-reset-config"
+                            style="font-size: 0.8em; padding: 6px 12px; flex: 1; background: #444;">Défaut</button>
+                    </div>
                 </div>
 
                 <!-- Connect to Server -->

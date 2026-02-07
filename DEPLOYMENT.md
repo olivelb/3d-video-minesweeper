@@ -155,26 +155,27 @@ For external access from GitHub Pages, use Cloudflare Quick Tunnel:
 
 ### Configure Cloud Server URL
 
-**Option A: In index.html (Recommended for public)**
+To connect your GitHub Pages frontend to your Raspberry Pi tunnel, follow these steps:
 
-Add before other scripts in `index.html`:
-```html
-<script>
-  window.MINESWEEPER_SERVERS = {
-    raspberryCloud: 'https://your-tunnel-id.trycloudflare.com'
-  };
-</script>
-```
+### Option A: Using the In-Game UI (Recommended)
 
-**Option B: User localStorage (Per-browser)**
+1. Open the game via GitHub Pages.
+2. In the **Multijoueur** panel, click on **⚙️ Configurer le serveur**.
+3. Paste your Cloudflare Tunnel URL (e.g., `https://your-id.trycloudflare.com`).
+4. Click **Enregistrer**.
+5. The indicator should turn green (●) if the server is online.
 
-Users can configure manually in browser console:
-```javascript
-localStorage.setItem('minesweeper_servers', JSON.stringify({
-  raspberryCloud: 'https://your-tunnel-id.trycloudflare.com'
-}));
-location.reload();
-```
+> 💡 This setting is saved in your browser's **LocalStorage** and will persist between sessions. It is the safest way to configure your server as it requires no code changes.
+
+### Option B: Local Configuration (For Developers)
+
+For local development, the app tries to connect in this order:
+1. `LocalStorage` override (if set via UI)
+2. `window.MINESWEEPER_SERVERS.raspberryCloud` (defined in `index.html`)
+3. `http://your-pi-ip:3001` (hardcoded fallback in `MultiplayerUI.js`)
+
+You can also use a gitignored `servers-local.json` for local scripts.
+
 
 ---
 

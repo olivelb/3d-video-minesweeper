@@ -15,6 +15,7 @@ import { Events } from '../core/EventBus.js';
  * @constant
  */
 const DEFAULT_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://your-pi-ip:3001';
+const CUSTOM_URL_KEY = 'minesweeper_custom_server_url';
 
 /**
  * Connection status states
@@ -62,6 +63,13 @@ export class MultiplayerUI {
         // Callbacks
         /** @type {Function|null} Called when game should start */
         this.onGameStart = null;
+
+        // Configuration UI references
+        this.configToggle = document.getElementById('mp-config-toggle');
+        this.configPanel = document.getElementById('mp-config-panel');
+        this.customUrlInput = document.getElementById('custom-server-url');
+        this.saveConfigBtn = document.getElementById('btn-save-config');
+        this.resetConfigBtn = document.getElementById('btn-reset-config');
     }
 
     /**
@@ -116,6 +124,34 @@ export class MultiplayerUI {
         document.getElementById('btn-start-multiplayer')?.addEventListener('click', () => {
             this.networkManager.startGame();
         });
+
+        // Config Toggle
+        this.configToggle?.addEventListener('click', () => {
+            this.configPanel?.classList.toggle('hidden');
+            if (!this.configPanel?.classList.contains('hidden')) {
+                if (this.customUrlInput) {
+                    this.customUrlInput.value = localStorage.getItem(CUSTOM_URL_KEY) || '';
+                }
+            }
+        });
+
+        // Save Config
+        this.saveConfigBtn?.addEventListener('click', () => {
+            const url = this.customUrlInput?.value.trim();
+            if (url) {
+                localStorage.setItem(CUSTOM_URL_KEY, url);
+                this.configPanel?.classList.add('hidden');
+                this.checkServerAvailability();
+            }
+        });
+
+        // Reset Config
+        this.resetConfigBtn?.addEventListener('click', () => {
+            localStorage.removeItem(CUSTOM_URL_KEY);
+            if (this.customUrlInput) this.customUrlInput.value = '';
+            this.configPanel?.classList.add('hidden');
+            this.checkServerAvailability();
+        });
     }
 
     /**
@@ -165,18 +201,21 @@ export class MultiplayerUI {
     async checkServerAvailability() {
         this._updateStatus(ConnectionStatus.CHECKING, 'Vérification du serveur...');
 
+        const customUrl = localStorage.getItem(CUSTOM_URL_KEY);
+        const serverUrl = customUrl || DEFAULT_SERVER_URL;
+
         try {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 3000);
 
-            const response = await fetch(`${DEFAULT_SERVER_URL}/health`, {
+            const response = await fetch(`${serverUrl}/health`, {
                 signal: controller.signal
             });
             clearTimeout(timeout);
 
             if (response.ok) {
                 this._updateStatus(ConnectionStatus.ONLINE, 'Serveur disponible');
-                this.dedicatedServerUrl = DEFAULT_SERVER_URL;
+                this.dedicatedServerUrl = serverUrl;
                 if (this.connectBtn) this.connectBtn.disabled = false;
                 return true;
             }
