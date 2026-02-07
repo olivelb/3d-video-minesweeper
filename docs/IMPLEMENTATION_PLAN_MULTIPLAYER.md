@@ -459,7 +459,12 @@ CMD ["node", "server.js"]
 
 ## 📝 Changelog
 
-### v2.1 (Current)
+### v2.2 (Current)
+- **Performance Optimization**: Gaussian Elimination solver for faster grid generation.
+- **Generation Feedback**: Live progress modal for slow generations on Raspberry Pi.
+- **Improved Stability**: Throttled event loop yielding to prevent UI freezes.
+
+### v2.1
 - **Host-defined max players (2-8)**
 - **Manual Game Start**: Host can start whenever ≥2 players are present
 - **MultiplayerUI Component**: Improved modularity and UI stability

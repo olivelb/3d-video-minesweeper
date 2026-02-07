@@ -17,6 +17,7 @@
 9. **Synchronisation Authoritaire** - Le premier clic sécurisé et toutes les actions sont validés par le serveur.
 10. **Solveur Gaussien (Bêta)** - Intégration du solveur par élimination de Gauss pour la génération "No Guess" et les indices, côté client et serveur (Raspberry Pi).
 11. **Stabilité Serveur** - Limites strictes (150x100, 2000 bombes) pour prévenir les crashs mémoire.
+12. **Feedback Génération** - Modal de progression en temps réel pour les générations lentes sur Raspberry Pi.
 
 ## Système d'Élimination 🎯
 
@@ -51,6 +52,7 @@
 4. **Quoting Script Déploiement** - Correction des erreurs de parsing PowerShell dans `deploy.ps1`.
 5. **Gestionnaire de Score** - Implémentation de `getScores()` pour filtrer le leaderboard correctement.
 6. **Reset Multijoueur** - Implémentation d'un reset propre côté client et serveur après chaque partie.
+7. **Performance Génération** - Optimisation de la boucle de génération et ajout d'un feedback visuel pour l'attente.
 
 ## Prochaines Étapes 🚀
 
