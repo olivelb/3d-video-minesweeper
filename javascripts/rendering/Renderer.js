@@ -878,6 +878,12 @@ export class MinesweeperRenderer {
         // Hide number meshes so we only see exploding cubes
         this.numberMeshes.forEach(mesh => mesh.visible = false);
 
+        // Hide flags during animation
+        this.flagEmitters.forEach(emitter => emitter.alive = false);
+        this.flagEmitters.clear();
+        this.flag3DMeshes.forEach(flag => this.scene.remove(flag));
+        this.flag3DMeshes.clear();
+
         // Start explosion
         this.isExploding = true;
         this.explosionTime = 0;
@@ -894,11 +900,11 @@ export class MinesweeperRenderer {
             // Capture EXACT start positions to prevent jumping
             this.reassemblyStartPositions = [];
             this.reassemblyStartRotations = [];
-            
+
             for (let i = 0; i < this.game.width * this.game.height; i++) {
                 this.gridMesh.getMatrixAt(i, this.dummy.matrix);
                 this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-                
+
                 this.reassemblyStartPositions[i] = this.dummy.position.clone();
                 this.reassemblyStartRotations[i] = this.dummy.rotation.clone();
             }
@@ -1174,26 +1180,26 @@ export class MinesweeperRenderer {
             if (this.reassemblyProgress > 1.0) this.reassemblyProgress = 1.0;
 
             const t = this.reassemblyProgress;
-            
+
             // Ease-In Exponential (t^6)
             // User requested: "little bit slower at beginning" and "faster at end"
             // The jump fix makes the path longer, so we need strong easing to keep the start slow.
-            const easeFactor = t * t * t * t * t * t; 
-            
+            const easeFactor = t * t * t * t * t * t;
+
             // Synchronize visuals
-            const targetFogDensity = 0.001; 
+            const targetFogDensity = 0.001;
             const currentDensity = 0.0 + (targetFogDensity * easeFactor);
             this.scene.fog = new THREE.FogExp2(0x1a1a1a, currentDensity);
-            
+
             const targetLightFactor = 0.85;
             const currentLightFactor = 1.0 - ((1.0 - targetLightFactor) * easeFactor);
-            
+
             this.scene.traverse(obj => {
                 if (obj.isLight && obj.userData.originalIntensity !== undefined) {
                     obj.intensity = obj.userData.originalIntensity * currentLightFactor;
                 }
             });
-            
+
             const targetScale = new THREE.Vector3(0.9, 0.9, 0.9);
 
             for (let i = 0; i < this.game.width * this.game.height; i++) {
@@ -1205,13 +1211,13 @@ export class MinesweeperRenderer {
                     0,
                     (y - this.game.height / 2) * 22 + 10
                 );
-                
+
                 // 2. Get Start Position (Captured)
                 // Default to target if missing (safety)
-                const startPos = this.reassemblyStartPositions && this.reassemblyStartPositions[i] 
-                    ? this.reassemblyStartPositions[i] 
+                const startPos = this.reassemblyStartPositions && this.reassemblyStartPositions[i]
+                    ? this.reassemblyStartPositions[i]
                     : targetPos;
-                
+
                 const startRot = this.reassemblyStartRotations && this.reassemblyStartRotations[i]
                     ? this.reassemblyStartRotations[i]
                     : new THREE.Euler(0, 0, 0);
@@ -1219,16 +1225,16 @@ export class MinesweeperRenderer {
                 // 3. Interchange
                 // We Lerp from Start -> Target
                 this.dummy.position.lerpVectors(startPos, targetPos, easeFactor);
-                
+
                 // Rotation Lerp (approximate with Euler)
                 this.dummy.rotation.set(
                     startRot.x * (1 - easeFactor), // Target rotation is 0,0,0
                     startRot.y * (1 - easeFactor),
                     startRot.z * (1 - easeFactor)
                 );
-                
+
                 this.dummy.scale.copy(targetScale);
-                
+
                 this.dummy.updateMatrix();
                 this.gridMesh.setMatrixAt(i, this.dummy.matrix);
             }
