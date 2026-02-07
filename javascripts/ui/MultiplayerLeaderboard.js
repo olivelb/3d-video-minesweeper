@@ -10,7 +10,11 @@ export class MultiplayerLeaderboard {
      * @param {string} serverUrl - Base URL of the multiplayer server
      */
     constructor(serverUrl = null) {
-        this.serverUrl = serverUrl || window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
+        // defined in MultiplayerUI.js
+        const CUSTOM_URL_KEY = 'minesweeper_custom_server_url';
+        const customUrl = localStorage.getItem(CUSTOM_URL_KEY);
+
+        this.serverUrl = serverUrl || customUrl || window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
         this.container = null;
         this.statsModal = null;
         this.isServerOnline = false;
@@ -410,12 +414,12 @@ export class MultiplayerLeaderboard {
         try {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 3000);
-            
+
             const response = await fetch(`${this.serverUrl}/health`, {
                 signal: controller.signal
             });
             clearTimeout(timeout);
-            
+
             this.isServerOnline = response.ok;
             return this.isServerOnline;
         } catch (err) {
@@ -429,7 +433,7 @@ export class MultiplayerLeaderboard {
      */
     async show() {
         const isOnline = await this.checkServerStatus();
-        
+
         if (isOnline) {
             this.container.classList.remove('hidden');
             this.loadLeaderboard();

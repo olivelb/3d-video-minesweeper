@@ -40,3 +40,7 @@ npm-debug.log*
 # Build outputs
 dist/
 build/
+
+# Private/Deployment specific
+patch_renderer_v2.js
+ecosystem.config.cjs

@@ -6,8 +6,8 @@ import { HUDController } from './HUDController.js';
 import { LeaderboardController } from './LeaderboardController.js';
 import { Events } from '../core/EventBus.js';
 
-// Configuration: Dedicated server URL (Raspberry Pi)
-const DEDICATED_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
+// Configuration: Dedicated server URL (placeholder)
+const DEDICATED_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://YOUR_SERVER_IP:3001';
 
 export class UIManager {
     constructor(game, renderer, scoreManager, eventBus) {
