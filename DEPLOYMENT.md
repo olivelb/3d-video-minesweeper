@@ -55,7 +55,7 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
    {
        "local": "http://localhost:3001",
        "raspberryLocal": "http://raspberrol:3001",
-       "raspberryLAN": "http://192.168.1.232:3001",
+       "raspberryLAN": "http://your-pi-ip:3001",
        "raspberryCloud": null
    }
    ```

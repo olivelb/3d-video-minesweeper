@@ -14,7 +14,7 @@ import { Events } from '../core/EventBus.js';
  * Default server URL for multiplayer connections
  * @constant
  */
-const DEFAULT_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://192.168.1.232:3001';
+const DEFAULT_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://your-pi-ip:3001';
 
 /**
  * Connection status states
