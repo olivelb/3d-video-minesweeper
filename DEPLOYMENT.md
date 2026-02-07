@@ -124,6 +124,9 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
    pm2 startup  # Follow instructions to enable on boot
    ```
 
+   > **Note**: The server now includes a Gaussian Elimination solver for "No Guess" mode.
+   > It enforces a hard limit of **150x100** grid and **2000 bombs** to ensure stability on the Pi 3 hardware.
+
 ### Cloudflare Tunnel Setup
 
 For external access from GitHub Pages, use Cloudflare Quick Tunnel:

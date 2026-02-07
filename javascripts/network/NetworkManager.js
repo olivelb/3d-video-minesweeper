@@ -143,9 +143,9 @@ export class NetworkManager {
     /**
      * Host creates a game with config
      */
-    createGame(width, height, bombCount, maxPlayers) {
+    createGame(width, height, bombCount, maxPlayers, noGuessMode = false) {
         if (this.socket) {
-            this.socket.emit('createGame', { width, height, bombCount, maxPlayers });
+            this.socket.emit('createGame', { width, height, bombCount, maxPlayers, noGuessMode });
         }
     }
 

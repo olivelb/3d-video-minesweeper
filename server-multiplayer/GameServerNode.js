@@ -61,7 +61,8 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
                 width: gameServer.width,
                 height: gameServer.height,
                 bombCount: gameServer.bombCount,
-                maxPlayers: gameServer.maxPlayers
+                maxPlayers: gameServer.maxPlayers,
+                noGuessMode: gameServer.noGuessMode
             } : null
         };
     }
@@ -103,17 +104,29 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         });
 
         // Host creates the game with config
-        socket.on('createGame', ({ width, height, bombCount, maxPlayers }) => {
+        socket.on('createGame', ({ width, height, bombCount, maxPlayers, noGuessMode }) => {
             if (socket.id !== hostSocketId) {
                 socket.emit('error', { message: 'Only host can create game' });
                 return;
             }
 
+            // Server-side validation to prevent crashes
+            const MAX_WIDTH = 150;
+            const MAX_HEIGHT = 100;
+            const MAX_BOMBS = 2000;
+
+            if (width > MAX_WIDTH || height > MAX_HEIGHT || bombCount > MAX_BOMBS) {
+                socket.emit('error', {
+                    message: `Limites dépassées: Max ${MAX_WIDTH}x${MAX_HEIGHT}, ${MAX_BOMBS} bombes`
+                });
+                return;
+            }
+
             const actualMaxPlayers = Math.min(MAX_LOBBY_SIZE, Math.max(2, parseInt(maxPlayers) || 2));
-            console.log(`[GameServer] Host creating game: ${width}x${height}, ${bombCount} bombs, max players: ${actualMaxPlayers}`);
+            console.log(`[GameServer] Host creating game: ${width}x${height}, ${bombCount} bombs, max players: ${actualMaxPlayers}, No Guess: ${noGuessMode}`);
 
             // Create game server with host's config
-            gameServer = new GameServer({ width, height, bombCount, maxPlayers: actualMaxPlayers });
+            gameServer = new GameServer({ width, height, bombCount, maxPlayers: actualMaxPlayers, noGuessMode });
             setupBroadcasting(gameServer);
 
             // Add host as player 1
@@ -129,7 +142,7 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
             // Notify all clients
             io.emit('lobbyUpdate', getLobbyState());
             io.emit('gameCreated', {
-                config: { width, height, bombCount, maxPlayers: actualMaxPlayers }
+                config: { width, height, bombCount, maxPlayers: actualMaxPlayers, noGuessMode }
             });
         });
 

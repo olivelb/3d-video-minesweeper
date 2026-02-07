@@ -184,9 +184,27 @@ export class MenuController {
     }
 
     async handleStartClick() {
-        const width = parseInt(this.widthInput.value) || 30;
-        const height = parseInt(this.heightInput.value) || 20;
-        const bombs = parseInt(this.bombInput.value) || 50;
+        // Enforce limits (safe for server solver)
+        const MAX_WIDTH = 150;
+        const MAX_HEIGHT = 100;
+        const MAX_BOMBS = 2000;
+
+        let width = parseInt(this.widthInput.value) || 30;
+        let height = parseInt(this.heightInput.value) || 20;
+        let bombs = parseInt(this.bombInput.value) || 50;
+
+        // Clamp values
+        width = Math.min(Math.max(10, width), MAX_WIDTH);
+        height = Math.min(Math.max(10, height), MAX_HEIGHT);
+        bombs = Math.min(Math.max(1, bombs), MAX_BOMBS);
+
+        // Ensure bombs don't exceed grid size - 9 (leave space for first click)
+        bombs = Math.min(bombs, (width * height) - 9);
+
+        // Update inputs to reflect clamped values
+        this.widthInput.value = width;
+        this.heightInput.value = height;
+        this.bombInput.value = bombs;
         const noGuessMode = this.noGuessCheckbox?.checked || false;
         const useHoverHelper = this.hoverHelperCheckbox?.checked ?? true;
 

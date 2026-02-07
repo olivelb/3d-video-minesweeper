@@ -128,12 +128,33 @@ export class MultiplayerUI {
         const bombInput = document.getElementById('bomb-count');
         const maxPlayersInput = document.getElementById('mp-max-players');
 
-        const w = parseInt(widthInput?.value) || 30;
-        const h = parseInt(heightInput?.value) || 20;
-        const b = parseInt(bombInput?.value) || 50;
-        const mp = parseInt(maxPlayersInput?.value) || 2;
+        const MAX_WIDTH = 150;
+        const MAX_HEIGHT = 100;
+        const MAX_BOMBS = 2000;
 
-        this.networkManager.createGame(w, h, b, mp);
+        let w = parseInt(widthInput?.value) || 30;
+        let h = parseInt(heightInput?.value) || 20;
+        let b = parseInt(bombInput?.value) || 50;
+
+        // Validation check
+        if (w > MAX_WIDTH || h > MAX_HEIGHT || b > MAX_BOMBS) {
+            alert(`Les dimensions maximales sont ${MAX_WIDTH}x${MAX_HEIGHT} avec ${MAX_BOMBS} bombes pour la stabilité du serveur.`);
+            w = Math.min(w, MAX_WIDTH);
+            h = Math.min(h, MAX_HEIGHT);
+            b = Math.min(b, MAX_BOMBS);
+
+            // Update inputs
+            if (widthInput) widthInput.value = w;
+            if (heightInput) heightInput.value = h;
+            if (bombInput) bombInput.value = b;
+
+            return; // Stop to let user see corrected values
+        }
+
+        const mp = parseInt(maxPlayersInput?.value) || 2;
+        const noGuess = document.getElementById('no-guess-mode')?.checked || false;
+
+        this.networkManager.createGame(w, h, b, mp, noGuess);
         this._showHostWaiting();
     }
 

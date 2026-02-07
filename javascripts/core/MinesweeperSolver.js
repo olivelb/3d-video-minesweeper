@@ -1,3 +1,5 @@
+import { GaussianElimination } from './GaussianElimination.js';
+
 /**
  * MinesweeperSolver - Deterministic solving algorithms for Minesweeper
  * 
@@ -179,7 +181,7 @@ export class MinesweeperSolver {
 
         const visibleGrid = Array(width).fill().map(() => Array(height).fill(-1));
         const flags = Array(width).fill().map(() => Array(height).fill(false));
-        
+
         // Track flag count incrementally instead of counting each time
         let flagCount = 0;
 
@@ -193,7 +195,7 @@ export class MinesweeperSolver {
         let progress = true;
         let iterations = 0;
         const maxIterations = width * height * 2;
-        
+
         // Track dirty cells - cells that may have changed and need re-evaluation
         let dirtyCells = new Set();
         for (let x = 0; x < width; x++) {
@@ -231,6 +233,7 @@ export class MinesweeperSolver {
 
             // Strategy 3: Proof by contradiction (expensive - limit frontier size)
             const contradictionResult = this.solveByContradiction(grid, visibleGrid, flags, width, height, flagCount);
+            // Strategy 3 (Contradiction) result check - unchanged
             if (contradictionResult.progress) {
                 progress = true;
                 flagCount = contradictionResult.flagCount;
@@ -243,6 +246,22 @@ export class MinesweeperSolver {
                 }
                 continue;
             }
+
+            // Strategy 3.5: Gaussian Elimination (Matrix Solver)
+            // Solves complex coupled systems that subset logic misses
+            const gaussianResult = this.solveByGaussianElimination(grid, visibleGrid, flags, width, height, flagCount);
+            if (gaussianResult.progress) {
+                progress = true;
+                flagCount = gaussianResult.flagCount;
+                for (const cell of gaussianResult.changedCells || []) {
+                    dirtyCells.add(this.cellKey(cell.x, cell.y));
+                    for (const n of this.getCachedNeighbors(cell.x, cell.y)) {
+                        dirtyCells.add(this.cellKey(n.x, n.y));
+                    }
+                }
+                continue;
+            }
+
 
             // Strategy 4: Tank Solver (very expensive - use sparingly)
             const tankResult = this.tankSolver(grid, visibleGrid, flags, width, height, bombCount, flagCount);
@@ -307,7 +326,7 @@ export class MinesweeperSolver {
         for (const key of dirtyCells) {
             const { x, y } = this.decodeKey(key);
             if (x < 0 || x >= width || y < 0 || y >= height) continue;
-            
+
             const val = visibleGrid[x][y];
             if (val <= 0) continue;
             if (processedCells.has(key)) continue;
@@ -383,7 +402,7 @@ export class MinesweeperSolver {
     static applySubsetLogic(grid, visibleGrid, flags, width, height, dirtyCells, flagCount) {
         let progress = false;
         const newDirtyCells = new Set();
-        
+
         // Build a list of constraint cells to check (only near dirty cells)
         const constraintCells = new Set();
         for (const key of dirtyCells) {
@@ -524,13 +543,13 @@ export class MinesweeperSolver {
      */
     static solveByContradiction(grid, visibleGrid, flags, width, height, flagCount) {
         const frontier = this.getFrontier(visibleGrid, flags, width, height);
-        
+
         // Limit frontier processing to avoid exponential blowup at game start
         const maxFrontierToCheck = Math.min(frontier.length, 50);
 
         for (let i = 0; i < maxFrontierToCheck; i++) {
             const cell = frontier[i];
-            
+
             if (this.checkContradiction(visibleGrid, flags, width, height, cell, true)) {
                 this.simulateReveal(grid, visibleGrid, flags, width, height, cell.x, cell.y);
                 return { progress: true, flagCount, changedCell: cell };
@@ -562,7 +581,7 @@ export class MinesweeperSolver {
     static checkContradiction(visibleGrid, flags, width, height, assumptionCell, assumeMine) {
         const simFlags = new Map();
         const simRevealed = new Map();
-        
+
         const getFlag = (x, y) => {
             const k = this.cellKey(x, y);
             return simFlags.has(k) ? simFlags.get(k) : flags[x][y];
@@ -580,7 +599,7 @@ export class MinesweeperSolver {
         let changed = true;
         let iterations = 0;
         const maxIterations = 20;
-        
+
         const toCheck = new Set();
         for (const n of this.getCachedNeighbors(assumptionCell.x, assumptionCell.y)) {
             toCheck.add(this.cellKey(n.x, n.y));
@@ -589,7 +608,7 @@ export class MinesweeperSolver {
         while (changed && iterations < maxIterations) {
             changed = false;
             iterations++;
-            
+
             const currentCheck = [...toCheck];
             toCheck.clear();
 
@@ -643,6 +662,56 @@ export class MinesweeperSolver {
 
         return false;
     }
+
+    /**
+     * Strategy 3.5: Gaussian Elimination - Matrix based solving.
+     * 
+     * Uses the GaussianElimination helper to solve the frontier as a system of linear equations.
+     * Ax = b, where x are hidden cells (0/1), A is connectivity, b is effective clues.
+     * 
+     * @param {Array<Array<number>>} grid - The actual grid
+     * @param {Array<Array<number>>} visibleGrid - Visible state
+     * @param {Array<Array<boolean>>} flags - Flags
+     * @param {number} width - Grid width
+     * @param {number} height - Grid height
+     * @param {number} flagCount - Current flag count
+     * @returns {{progress: boolean, flagCount: number, changedCells: Array}}
+     */
+    static solveByGaussianElimination(grid, visibleGrid, flags, width, height, flagCount) {
+        // Only run if there is a frontier
+        const frontier = this.getFrontier(visibleGrid, flags, width, height);
+        if (frontier.length === 0) return { progress: false, flagCount, changedCells: [] };
+
+        // Use the helper class
+        const result = GaussianElimination.solve(this, visibleGrid, flags, frontier);
+
+        let progress = false;
+        const changedCells = [];
+
+        if (result.progress) {
+            progress = true;
+
+            // Apply Mines
+            for (const cell of result.mines) {
+                if (!flags[cell.x][cell.y]) {
+                    flags[cell.x][cell.y] = true;
+                    flagCount++;
+                    changedCells.push(cell);
+                }
+            }
+
+            // Apply Safes
+            for (const cell of result.safe) {
+                if (visibleGrid[cell.x][cell.y] === -1) {
+                    this.simulateReveal(grid, visibleGrid, flags, width, height, cell.x, cell.y);
+                    changedCells.push(cell);
+                }
+            }
+        }
+
+        return { progress, flagCount, changedCells };
+    }
+
 
     /**
      * Strategy 4: Tank Solver - Complete configuration enumeration.
@@ -777,7 +846,7 @@ export class MinesweeperSolver {
 
         const regions = [];
         const visited = new Set();
-        
+
         const frontierSet = new Set();
         for (const f of frontier) {
             frontierSet.add(this.cellKey(f.x, f.y));
@@ -795,16 +864,16 @@ export class MinesweeperSolver {
                 const cell = queue.shift();
                 const cellKey = this.cellKey(cell.x, cell.y);
                 queueSet.delete(cellKey);
-                
+
                 if (visited.has(cellKey)) continue;
                 visited.add(cellKey);
                 region.push(cell);
 
                 const cellNeighbors = this.getCachedNeighbors(cell.x, cell.y);
-                
+
                 for (const constraint of cellNeighbors) {
                     if (visibleGrid[constraint.x][constraint.y] <= 0) continue;
-                    
+
                     const constraintNeighbors = this.getCachedNeighbors(constraint.x, constraint.y);
                     for (const n of constraintNeighbors) {
                         const nKey = this.cellKey(n.x, n.y);
@@ -841,7 +910,7 @@ export class MinesweeperSolver {
     static getRegionConstraints(region, visibleGrid, flags, width, height) {
         const constraintSet = new Set();
         const constraints = [];
-        
+
         const regionSet = new Set();
         for (const r of region) {
             regionSet.add(this.cellKey(r.x, r.y));

@@ -1,0 +1,22 @@
+Running Gaussian Elimination Test: 1-2-1 Pattern
+Input Frontier: [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 } ]
+Result: {
+  "progress": true,
+  "safe": [
+    {
+      "x": 1,
+      "y": 0
+    }
+  ],
+  "mines": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 2,
+      "y": 0
+    }
+  ]
+}
+SUCCESS: Correctly solved 1-2-1 pattern.

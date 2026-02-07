@@ -1,0 +1,21 @@
+Running Server Gaussian Elimination Test: 1-2-1 Pattern
+Testing MinesweeperSolver.solveByGaussianElimination directly...
+Result: {
+  "progress": true,
+  "flagCount": 2,
+  "changedCells": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 2,
+      "y": 0
+    },
+    {
+      "x": 1,
+      "y": 0
+    }
+  ]
+}
+SUCCESS: Server Solver identified all 3 moves.

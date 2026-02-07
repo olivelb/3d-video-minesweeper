@@ -15,6 +15,8 @@
 7. **Bombes révélées** - Les bombes cliquées sont affichées avec un visuel distinct pour tous.
 8. **Notifications** - Alertes visuelles quand un joueur est éliminé.
 9. **Synchronisation Authoritaire** - Le premier clic sécurisé et toutes les actions sont validés par le serveur.
+10. **Solveur Gaussien (Bêta)** - Intégration du solveur par élimination de Gauss pour la génération "No Guess" et les indices, côté client et serveur (Raspberry Pi).
+11. **Stabilité Serveur** - Limites strictes (150x100, 2000 bombes) pour prévenir les crashs mémoire.
 
 ## Système d'Élimination 🎯
 
