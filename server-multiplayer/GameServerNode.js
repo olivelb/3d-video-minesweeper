@@ -122,6 +122,18 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
                 return;
             }
 
+            // Density check (22% max) ONLY for No Guess mode (due to solver)
+            if (noGuessMode) {
+                const totalCells = width * height;
+                const maxDensityBombs = Math.floor(totalCells * 0.22);
+                if (bombCount > maxDensityBombs) {
+                    socket.emit('error', {
+                        message: `Mode 'No Guess': Densité trop élevée! Max ${maxDensityBombs} bombes.`
+                    });
+                    return;
+                }
+            }
+
             const actualMaxPlayers = Math.min(MAX_LOBBY_SIZE, Math.max(2, parseInt(maxPlayers) || 2));
             console.log(`[GameServer] Host creating game: ${width}x${height}, ${bombCount} bombs, max players: ${actualMaxPlayers}, No Guess: ${noGuessMode}`);
 

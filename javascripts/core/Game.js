@@ -103,7 +103,8 @@ export class MinesweeperGame {
             }
 
             // Yield to event loop every few attempts to keep UI responsive
-            if (attempts > 0 && attempts % 5 === 0) {
+            // Optimized: Increase batch size to reduce context switch overhead
+            if (attempts > 0 && attempts % 100 === 0) {
                 if (onProgress) onProgress(attempts, maxAttempts);
                 await new Promise(resolve => setTimeout(resolve, 0));
             }

@@ -149,7 +149,19 @@ export class GameServer {
         // Handle first click - place mines safely
         if (type === 'reveal' && this.game.firstClick) {
             console.log(`[GameServer] First click at (${x}, ${y}), placing mines with safe zone`);
-            const placementResult = await this.game.placeMines(x, y);
+
+            // Broadcast initial generation start
+            if (this.onBroadcast) {
+                this.onBroadcast('generatingGrid', { attempt: 0, max: 10000 });
+            }
+
+            const placementResult = await this.game.placeMines(x, y, (attempt, max) => {
+                // Throttle progress updates: Let Game.js control frequency (every 10 attempts)
+                if (this.onBroadcast) {
+                    this.onBroadcast('generatingGrid', { attempt, max });
+                }
+            });
+
             if (placementResult && placementResult.cancelled) {
                 return { success: false, error: 'Generation cancelled' };
             }

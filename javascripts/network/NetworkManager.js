@@ -109,6 +109,10 @@ export class NetworkManager {
                 if (this.eventBus) this.eventBus.emit(Events.NET_MINES_PLACED, data.minePositions);
             });
 
+            this.socket.on('generatingGrid', (data) => {
+                if (this.eventBus) this.eventBus.emit(Events.NET_GENERATING_GRID, data);
+            });
+
             this.socket.on('gameEnded', () => {
                 Logger.log('NetworkManager', 'Game session ended by server');
                 if (this.eventBus) this.eventBus.emit(Events.GAME_ENDED);

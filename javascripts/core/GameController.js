@@ -83,6 +83,7 @@ export class GameController {
 
         // Hint Request
         this.events.on(Events.REQUEST_HINT, () => {
+            if (networkManager.mode === 'multiplayer') return; // Disable hints in multiplayer
             if (!this.game || !this.renderer) return;
             const hint = this.game.getHint();
             if (hint) {
@@ -396,7 +397,11 @@ export class GameController {
 
         // Show Controls
         if (this.uiManager?.hudController) {
-            this.uiManager.hudController.showHintButton();
+            if (!config.isMultiplayer) {
+                this.uiManager.hudController.showHintButton();
+            } else {
+                this.uiManager.hudController.hideHintButton();
+            }
         }
     }
 

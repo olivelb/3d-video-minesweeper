@@ -190,6 +190,18 @@ export class MultiplayerUI {
         const mp = parseInt(maxPlayersInput?.value) || 2;
         const noGuess = document.getElementById('no-guess-mode')?.checked || false;
 
+        // Density check (22% max) ONLY for No Guess mode
+        if (noGuess) {
+            const totalCells = w * h;
+            const maxDensityBombs = Math.floor(totalCells * 0.22);
+            if (b > maxDensityBombs) {
+                alert(`Mode 'No Guess': Densité trop élevée! Max ${maxDensityBombs} bombes (22%).`);
+                b = Math.min(b, maxDensityBombs);
+                if (bombInput) bombInput.value = b;
+                return;
+            }
+        }
+
         this.networkManager.createGame(w, h, b, mp, noGuess);
         this._showHostWaiting();
     }
@@ -273,6 +285,10 @@ export class MultiplayerUI {
                 this._showGuestLobby();
             }
 
+            // Hide hint button in multiplayer
+            const hintBtn = document.getElementById('hint-btn');
+            if (hintBtn) hintBtn.style.display = 'none';
+
             return welcomeData;
         } catch (err) {
             Logger.error('MultiplayerUI', 'Connection error:', err);
@@ -300,6 +316,7 @@ export class MultiplayerUI {
         // Game starts
         this.events.on(Events.NET_GAME_START, async (state) => {
             Logger.log('MultiplayerUI', 'Game starting:', state);
+
             // networkManager._isMultiplayer is already true from connection
             if (this.onGameStart) {
                 await this.onGameStart(state);
@@ -315,6 +332,24 @@ export class MultiplayerUI {
         // Spectator Mode
         this.events.on(Events.SPECTATOR_MODE_START, () => {
             this._showSpectatorOverlay();
+        });
+
+        // Grid Generation Loading State
+        this.events.on(Events.NET_GENERATING_GRID, (data) => {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+                const details = document.getElementById('loading-details');
+                if (details) details.textContent = `Calcul de la grille... (${data.attempt})`;
+            }
+        });
+
+        // Hide loading on any update
+        this.events.on(Events.NET_GAME_UPDATE, () => {
+            document.getElementById('loading-overlay').style.display = 'none';
+        });
+        this.events.on(Events.NET_MINES_PLACED, () => {
+            document.getElementById('loading-overlay').style.display = 'none';
         });
     }
 
@@ -470,6 +505,10 @@ export class MultiplayerUI {
         if (hostList) hostList.innerHTML = '';
         const guestList = document.getElementById('guest-player-list');
         if (guestList) guestList.innerHTML = '';
+
+        // Restore hint button
+        const hintBtn = document.getElementById('hint-btn');
+        if (hintBtn) hintBtn.style.display = '';
     }
 
     /**

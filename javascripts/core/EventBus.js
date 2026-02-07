@@ -48,6 +48,11 @@ export const Events = {
     GAME_OVER: 'game:over',             // { victory: boolean, reason: string }
     GAME_READY: 'game:ready',           // Renderer is ready
     GAME_ENDED: 'game:ended',           // Session ended (return to menu)
+    NET_GAME_READY: 'net_game_ready',           // Game initialized (waiting for start)
+    NET_GAME_START: 'net_game_start',           // Game started (timer running)
+    NET_GENERATING_GRID: 'net_generating_grid', // Server is generating grid
+    NET_GAME_UPDATE: 'net_game_update',         // Action results
+    NET_GAME_OVER: 'net_game_over',             // Game concluded (return to menu)
 
     // User Actions
     REQUEST_HINT: 'action:hint',        // User clicked "Besoin d'aide"

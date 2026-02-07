@@ -126,6 +126,7 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
 
    > **Note**: The server now includes a Gaussian Elimination solver for "No Guess" mode.
    > It enforces a hard limit of **150x100** grid and **2000 bombs** to ensure stability on the Pi 3 hardware.
+   > **New**: Live feedback is provided during grid generation (e.g., "Tentative 50/10000") to keep players informed on slower devices.
 
 ### Cloudflare Tunnel Setup
 

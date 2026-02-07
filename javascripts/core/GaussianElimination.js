@@ -1,83 +1,229 @@
 /**
  * Gaussian Elimination Strategy for Minesweeper
  * 
- * Solves systems of linear equations to find safe cells and mines.
- * Represents the board state as a matrix equation Ax = b, where:
- * - x is the vector of hidden cells (0=safe, 1=mine)
- * - A is the adjacency matrix (1 if cell j is neighbor of clue i)
- * - b is the vector of effective clue values (clue - flagged neighbors)
- * 
- * This strategy is more powerful than simple subset logic but faster than
- * full combinatorial enumeration (Tank Solver) for connected regions.
+ * Optimized Version:
+ * - Uses flat Int32Array for O(1) lookups instead of Map/Set (avoiding allocation overhead).
+ * - Implements strict component windowing to split large systems.
+ * - Reduces matrix size by only considering relevant variables.
  */
 export class GaussianElimination {
 
     /**
-     * Solve the local board state using Gaussian Elimination.
-     * 
-     * @param {Object} solver - Reference to MinesweeperSolver for utils (w/h, accessing neighbors)
-     * @param {Array<Array<number>>} visibleGrid - The current visible state
-     * @param {Array<Array<boolean>>} flags - The current flags
-     * @param {Array<{x:number, y:number}>} frontier - List of hidden cells on the boundary
-     * @returns {{progress: boolean, safe: Array<{x:number, y:number}>, mines: Array<{x:number, y:number}>}}
+     * Solve the local board state using Gaussian Elimination (High Performance).
      */
     static solve(solver, visibleGrid, flags, frontier) {
+        // Fast exit
+        if (frontier.length === 0) return { progress: false, safe: [], mines: [] };
+
         const width = visibleGrid.length;
         const height = visibleGrid[0].length;
 
-        // 1. Identify Variables (Columns)
-        // Map each frontier cell to a column index
-        const variableMap = new Map(); // key -> colIndex
-        const variables = []; // colIndex -> {x, y}
+        // 1. Decompose Frontier into Connected Components (Optimized)
+        const components = this.getConnectedComponentsOptimized(solver, visibleGrid, frontier, width, height);
 
-        frontier.forEach((cell, index) => {
-            const key = solver.cellKey(cell.x, cell.y);
-            variableMap.set(key, index);
-            variables.push(cell);
-        });
+        let progress = false;
+        let allSafe = [];
+        let allMines = [];
 
-        const numVars = variables.length;
+        // 2. Solve each component independently
+        for (const component of components) {
+            // STRICT LIMIT: Break large components into windows of 45-60 variables.
+            // This ensures <10ms solve time per chunk.
+            const MAX_COMPONENT_SIZE = 50;
+
+            if (component.length > MAX_COMPONENT_SIZE) {
+                const results = this.solveLargeComponent(solver, visibleGrid, flags, component, MAX_COMPONENT_SIZE, width, height);
+                if (results.progress) {
+                    progress = true;
+                    // Deduplicate results carefully
+                    for (const s of results.safe) {
+                        if (!this.isSafeInList(allSafe, s)) allSafe.push(s);
+                    }
+                    for (const m of results.mines) {
+                        if (!this.isMineInList(allMines, m)) allMines.push(m);
+                    }
+                }
+            } else {
+                const result = this.solveComponent(solver, visibleGrid, flags, component, width, height);
+                if (result.progress) {
+                    progress = true;
+                    // Deduplicate
+                    for (const s of result.safe) {
+                        if (!this.isSafeInList(allSafe, s)) allSafe.push(s);
+                    }
+                    for (const m of result.mines) {
+                        if (!this.isMineInList(allMines, m)) allMines.push(m);
+                    }
+                }
+            }
+        }
+
+        return { progress, safe: allSafe, mines: allMines };
+    }
+
+    /**
+     * Optimized Component Search using a flat visited array.
+     * Avoids Map/Set allocations. O(N) where N is affected area size.
+     */
+    static getConnectedComponentsOptimized(solver, visibleGrid, frontier, width, height) {
+        const components = [];
+        // Flattened visited array: 0 = unvisited, 1 = visited
+        // Index = x * height + y (column-major to match visibleGrid[x][y]?) 
+        // Wait, cellKey(x,y) uses bit packing usually, but here we need array index.
+        // Let's use y * width + x for standard row-major, or x * height + y.
+        // visibleGrid is [x][y], so let's stick to that structure if easy.
+        // Actually, just use a 1D array of size width*height.
+        const visited = new Uint8Array(width * height);
+
+        // Mark all non-frontier cells as "visited" or just check frontier membership?
+        // Better: iterate frontier. If not visited, start BFS.
+
+        // To check quickly if a neighbor is in frontier, we need a lookup.
+        // Re-use the visited array? No, visited tracks BFS progress.
+        // We need a "isFrontier" lookup. 
+        // 0 = not frontier, 1 = in frontier, 2 = visited in BFS
+        const frontierMap = new Int32Array(width * height).fill(0);
+
+        for (const f of frontier) {
+            frontierMap[f.x * height + f.y] = 1; // Mark as frontier
+        }
+
+        for (const cell of frontier) {
+            const idx = cell.x * height + cell.y;
+            if (frontierMap[idx] === 2) continue; // Already visited
+
+            const component = [];
+            const queue = [cell];
+            frontierMap[idx] = 2; // Mark visited
+            component.push(cell);
+
+            // BFS
+            let head = 0;
+            while (head < queue.length) {
+                const current = queue[head++];
+
+                // Get clues adjacent to this hidden cell
+                const clues = solver.getCachedNeighbors(current.x, current.y);
+
+                for (const clue of clues) {
+                    if (visibleGrid[clue.x][clue.y] > 0) {
+                        // This neighbor is a clue. get its hidden neighbors.
+                        const hiddenNeighbors = solver.getCachedNeighbors(clue.x, clue.y);
+                        for (const hidden of hiddenNeighbors) {
+                            const hIdx = hidden.x * height + hidden.y;
+                            // Check if this hidden cell is in frontier and not visited
+                            if (frontierMap[hIdx] === 1) {
+                                frontierMap[hIdx] = 2; // Mark visited
+                                queue.push(hidden);
+                                component.push(hidden);
+                            }
+                        }
+                    }
+                }
+            }
+            components.push(component);
+        }
+
+        return components;
+    }
+
+    static solveLargeComponent(solver, visibleGrid, flags, bigComponent, windowSize, width, height) {
+        // Sort for spatial locality (row-major)
+        bigComponent.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+
+        let progress = false;
+        let safe = [];
+        let mines = [];
+
+        // Sliding window with overlap
+        const step = Math.floor(windowSize / 2);
+
+        for (let i = 0; i < bigComponent.length; i += step) {
+            const chunk = bigComponent.slice(i, i + windowSize);
+            if (chunk.length === 0) break;
+
+            const result = this.solveComponent(solver, visibleGrid, flags, chunk, width, height);
+
+            if (result.progress) {
+                progress = true;
+                for (const s of result.safe) {
+                    if (!this.isSafeInList(safe, s)) safe.push(s);
+                }
+                for (const m of result.mines) {
+                    if (!this.isMineInList(mines, m)) mines.push(m);
+                }
+            }
+        }
+
+        return { progress, safe, mines };
+    }
+
+    /**
+     * Solves a single connected component.
+     * Uses flat index mapping for O(1) variable lookup.
+     */
+    static solveComponent(solver, visibleGrid, flags, component, width, height) {
+        // 1. Identify Variables using Index Map
+        // Map (x,y) -> column index 0..N-1
+        // Use Int16Array for index map (allows up to 32k variables, plenty, and -1)
+        const varIndexMap = new Int16Array(width * height).fill(-1);
+        const variables = component; // Access via component[i]
+
+        for (let i = 0; i < component.length; i++) {
+            const cell = component[i];
+            varIndexMap[cell.x * height + cell.y] = i;
+        }
+
+        const numVars = component.length;
         if (numVars === 0) return { progress: false, safe: [], mines: [] };
 
         // 2. Identify Equations (Rows)
-        // Find all revealed numbered cells adjacent to the frontier
+        // Check only clues adjacent to at least one variable
+        // To avoid duplicates, track processed clues.
         const equations = [];
-        const processedClues = new Set();
+        // Bitset or array for processed clues?
+        // Clues are at (x,y). Use same flat index.
+        const processedClues = new Uint8Array(width * height); // 0 or 1
 
-        for (const cell of frontier) {
+        for (const cell of component) {
             const neighbors = solver.getCachedNeighbors(cell.x, cell.y);
             for (const n of neighbors) {
+                // n is a potential clue
                 const val = visibleGrid[n.x][n.y];
-                const key = solver.cellKey(n.x, n.y);
+                if (val > 0) {
+                    const clueIdx = n.x * height + n.y;
+                    if (processedClues[clueIdx] === 1) continue;
+                    processedClues[clueIdx] = 1;
 
-                if (val > 0 && !processedClues.has(key)) {
-                    processedClues.add(key);
-
-                    // Build equation for this clue
-                    const equation = {
-                        clueVal: val,
-                        neighbors: [],
-                        key: key
-                    };
+                    // Build equation
+                    const eqNeighbors = []; // indices of variables
+                    let flaggedCount = 0;
+                    let validEquation = true;
 
                     const clueNeighbors = solver.getCachedNeighbors(n.x, n.y);
-                    let flaggedCount = 0;
-
                     for (const cn of clueNeighbors) {
                         if (flags[cn.x][cn.y]) {
                             flaggedCount++;
                         } else if (visibleGrid[cn.x][cn.y] === -1) {
-                            // It's a hidden neighbor (variable)
-                            const varKey = solver.cellKey(cn.x, cn.y);
-                            if (variableMap.has(varKey)) {
-                                equation.neighbors.push(variableMap.get(varKey));
+                            // Is this hidden neighbor a variable in our system?
+                            const vIdx = varIndexMap[cn.x * height + cn.y];
+                            if (vIdx !== -1) {
+                                eqNeighbors.push(vIdx);
+                            } else {
+                                // Neighbor is hidden but NOT in our component/window.
+                                // We cannot use this clue accurately.
+                                validEquation = false;
+                                break;
                             }
                         }
                     }
 
-                    // Effective value = clue - confirmed mines
-                    equation.target = val - flaggedCount;
-                    equations.push(equation);
+                    if (validEquation) {
+                        equations.push({
+                            neighbors: eqNeighbors,
+                            target: val - flaggedCount
+                        });
+                    }
                 }
             }
         }
@@ -85,29 +231,27 @@ export class GaussianElimination {
         if (equations.length === 0) return { progress: false, safe: [], mines: [] };
 
         // 3. Construct Matrix
-        // Expanded matrix: [A | b] where A is coefficients, b is target values
-        // We use a Float32Array or simple array. Simple array of arrays is easier for now.
-        // matrix[row][col]
-
         const M = equations.length;
         const N = numVars;
-        const matrix = [];
 
+        // Flattened matrix M * (N+1)
+        // Or array of TypedArrays? Array of Float32Array is good.
+        // Or single Float32Array. Let's use Array of Float32Array for row swapping convenience.
+        const matrix = new Array(M);
         for (let i = 0; i < M; i++) {
-            const row = new Float32Array(N + 1); // +1 for the augmented constant column (b)
+            const row = new Float32Array(N + 1); // init 0
             const eq = equations[i];
-
-            for (const colIndex of eq.neighbors) {
-                row[colIndex] = 1;
+            for (let k = 0; k < eq.neighbors.length; k++) {
+                row[eq.neighbors[k]] = 1;
             }
             row[N] = eq.target;
-            matrix.push(row);
+            matrix[i] = row;
         }
 
-        // 4. Gaussian Elimination (RREF)
+        // 4. Gaussian Elimination
         this.computeRREF(matrix, M, N);
 
-        // 5. Reasoning / Deduction
+        // 5. Reasoning
         const safe = [];
         const mines = [];
         let progress = false;
@@ -115,116 +259,85 @@ export class GaussianElimination {
         for (let i = 0; i < M; i++) {
             const row = matrix[i];
 
-            // Collect variables with non-zero coefficients in this row
-            // In RREF (or near RREF), we look for rows where we can make a definitive statement.
-            // Since our vars are binary (0/1), we can deduce if:
-            // Sum(coeffs) == target (where coeffs are positive) -> All vars are 1
-            // Sum(|coeffs|) == 0 -> All vars are 0 (should be handled by standard RREF 0=0)
-            // 
-            // However, after Gaussian elimination, coefficients might be non-1 or negative.
-            // We need to interpret the linear combination.
-            //
-            // Simple approach for binary variables:
-            // Look for rows like: 1*A + 1*B ... = Target
-            // If Target == 0, then A=0, B=0...
-            // If Target == Sum of coeffs, then A=1, B=1...
-            //
-            // But with Gaussian elimination we might get partial rows.
-            // Actually, for Minesweeper, we can use a slightly more robust check:
-            // Calculate minimum possible sum and maximum possible sum for the row.
-            // minSum = sum of all negative coefficients (assuming those vars are 1)
-            // maxSum = sum of all positive coefficients (assuming those vars are 1)
-            //
-            // Wait, logic:
-            // Left side L = c1*x1 + c2*x2 ...
-            // We know x_i is in [0, 1].
-            // Minimal value of L is sum(c_i where c_i < 0)
-            // Maximal value of L is sum(c_i where c_i > 0)
-            // Target T must be achieved.
-            //
-            // If T == MinVal, then all vars with c_i < 0 MUST be 1, and all with c_i > 0 MUST be 0.
-            // If T == MaxVal, then all vars with c_i > 0 MUST be 1, and all with c_i < 0 MUST be 0.
-
+            // Optimization: check if row is empty/zero quickly?
+            // Just scan.
             let minVal = 0;
             let maxVal = 0;
-            const varsInRow = [];
+            // Collect vars with non-zero coeff
+            // We can reuse a pre-allocated array if we want, but local is fine for now.
+
+            // Actually, we need to scan the row to find coeffs
+            // For N=50, this loop is tiny.
+            let hasNonZero = false;
+            let target = row[N];
+
+            // Variables in this row
+            // We can store them as {index, coeff} objects or just iterate indices
+            const varsInRow = []; // indices
 
             for (let j = 0; j < N; j++) {
                 const coeff = row[j];
-                if (Math.abs(coeff) > 0.001) { // Floating point epsilon
-                    varsInRow.push({ index: j, coeff: coeff });
+                if (Math.abs(coeff) > 0.001) {
+                    hasNonZero = true;
                     if (coeff > 0) maxVal += coeff;
                     else minVal += coeff;
+                    varsInRow.push(j);
                 }
             }
 
-            const target = row[N];
+            if (!hasNonZero) continue;
 
-            // Check for inconsistencies (impossible configuration) - usually means assumption wrong, 
-            // but here we are just solving, so we assume valid board.
-
-            // Check lower bound exact match
             if (Math.abs(target - minVal) < 0.001) {
-                // To reach minimum value, all negative coeffs must be 1 (Mines), positive must be 0 (Safe)
-                for (const v of varsInRow) {
-                    const cell = variables[v.index];
-                    if (v.coeff < 0) {
-                        // Mine
+                // All negative coeffs are MINES, positive are SAFE
+                for (const idx of varsInRow) {
+                    const coeff = row[idx];
+                    const cell = variables[idx];
+                    if (coeff < 0) { // Mine
                         if (!this.isMineInList(mines, cell)) mines.push(cell);
-                    } else {
-                        // Safe
+                    } else { // Safe
                         if (!this.isSafeInList(safe, cell)) safe.push(cell);
                     }
                 }
-            }
-
-            // Check upper bound exact match
-            else if (Math.abs(target - maxVal) < 0.001) {
-                // To reach maximum value, all positive coeffs must be 1 (Mines), negative must be 0 (Safe)
-                for (const v of varsInRow) {
-                    const cell = variables[v.index];
-                    if (v.coeff > 0) {
-                        // Mine
+            } else if (Math.abs(target - maxVal) < 0.001) {
+                // All positive coeffs are MINES, negative are SAFE
+                for (const idx of varsInRow) {
+                    const coeff = row[idx];
+                    const cell = variables[idx];
+                    if (coeff > 0) { // Mine
                         if (!this.isMineInList(mines, cell)) mines.push(cell);
-                    } else {
-                        // Safe
+                    } else { // Safe
                         if (!this.isSafeInList(safe, cell)) safe.push(cell);
                     }
                 }
             }
         }
 
-        if (safe.length > 0 || mines.length > 0) {
-            progress = true;
-        }
-
+        if (safe.length > 0 || mines.length > 0) progress = true;
         return { progress, safe, mines };
     }
 
     static isMineInList(list, cell) {
-        // Simple linear scan is fine for small lists returned per batch
-        return list.some(c => c.x === cell.x && c.y === cell.y);
+        // With small lists, linear scan is fast.
+        // Can optimize using Set/Map but overhead might not be worth it for < 10 items.
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].x === cell.x && list[i].y === cell.y) return true;
+        }
+        return false;
     }
 
     static isSafeInList(list, cell) {
-        return list.some(c => c.x === cell.x && c.y === cell.y);
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].x === cell.x && list[i].y === cell.y) return true;
+        }
+        return false;
     }
 
-    /**
-     * Computes Reduced Row Echelon Form (RREF) in place.
-     * Uses Gaussian elimination with partial pivoting.
-     * 
-     * @param {Array<Float32Array>} matrix - Mx(N+1) augmented matrix
-     * @param {number} M - Rows
-     * @param {number} N - Columns (variables)
-     */
+    // Standard RREF (unchanged logic)
     static computeRREF(matrix, M, N) {
         let lead = 0;
         for (let r = 0; r < M; r++) {
             if (N <= lead) return;
-
             let i = r;
-            // Find pivot
             while (matrix[i][lead] === 0) {
                 i++;
                 if (M === i) {
@@ -233,34 +346,26 @@ export class GaussianElimination {
                     if (N === lead) return;
                 }
             }
-
-            // Swap rows i and r
             if (i !== r) {
                 const temp = matrix[i];
                 matrix[i] = matrix[r];
                 matrix[r] = temp;
             }
-
-            // Normalize pivot row
             let val = matrix[r][lead];
-            // If val is close to 0 (should be handled by while loop, but check epsilon)
             if (Math.abs(val) < 0.000001) {
                 lead++;
-                r--; // Retry this row with next column
+                r--;
                 continue;
             }
-
             for (let j = 0; j <= N; j++) {
                 matrix[r][j] /= val;
             }
-
-            // Eliminate other rows
-            for (let i = 0; i < M; i++) {
-                if (i !== r) {
-                    val = matrix[i][lead];
-                    if (Math.abs(val) > 0.000001) { // Only subtract if there's a coefficient
+            for (let k = 0; k < M; k++) {
+                if (k !== r) {
+                    val = matrix[k][lead];
+                    if (Math.abs(val) > 0.000001) {
                         for (let j = 0; j <= N; j++) {
-                            matrix[i][j] -= val * matrix[r][j];
+                            matrix[k][j] -= val * matrix[r][j];
                         }
                     }
                 }

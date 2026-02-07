@@ -4,8 +4,8 @@ import { MinesweeperSolver } from './MinesweeperSolver.js';
 const isBrowser = typeof window !== 'undefined';
 const storage = isBrowser ? localStorage : {
     getItem: () => null,
-    setItem: () => {},
-    removeItem: () => {}
+    setItem: () => { },
+    removeItem: () => { }
 };
 
 /**
@@ -103,7 +103,7 @@ export class MinesweeperGame {
             }
 
             // Yield to event loop every few attempts to keep UI responsive
-            if (attempts > 0 && attempts % 5 === 0) {
+            if (attempts > 0 && attempts % 10 === 0) {
                 if (onProgress) onProgress(attempts, maxAttempts);
                 await new Promise(resolve => setTimeout(resolve, 0));
             }

@@ -61,6 +61,7 @@ export class UIManager {
             if (this.multiplayerUI && this.multiplayerUI.connectionStatus === 'online') {
                 this.multiplayerUI.resetAfterGame();
             }
+            document.getElementById('loading-overlay').style.display = 'none';
             this.menuController.show();
             this.leaderboardController.loadScores();
         });

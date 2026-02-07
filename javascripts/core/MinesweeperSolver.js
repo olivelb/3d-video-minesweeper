@@ -231,24 +231,8 @@ export class MinesweeperSolver {
                 continue;
             }
 
-            // Strategy 3: Proof by contradiction (expensive - limit frontier size)
-            const contradictionResult = this.solveByContradiction(grid, visibleGrid, flags, width, height, flagCount);
-            // Strategy 3 (Contradiction) result check - unchanged
-            if (contradictionResult.progress) {
-                progress = true;
-                flagCount = contradictionResult.flagCount;
-                if (contradictionResult.changedCell) {
-                    const cc = contradictionResult.changedCell;
-                    dirtyCells.add(this.cellKey(cc.x, cc.y));
-                    for (const n of this.getCachedNeighbors(cc.x, cc.y)) {
-                        dirtyCells.add(this.cellKey(n.x, n.y));
-                    }
-                }
-                continue;
-            }
-
-            // Strategy 3.5: Gaussian Elimination (Matrix Solver)
-            // Solves complex coupled systems that subset logic misses
+            // Strategy 3: Gaussian Elimination (Matrix Solver) - MOVED UP
+            // Solves complex coupled systems that subset logic misses. Run before expensive contradiction checks.
             const gaussianResult = this.solveByGaussianElimination(grid, visibleGrid, flags, width, height, flagCount);
             if (gaussianResult.progress) {
                 progress = true;
@@ -256,6 +240,21 @@ export class MinesweeperSolver {
                 for (const cell of gaussianResult.changedCells || []) {
                     dirtyCells.add(this.cellKey(cell.x, cell.y));
                     for (const n of this.getCachedNeighbors(cell.x, cell.y)) {
+                        dirtyCells.add(this.cellKey(n.x, n.y));
+                    }
+                }
+                continue;
+            }
+
+            // Strategy 4: Proof by contradiction (expensive - limit frontier size)
+            const contradictionResult = this.solveByContradiction(grid, visibleGrid, flags, width, height, flagCount);
+            if (contradictionResult.progress) {
+                progress = true;
+                flagCount = contradictionResult.flagCount;
+                if (contradictionResult.changedCell) {
+                    const cc = contradictionResult.changedCell;
+                    dirtyCells.add(this.cellKey(cc.x, cc.y));
+                    for (const n of this.getCachedNeighbors(cc.x, cc.y)) {
                         dirtyCells.add(this.cellKey(n.x, n.y));
                     }
                 }
