@@ -1,6 +1,7 @@
 
 import { Events } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
+import { t } from '../i18n.js';
 
 export class MenuController {
     constructor(eventBus) {
@@ -72,7 +73,7 @@ export class MenuController {
                 item.classList.add('active');
                 this.selectedPresetValue = item.dataset.value;
                 this.customVideoUrl = null;
-                this.videoFilename.textContent = 'Utilise le préréglage ci-dessus';
+                this.videoFilename.textContent = t('menu.uploadPlaceholder');
             });
         });
 
@@ -91,17 +92,21 @@ export class MenuController {
         presetContainer.className = 'difficulty-presets';
 
         const presets = [
-            { name: 'Débutant', width: 9, height: 9, bombs: 10 },
-            { name: 'Intermédiaire', width: 16, height: 16, bombs: 40 },
-            { name: 'Expert', width: 30, height: 16, bombs: 99 },
-            { name: 'Géant', width: 50, height: 30, bombs: 250 }
+            { key: 'diff.beginner', width: 9, height: 9, bombs: 10 },
+            { key: 'diff.intermediate', width: 16, height: 16, bombs: 40 },
+            { key: 'diff.expert', width: 30, height: 16, bombs: 99 },
+            { key: 'diff.giant', width: 50, height: 30, bombs: 250 }
         ];
 
         presets.forEach(preset => {
             const btn = document.createElement('button');
             btn.className = 'preset-btn';
-            btn.textContent = preset.name;
-            btn.title = `${preset.width}×${preset.height}, ${preset.bombs} bombes`;
+            btn.dataset.i18n = preset.key;
+            btn.textContent = t(preset.key);
+            btn.dataset.presetW = preset.width;
+            btn.dataset.presetH = preset.height;
+            btn.dataset.presetB = preset.bombs;
+            btn.title = t('diff.tooltip', { w: preset.width, h: preset.height, b: preset.bombs });
             btn.onclick = () => {
                 this.widthInput.value = preset.width;
                 this.heightInput.value = preset.height;
@@ -113,6 +118,17 @@ export class MenuController {
         });
 
         container.after(presetContainer);
+
+        // Update preset tooltips on language change
+        window.addEventListener('langchange', () => {
+            presetContainer.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.title = t('diff.tooltip', {
+                    w: btn.dataset.presetW,
+                    h: btn.dataset.presetH,
+                    b: btn.dataset.presetB
+                });
+            });
+        });
     }
 
     checkReplayAvailable() {
@@ -137,7 +153,7 @@ export class MenuController {
         const playerDisplay = document.createElement('p');
         playerDisplay.id = 'player-info-display';
         playerDisplay.style.cssText = 'margin-top: 5px; font-size: 0.8em; opacity: 0.8;';
-        playerDisplay.innerHTML = `👤 Joueur: ${playerName}`;
+        playerDisplay.innerHTML = `👤 ${t('hud.player', { name: playerName })}`;
         playerInfo.after(playerDisplay);
     }
 
@@ -338,7 +354,9 @@ export class MenuController {
 
     toggleMute() {
         this.isMuted = !this.isMuted;
-        this.muteBtn.textContent = this.isMuted ? '🔇 OFF' : '🔊 ON';
+        const key = this.isMuted ? 'hud.muteOff' : 'hud.muteOn';
+        this.muteBtn.textContent = t(key);
+        this.muteBtn.dataset.i18n = key;
 
         if (this.videoElement) {
             this.videoElement.muted = this.isMuted;
@@ -359,7 +377,9 @@ export class MenuController {
 
     updateFlagStyleButton() {
         if (this.flagStyleBtn) {
-            this.flagStyleBtn.textContent = this.currentFlagStyle === 'particle' ? '⭐ ÉTOILES' : '🚩 DRAPEAUX';
+            const key = this.currentFlagStyle === 'particle' ? 'hud.flagStars' : 'hud.flagFlags';
+            this.flagStyleBtn.textContent = t(key);
+            this.flagStyleBtn.dataset.i18n = key;
         }
     }
 

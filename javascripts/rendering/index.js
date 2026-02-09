@@ -11,6 +11,6 @@ export { CameraController } from './CameraController.js';
 export { TextureManager } from './TextureManager.js';
 export { GridManager } from './GridManager.js';
 export { FlagManager } from './FlagManager.js';
-export { InputHandler } from './InputHandler.js';
+export { InputManager } from './InputManager.js';
 export { EndGameEffects } from './EndGameEffects.js';
 export { ParticleSystem } from './ParticleSystem.js';

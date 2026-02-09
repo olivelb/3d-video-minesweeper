@@ -1,5 +1,5 @@
 
-import { GaussianElimination } from './GaussianElimination.js';
+import { GaussianElimination } from '../../shared/GaussianElimination.js';
 
 // Mock Solver
 const MockSolver = {

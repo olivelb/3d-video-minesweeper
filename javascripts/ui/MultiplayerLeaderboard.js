@@ -5,6 +5,8 @@
  * Styled to match the solo leaderboard for consistent UI.
  */
 
+import { t } from '../i18n.js';
+
 export class MultiplayerLeaderboard {
     /**
      * @param {string} serverUrl - Base URL of the multiplayer server
@@ -19,6 +21,11 @@ export class MultiplayerLeaderboard {
         this.statsModal = null;
         this.isServerOnline = false;
         this._createElements();
+
+        // Re-load data when language changes (for parameterized text)
+        window.addEventListener('langchange', () => {
+            if (this.isServerOnline) this.refresh();
+        });
     }
 
     /**
@@ -31,16 +38,16 @@ export class MultiplayerLeaderboard {
         this.container.id = 'mp-leaderboard';
         this.container.className = 'leaderboard-box mp-leaderboard hidden';
         this.container.innerHTML = `
-            <h2>🎮 Multijoueur</h2>
+            <h2 data-i18n="mlb.title">${t('mlb.title')}</h2>
             <div class="mp-tabs">
-                <button class="mp-tab-btn active" data-sort="wins">Victoires</button>
-                <button class="mp-tab-btn" data-sort="score">Score</button>
-                <button class="mp-tab-btn" data-sort="bestScore">Record</button>
+                <button class="mp-tab-btn active" data-sort="wins" data-i18n="mlb.tabWins">${t('mlb.tabWins')}</button>
+                <button class="mp-tab-btn" data-sort="score" data-i18n="mlb.tabScore">${t('mlb.tabScore')}</button>
+                <button class="mp-tab-btn" data-sort="bestScore" data-i18n="mlb.tabRecord">${t('mlb.tabRecord')}</button>
             </div>
             <div id="mp-leaderboard-list">
-                <p class="no-scores">Chargement...</p>
+                <p class="no-scores" data-i18n="mlb.loading">${t('mlb.loading')}</p>
             </div>
-            <button class="mp-recent-btn">📜 Parties récentes</button>
+            <button class="mp-recent-btn" data-i18n="mlb.recentGames">${t('mlb.recentGames')}</button>
         `;
 
         // Stats modal for detailed player info
@@ -50,7 +57,7 @@ export class MultiplayerLeaderboard {
         this.statsModal.innerHTML = `
             <div class="mp-stats-content">
                 <button class="mp-close-btn">&times;</button>
-                <h2 class="mp-stats-title">Statistiques</h2>
+                <h2 class="mp-stats-title" data-i18n="mlb.stats">${t('mlb.stats')}</h2>
                 <div class="mp-stats-body">
                     <!-- Filled dynamically -->
                 </div>
@@ -464,18 +471,18 @@ export class MultiplayerLeaderboard {
      */
     async loadLeaderboard(sortBy = 'wins') {
         const list = this.container.querySelector('#mp-leaderboard-list');
-        list.innerHTML = '<p class="mp-loading">Chargement...</p>';
+        list.innerHTML = '<p class="mp-loading">' + t('mlb.loading') + '</p>';
 
         try {
             const response = await fetch(`${this.serverUrl}/api/leaderboard?sortBy=${sortBy}&limit=10`);
             const data = await response.json();
 
             if (!data.success) {
-                throw new Error(data.error || 'Erreur serveur');
+                throw new Error(data.error || t('mlb.serverError'));
             }
 
             if (data.leaderboard.length === 0) {
-                list.innerHTML = '<p class="no-scores">Aucune partie enregistrée</p>';
+                list.innerHTML = '<p class="no-scores">' + t('mlb.noGames') + '</p>';
                 return;
             }
 
@@ -484,7 +491,7 @@ export class MultiplayerLeaderboard {
                     <span class="mp-score-rank rank-${i + 1}">${i + 1}</span>
                     <div class="mp-score-info">
                         <div class="mp-score-name">${this._escapeHtml(p.name)}</div>
-                        <div class="mp-score-details">${p.wins}V / ${p.gamesPlayed} parties · ${p.winRate}%</div>
+                        <div class="mp-score-details">${t('mlb.winsDetail', { wins: p.wins, games: p.gamesPlayed, rate: p.winRate })}</div>
                     </div>
                     <span class="mp-score-value">${this._formatMainStat(p, sortBy)}</span>
                 </div>
@@ -499,7 +506,7 @@ export class MultiplayerLeaderboard {
 
         } catch (err) {
             console.error('[MultiplayerLeaderboard] Load error:', err);
-            list.innerHTML = `<p class="mp-error">Erreur: ${err.message}</p>`;
+            list.innerHTML = `<p class="mp-error">${err.message}</p>`;
         }
     }
 
@@ -522,7 +529,7 @@ export class MultiplayerLeaderboard {
      */
     async showPlayerStats(playerName) {
         const body = this.statsModal.querySelector('.mp-stats-body');
-        body.innerHTML = '<p class="mp-loading">Chargement...</p>';
+        body.innerHTML = '<p class="mp-loading">' + t('mlb.loading') + '</p>';
         this.statsModal.querySelector('.mp-stats-title').textContent = playerName;
         this.statsModal.classList.remove('hidden');
 
@@ -531,65 +538,65 @@ export class MultiplayerLeaderboard {
             const data = await response.json();
 
             if (!data.success) {
-                throw new Error(data.error || 'Joueur non trouvé');
+                throw new Error(data.error || t('mlb.playerNotFound'));
             }
 
             const s = data.stats;
             body.innerHTML = `
                 <div class="mp-stats-section">
-                    <h4>Performance</h4>
+                    <h4>${t('mlb.sectionPerf')}</h4>
                     <div class="mp-stats-grid">
                         <div class="mp-stat-box highlight">
                             <div class="value">${s.wins}</div>
-                            <div class="label">Victoires</div>
+                            <div class="label">${t('mlb.wins')}</div>
                         </div>
                         <div class="mp-stat-box">
                             <div class="value">${s.gamesPlayed}</div>
-                            <div class="label">Parties</div>
+                            <div class="label">${t('mlb.games')}</div>
                         </div>
                         <div class="mp-stat-box">
                             <div class="value">${s.winRate}%</div>
-                            <div class="label">Win Rate</div>
+                            <div class="label">${t('mlb.winRate')}</div>
                         </div>
                     </div>
                 </div>
                 <div class="mp-stats-section">
-                    <h4>Scores</h4>
+                    <h4>${t('mlb.sectionScores')}</h4>
                     <div class="mp-stats-grid">
                         <div class="mp-stat-box highlight">
                             <div class="value">${s.bestScore.toLocaleString()}</div>
-                            <div class="label">Record</div>
+                            <div class="label">${t('mlb.record')}</div>
                         </div>
                         <div class="mp-stat-box">
                             <div class="value">${s.avgScore.toLocaleString()}</div>
-                            <div class="label">Moyenne</div>
+                            <div class="label">${t('mlb.average')}</div>
                         </div>
                         <div class="mp-stat-box">
                             <div class="value">${s.totalScore.toLocaleString()}</div>
-                            <div class="label">Total</div>
+                            <div class="label">${t('mlb.total')}</div>
                         </div>
                     </div>
                 </div>
                 <div class="mp-stats-section">
-                    <h4>Statistiques</h4>
+                    <h4>${t('mlb.sectionStats')}</h4>
                     <div class="mp-stats-grid">
                         <div class="mp-stat-box">
                             <div class="value">${s.cellsRevealed.toLocaleString()}</div>
-                            <div class="label">Cellules</div>
+                            <div class="label">${t('mlb.cells')}</div>
                         </div>
                         <div class="mp-stat-box">
                             <div class="value">${s.correctFlags}</div>
-                            <div class="label">Drapeaux ✓</div>
+                            <div class="label">${t('mlb.correctFlags')}</div>
                         </div>
                         <div class="mp-stat-box">
                             <div class="value">${s.timesEliminated}</div>
-                            <div class="label">💀 Éliminé</div>
+                            <div class="label">${t('mlb.eliminated')}</div>
                         </div>
                     </div>
                 </div>
                 ${s.recentGames?.length > 0 ? `
                 <div class="mp-stats-section">
-                    <h4>Parties récentes</h4>
+                    <h4>${t('mlb.recentSection')}</h4>
                     <div class="mp-recent-list">
                         ${s.recentGames.map(g => `
                             <div class="mp-recent-item">
@@ -611,7 +618,7 @@ export class MultiplayerLeaderboard {
 
         } catch (err) {
             console.error('[MultiplayerLeaderboard] Stats error:', err);
-            body.innerHTML = `<p class="mp-error">Erreur: ${err.message}</p>`;
+            body.innerHTML = `<p class="mp-error">${err.message}</p>`;
         }
     }
 
@@ -620,8 +627,8 @@ export class MultiplayerLeaderboard {
      */
     async showRecentGames() {
         const body = this.statsModal.querySelector('.mp-stats-body');
-        body.innerHTML = '<p class="mp-loading">Chargement...</p>';
-        this.statsModal.querySelector('.mp-stats-title').textContent = '📜 Parties Récentes';
+        body.innerHTML = '<p class="mp-loading">' + t('mlb.loading') + '</p>';
+        this.statsModal.querySelector('.mp-stats-title').textContent = t('mlb.recentGamesTitle');
         this.statsModal.classList.remove('hidden');
 
         try {
@@ -629,11 +636,11 @@ export class MultiplayerLeaderboard {
             const data = await response.json();
 
             if (!data.success) {
-                throw new Error(data.error || 'Erreur serveur');
+                throw new Error(data.error || t('mlb.serverError'));
             }
 
             if (data.games.length === 0) {
-                body.innerHTML = '<p class="no-scores">Aucune partie enregistrée</p>';
+                body.innerHTML = '<p class="no-scores">' + t('mlb.noGames') + '</p>';
                 return;
             }
 
@@ -659,7 +666,7 @@ export class MultiplayerLeaderboard {
 
         } catch (err) {
             console.error('[MultiplayerLeaderboard] Recent games error:', err);
-            body.innerHTML = `<p class="mp-error">Erreur: ${err.message}</p>`;
+            body.innerHTML = `<p class="mp-error">${err.message}</p>`;
         }
     }
 

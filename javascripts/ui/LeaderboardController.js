@@ -7,6 +7,8 @@
  * @module LeaderboardController
  */
 
+import { t, getLocale } from '../i18n.js';
+
 /**
  * Default difficulty configurations
  * @constant
@@ -102,14 +104,14 @@ export class LeaderboardController {
         this.currentFilter = difficulty;
 
         if (!this.scoreManager) {
-            this._renderEmpty('Score manager non disponible');
+            this._renderEmpty(t('lb.noScoreManager'));
             return;
         }
 
         const scores = this.scoreManager.getScores(difficulty);
 
         if (!scores || scores.length === 0) {
-            this._renderEmpty('Aucun score enregistré');
+            this._renderEmpty(t('lb.empty'));
             return;
         }
 
@@ -199,7 +201,7 @@ export class LeaderboardController {
 
         try {
             const d = new Date(date);
-            return d.toLocaleDateString('fr-FR', {
+            return d.toLocaleDateString(getLocale(), {
                 day: '2-digit',
                 month: '2-digit',
                 year: '2-digit'
@@ -250,10 +252,10 @@ export class LeaderboardController {
      */
     _getDifficultyLabel(difficulty) {
         const labels = {
-            easy: 'Facile',
-            medium: 'Moyen',
-            hard: 'Difficile',
-            custom: 'Personnalisé'
+            easy: t('lb.easy'),
+            medium: t('lb.medium'),
+            hard: t('lb.hard'),
+            custom: t('lb.custom')
         };
         return labels[difficulty] || difficulty;
     }
@@ -275,7 +277,7 @@ export class LeaderboardController {
      * @private
      */
     _confirmClearScores() {
-        const confirmed = confirm('Êtes-vous sûr de vouloir supprimer tous les scores ?');
+        const confirmed = confirm(t('lb.clearConfirm'));
 
         if (confirmed && this.scoreManager) {
             this.scoreManager.clearAllScores();

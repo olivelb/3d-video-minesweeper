@@ -1,4 +1,4 @@
-import { MinesweeperSolver } from './MinesweeperSolver.js';
+import { MinesweeperSolver } from '../shared/MinesweeperSolver.js';
 
 // Environment detection
 const isBrowser = typeof window !== 'undefined';

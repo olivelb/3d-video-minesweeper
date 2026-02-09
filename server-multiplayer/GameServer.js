@@ -39,9 +39,12 @@ export class GameServer {
             return { success: false, error: 'Already joined' };
         }
 
+        // Sanitize player name to prevent XSS and injection
+        const sanitizedName = GameServer.sanitizeName(playerName);
+
         const playerNumber = this.players.size + 1;
         this.players.set(playerId, {
-            name: playerName,
+            name: sanitizedName,
             number: playerNumber,
             connected: true,
             eliminated: false,
@@ -142,6 +145,17 @@ export class GameServer {
 
         const player = this.players.get(playerId);
         const { type, x, y } = action;
+
+        // === INPUT VALIDATION ===
+        if (type !== 'reveal' && type !== 'flag') {
+            return { success: false, error: 'Invalid action type' };
+        }
+        if (!Number.isInteger(x) || !Number.isInteger(y)) {
+            return { success: false, error: 'Coordinates must be integers' };
+        }
+        if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+            return { success: false, error: 'Coordinates out of bounds' };
+        }
 
         let result;
         let firstClickMines = null;
@@ -409,6 +423,24 @@ export class GameServer {
         TIME_BONUS_MAX: 300,     // Max time bonus (at 0 seconds)
         TIME_BONUS_DURATION: 300 // Seconds until time bonus reaches 0
     };
+
+    /**
+     * Sanitize a player name to prevent XSS and injection attacks.
+     * Strips HTML tags, limits length, and removes control characters.
+     * @param {string} name - Raw player name
+     * @returns {string} Sanitized name
+     */
+    static sanitizeName(name) {
+        if (typeof name !== 'string') return 'Joueur';
+        // Strip HTML tags
+        let clean = name.replace(/<[^>]*>/g, '');
+        // Remove control characters
+        clean = clean.replace(/[\x00-\x1F\x7F]/g, '');
+        // Trim and limit length
+        clean = clean.trim().substring(0, 30);
+        // Fallback if empty
+        return clean || 'Joueur';
+    }
 
     /**
      * Update player stats when cells are revealed

@@ -1,6 +1,6 @@
 # État du Multijoueur Compétitif - Session de Dev
 
-**Dernière mise à jour**: 6 Février 2026  
+**Dernière mise à jour**: 9 Février 2026  
 **Serveur**: Raspberry Pi `raspberrol` @ `your-pi-ip:3001`  
 **Déploiement**: PM2 (minesweeper-multiplayer)
 
@@ -63,6 +63,7 @@
 
 ## Notes Techniques
 
-- **Headless-logic** : Le moteur de jeu est partagé entre client et serveur (`javascripts/logic/Game.js`).
+- **Shared Solvers** : Les algorithmes de résolution (MinesweeperSolver, GaussianElimination) sont dans `shared/` et importés par le client et le serveur.
 - **Shared States** : Les positions des mines sont générées côté serveur pour garantir l'équité.
 - **Autorité** : Le serveur maintient la "visibleGrid" réelle pour prévenir la triche.
+- **Sécurité Serveur** : Validation des entrées, sanitization des noms, et rate limiting (10 actions/s, 30 curseurs/s).

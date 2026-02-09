@@ -11,6 +11,27 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
     const socketToPlayer = new Map(); // socketId -> { id, name, number }
     const MAX_LOBBY_SIZE = 8;
 
+    // === RATE LIMITING ===
+    const rateLimits = new Map(); // socketId -> { actions: number, lastReset: number, cursorCount: number }
+    const RATE_LIMIT_ACTIONS = 10;   // Max actions per second
+    const RATE_LIMIT_CURSORS = 30;   // Max cursor updates per second
+    const RATE_LIMIT_WINDOW = 1000;  // 1 second window
+
+    function checkRateLimit(socketId, type = 'actions') {
+        const now = Date.now();
+        let limits = rateLimits.get(socketId);
+        if (!limits || now - limits.lastReset > RATE_LIMIT_WINDOW) {
+            limits = { actions: 0, lastReset: now, cursorCount: 0 };
+            rateLimits.set(socketId, limits);
+        }
+        if (type === 'cursor') {
+            limits.cursorCount++;
+            return limits.cursorCount <= RATE_LIMIT_CURSORS;
+        }
+        limits.actions++;
+        return limits.actions <= RATE_LIMIT_ACTIONS;
+    }
+
     // Wire up broadcasting
     function setupBroadcasting(gs) {
         gs.onBroadcast = (event, data, excludePlayerId) => {
@@ -225,6 +246,10 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         }
 
         socket.on('action', async (action) => {
+            if (!checkRateLimit(socket.id, 'actions')) {
+                socket.emit('error', { message: 'Rate limit exceeded' });
+                return;
+            }
             console.log('[GameServer] Action received:', action, 'from socket:', socket.id);
             if (!gameServer) {
                 console.log('[GameServer] No game server, ignoring action');
@@ -269,6 +294,7 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         });
 
         socket.on('cursor', ({ x, y }) => {
+            if (!checkRateLimit(socket.id, 'cursor')) return;
             if (!gameServer) return;
             const player = socketToPlayer.get(socket.id);
             if (player) {
@@ -277,6 +303,7 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         });
 
         socket.on('disconnect', () => {
+            rateLimits.delete(socket.id);
             const player = socketToPlayer.get(socket.id);
             if (player) {
                 console.log(`[GameServer] Player ${player.number} disconnected: ${player.name} (eliminated: ${player.eliminated || false})`);

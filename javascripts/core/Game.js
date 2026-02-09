@@ -1,7 +1,14 @@
-import { MinesweeperSolver } from './MinesweeperSolver.js';
+import { MinesweeperSolver } from '../../shared/MinesweeperSolver.js';
 
 // Environment detection
 const isBrowser = typeof window !== 'undefined';
+
+// Lazy i18n import for browser only
+let _t = null;
+if (isBrowser) {
+    import('../i18n.js').then(m => { _t = m.t; }).catch(() => {});
+}
+
 const storage = isBrowser ? localStorage : {
     getItem: () => null,
     setItem: () => { },
@@ -202,9 +209,14 @@ export class MinesweeperGame {
 
             // If user stopped or limit reached, we still play but with a warning
             if (success.cancelled || success.warning) {
-                const reason = success.cancelled ? "interrompue" : "limitée à 10000 essais";
+                const reason = success.cancelled
+                    ? (_t ? _t('game.genCancelled') : 'interrompue')
+                    : (_t ? _t('game.genLimited', { max: 10000 }) : 'limitée à 10000 essais');
                 if (isBrowser && typeof alert === 'function') {
-                    alert(`Note : La génération a été ${reason}. La grille n'est pas garantie 100% logique.`);
+                    const msg = _t
+                        ? _t('game.genFailed', { reason })
+                        : `Note : La génération a été ${reason}. La grille n'est pas garantie 100% logique.`;
+                    alert(msg);
                 }
                 // In headless mode, just log it
                 if (typeof Logger !== 'undefined') {

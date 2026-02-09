@@ -7,4 +7,4 @@
  */
 
 export { MinesweeperGame } from './Game.js';
-export { MinesweeperSolver } from './MinesweeperSolver.js';
+export { MinesweeperSolver } from '../../shared/MinesweeperSolver.js';

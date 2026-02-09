@@ -88,6 +88,41 @@ body::before {
     }
 }
 
+/* Language Switcher */
+.lang-switcher {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    display: flex;
+    gap: 4px;
+    z-index: 2;
+}
+
+.lang-btn {
+    padding: 4px 10px;
+    font-size: 0.75em;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    font-family: inherit;
+    letter-spacing: 0.5px;
+}
+
+.lang-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.lang-btn.active {
+    background: rgba(79, 172, 254, 0.25);
+    border-color: rgba(79, 172, 254, 0.5);
+    color: #4facfe;
+}
+
 .menu-box {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(25px);
@@ -99,7 +134,7 @@ body::before {
         0 25px 50px -12px rgba(0, 0, 0, 0.5),
         inset 0 1px 1px rgba(255, 255, 255, 0.2);
     text-align: center;
-    width: 540px;
+    width: min(540px, 92vw);
     max-height: 90vh;
     overflow-y: auto;
     animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
@@ -488,12 +523,44 @@ body::before {
     }
 }
 
+@media (max-width: 768px) {
+    .menu-box {
+        width: 95%;
+        max-width: 540px;
+        padding: 24px 20px;
+    }
+
+    #ui-container {
+        top: 10px;
+        left: 10px;
+        padding: 14px 18px;
+        border-radius: 14px;
+    }
+
+    #ui-container h1 {
+        font-size: 1.2em;
+    }
+
+    .preset-grid {
+        grid-template-columns: repeat(5, 1fr) !important;
+        gap: 6px !important;
+    }
+
+    .preset-item span {
+        font-size: 0.65em !important;
+    }
+}
+
 @media (max-width: 600px) {
 
     .menu-box,
     .leaderboard-box {
         width: 95%;
-        padding: 20px;
+        padding: 18px 14px;
+    }
+
+    .menu-box h2 {
+        font-size: 1.4em;
     }
 
     .difficulty-presets {
@@ -519,6 +586,18 @@ body::before {
         width: 100%;
     }
 
+    #ui-container {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        padding: 10px 14px;
+        font-size: 0.85em;
+    }
+
+    #ui-container h1 {
+        font-size: 1.1em;
+    }
+
     #timer-display {
         font-size: 1em;
         padding: 10px 20px;
@@ -530,6 +609,21 @@ body::before {
         padding: 10px 20px;
         min-width: 140px;
         top: 75px;
+    }
+
+    .preset-grid {
+        grid-template-columns: repeat(5, 1fr) !important;
+        gap: 4px !important;
+    }
+
+    .lang-switcher {
+        top: 10px;
+        right: 10px;
+    }
+
+    .lang-btn {
+        padding: 3px 8px;
+        font-size: 0.7em;
     }
 }
 
@@ -987,11 +1081,7 @@ body::before {
 }
 
 #mute-btn {
-    position: absolute;
-    top: 12px;
-    right: 25px;
-    margin-top: 0;
-    z-index: 1000;
+    margin-left: 10px;
 }
 
 #flag-style-btn {

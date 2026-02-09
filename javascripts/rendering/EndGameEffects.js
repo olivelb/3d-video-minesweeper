@@ -11,6 +11,7 @@
 
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { t } from '../i18n.js';
 
 /**
  * Configuration for end game effects
@@ -109,7 +110,7 @@ export class EndGameEffects {
      * Trigger win effects
      */
     triggerWin() {
-        this.showText('BRAVO', 0x00ff00);
+        this.showText(t('game.win'), 0x00ff00);
         this._createFireworks();
     }
 
@@ -117,7 +118,7 @@ export class EndGameEffects {
      * Trigger loss effects
      */
     triggerLoss() {
-        this.showText('PERDU', 0xff0000);
+        this.showText(t('game.loss'), 0xff0000);
     }
 
     /**

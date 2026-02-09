@@ -1,9 +1,9 @@
 # 🏗️ Technical Architecture & Module Hierarchy
 
-> **Version:** 2.0 (Feb 2026)
-> **Status:** Active Refactoring
+> **Version:** 3.0 (Feb 2026)
+> **Status:** Active
 
-This document provides a technical overview of the **3D Video Minesweeper** codebase, its module hierarchy, and data flow.
+This document provides a technical overview of the **3D Minesweeper** codebase, its module hierarchy, and data flow.
 
 ---
 
@@ -32,18 +32,24 @@ Detailed lifecycle of a multiplayer session.
 ### 1. Core (`javascripts/core/`)
 *   **`GameController.js`**: The central orchestrator. It connects the Game Logic, UI, Renderer, and Network via **EventBus**. It listens for `CELL_INTERACTION` and `NET_*` events to drive the game state.
 *   **`Game.js`**: Pure game logic (Grid state, Rules, Win/Loss conditions). No DOM/WebGL references.
-*   **`EventBus.js`**: Pub/Sub system for decoupled communication (e.g., `Events.GAME_OVER`, `Events.NET_GAME_START`).
+*   **`EventBus.js`**: Pub/Sub system for decoupled communication (e.g., `Events.GAME_OVER`, `Events.NET_GAME_START`). Includes try/catch error isolation in `emit()` to prevent one bad listener from crashing others.
+
+### 1b. Shared (`shared/`)
+*   **`MinesweeperSolver.js`**: Multi-strategy deterministic solver (Basic Rules → Subset Logic → Gaussian Elimination → Proof by Contradiction → Tank Solver → Global Mine Count). Used by both client (hint system) and server (No-Guess grid generation).
+*   **`GaussianElimination.js`**: Optimized matrix solver using flat `Int32Array` lookups and component windowing.
 
 ### 2. Rendering (`javascripts/rendering/`)
-*   **`Renderer.js`**: The Three.js entry point. Manages the Scene, Camera, and Loop.
-    *   *Refactoring Note*: Still contains some legacy logic for Grid creation that should be moved to `GridManager`.
-*   **`GridManager.js`**: Handles the logic for the 3D Grid (`InstancedMesh`), cell visibility, and hover effects.
+*   **`Renderer.js`**: The Three.js entry point (~370 lines). Manages Scene, WebGLRenderer, and animation loop. **Delegates** all domain logic to managers:
+    *   **`GridManager.js`**: Handles the 3D Grid (`InstancedMesh`), cell visibility, hover effects, and bomb textures.
+    *   **`FlagManager.js`**: Manages 3D Flag instances and particle effects for flags.
+    *   **`CameraController.js`**: Camera positioning, orbit controls, intro animation, and zoom-to-board.
+    *   **`EndGameEffects.js`**: Victory/defeat text billboards, confetti, and auto-return timer.
 *   **`InputManager.js`**: Handles Raycasting. **Decoupled**: Emits `CELL_INTERACTION` events instead of calling logic directly.
-*   **`MediaTextureManager.js`**: Manages loading of Textures, Videos, and Fonts.
-*   **`FlagManager.js`**: Manages 3D Flag instances and particle effects for flags.
+*   **`MediaTextureManager.js`**: Manages loading of Textures, Fonts, and media resources.
+*   **`ParticleSystem.js`**: Flag particles, fireworks, and explosion effects. Uses reusable `_tempColor` to minimize GC pressure.
 
 ### 3. Managers (`javascripts/managers/`)
-*   **`ScoreManager.js`**: complex logic for Scoring, High Scores (LocalStorage), and **Click Analytics**.
+*   **`ScoreManager.js`**: Scoring, High Scores (LocalStorage), and Click Analytics.
 *   **`UIManager.js`**: Manages HTML overlays (Menu, HUD, Modals) and DOM event listeners.
 
 ### 4. Network (`javascripts/network/`)
@@ -73,13 +79,11 @@ Detailed lifecycle of a multiplayer session.
 
 ## 🛠 Technical Debt & Future Refactoring
 
-### 1. Grid Logic Split
-Currently, the responsibility for the Grid is split between `Renderer.js` (initial creation) and `GridManager.js` (updates).
-*   **Goal**: Move ALL grid instantiation and management into `GridManager.js`.
-
-### 2. Renderer size
-`Renderer.js` is large (>1000 lines).
-*   **Goal**: Extract `SceneSetup` (Lights, Camera, Skybox) into a helper class.
-
-### 3. TypeScript
+### 1. TypeScript
 The project uses extensive JSDoc, but migrating to TypeScript would strictly enforce the interfaces between `GameController` and its Sub-Managers.
+
+### 2. TextureManager Consolidation
+`MediaTextureManager.js` and `TextureManager.js` have overlapping responsibilities. They should be merged into a single unified texture loading pipeline.
+
+### 3. HUD Overlay System
+`HUDController.js` could be expanded into a proper overlay rendering system for real-time game stats.

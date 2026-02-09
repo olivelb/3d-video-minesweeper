@@ -5,6 +5,8 @@
  * and shows final results at game end.
  */
 
+import { t } from '../i18n.js';
+
 export class Scoreboard {
     constructor() {
         this.container = null;
@@ -26,7 +28,7 @@ export class Scoreboard {
         this.container.className = 'scoreboard hidden';
         this.container.innerHTML = `
             <div class="scoreboard-header">
-                <span class="scoreboard-title">🏆 Scores</span>
+                <span class="scoreboard-title" data-i18n="sb.title">${t('sb.title')}</span>
             </div>
             <div class="scoreboard-players"></div>
         `;
@@ -39,25 +41,25 @@ export class Scoreboard {
         this.resultsModal.innerHTML = `
             <div class="results-content">
                 <div class="results-header">
-                    <h2 class="results-title">Partie Terminée</h2>
+                    <h2 class="results-title" data-i18n="sb.resultsTitle">${t('sb.resultsTitle')}</h2>
                     <div class="results-winner"></div>
                 </div>
                 <div class="results-table-container">
                     <table class="results-table">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Joueur</th>
-                                <th>Score</th>
-                                <th>Cellules</th>
-                                <th>Drapeaux ✓</th>
+                                <th data-i18n="sb.rank">${t('sb.rank')}</th>
+                                <th data-i18n="sb.player">${t('sb.player')}</th>
+                                <th data-i18n="sb.score">${t('sb.score')}</th>
+                                <th data-i18n="sb.cells">${t('sb.cells')}</th>
+                                <th data-i18n="sb.flags">${t('sb.flags')}</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
                     </table>
                 </div>
                 <div class="results-actions">
-                    <button class="results-btn" id="results-menu-btn">Menu</button>
+                    <button class="results-btn" id="results-menu-btn" data-i18n="sb.menuBtn">${t('sb.menuBtn')}</button>
                 </div>
             </div>
         `;
@@ -473,13 +475,13 @@ export class Scoreboard {
         const winnerDiv = this.resultsModal.querySelector('.results-winner');
         if (victory && winnerName) {
             winnerDiv.className = 'results-winner';
-            winnerDiv.innerHTML = `🏆 ${this._escapeHtml(winnerName)} gagne!`;
+            winnerDiv.innerHTML = t('sb.winner', { name: this._escapeHtml(winnerName) });
         } else if (reason === 'allEliminated') {
             winnerDiv.className = 'results-winner defeat';
-            winnerDiv.innerHTML = `💀 Tous éliminés!`;
+            winnerDiv.innerHTML = t('sb.allEliminated');
         } else {
             winnerDiv.className = 'results-winner defeat';
-            winnerDiv.innerHTML = `💥 Partie terminée`;
+            winnerDiv.innerHTML = t('sb.gameOver');
         }
 
         // Update results table

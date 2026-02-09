@@ -1,5 +1,5 @@
 
-import { MinesweeperSolver } from './MinesweeperSolver.js';
+import { MinesweeperSolver } from '../shared/MinesweeperSolver.js';
 
 // Setup a mock game object
 const mockGame = {

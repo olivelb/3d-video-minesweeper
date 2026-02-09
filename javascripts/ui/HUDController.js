@@ -1,6 +1,7 @@
 
 import { Events } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
+import { t } from '../i18n.js';
 
 export class HUDController {
     constructor(eventBus, scoreManager) {
@@ -34,11 +35,11 @@ export class HUDController {
 
     reset() {
         if (this.timerEl) {
-            this.timerEl.innerText = '⏱️ 00:00';
+            this.timerEl.innerText = t('hud.timer', { time: '00:00' });
             this.timerEl.classList.remove('active');
         }
         if (this.scoreEl) {
-            this.scoreEl.innerText = '🏆 Score: 0';
+            this.scoreEl.innerText = t('hud.score', { score: 0 });
             this.scoreEl.classList.remove('active');
         }
         if (this.hintDisplay) {
@@ -63,13 +64,13 @@ export class HUDController {
 
     updateTimer(elapsedSeconds) {
         if (this.timerEl && this.scoreManager) {
-            this.timerEl.innerText = '⏱️ ' + this.scoreManager.formatTime(elapsedSeconds);
+            this.timerEl.innerText = t('hud.timer', { time: this.scoreManager.formatTime(elapsedSeconds) });
         }
     }
 
     updateScore(score) {
         if (this.scoreEl) {
-            this.scoreEl.innerText = '🏆 Score: ' + score;
+            this.scoreEl.innerText = t('hud.score', { score: score });
         }
     }
 

@@ -1,0 +1,477 @@
+/**
+ * Lightweight i18n (internationalization) module.
+ * 
+ * Provides `t(key, params?)` for translating strings and
+ * `translateDOM()` for scanning HTML `data-i18n` attributes.
+ * 
+ * Supported languages: French (fr), English (en)
+ * 
+ * @module i18n
+ */
+
+// ─────────────────────────────────────────────
+//  Translations
+// ─────────────────────────────────────────────
+
+const translations = {
+    fr: {
+        // ── Page ──
+        'page.title': 'Démineur 3D - Multijoueur',
+        'page.heading': 'Démineur 3D',
+
+        // ── Menu ──
+        'menu.title': 'Configuration',
+        'menu.width': 'Largeur',
+        'menu.height': 'Hauteur',
+        'menu.bombs': 'Bombes',
+        'menu.media': 'Média de fond',
+        'menu.uploadBtn': 'Ou importer un fichier...',
+        'menu.uploadPlaceholder': 'Utilise le préréglage ci-dessus',
+        'menu.webcam': 'Utiliser la webcam',
+        'menu.webcamHint': 'Si la webcam est refusée ou absente, on revient à la vidéo par défaut.',
+        'menu.hoverHelper': 'Aide au survol',
+        'menu.noGuess': 'Sans hasard (No Guess)',
+        'menu.play': 'JOUER (Solo)',
+        'menu.replay': '🔄 REJOUER LA GRILLE',
+        'menu.instructions': 'Clic Gauche: Révéler | Clic Droit: Drapeau',
+
+        // ── Preset backgrounds ──
+        'bg.storm': 'Orage',
+        'bg.stormTitle': 'Orage (Vidéo)',
+        'bg.marble': 'Marbre',
+        'bg.marbleTitle': 'Marbre Gris',
+        'bg.metal': 'Métal',
+        'bg.metalTitle': 'Métal Sombre',
+        'bg.wood': 'Bois',
+        'bg.woodTitle': 'Bois Clair',
+        'bg.grid': 'Grille',
+        'bg.carbon': 'Carbone',
+        'bg.space': 'Espace',
+        'bg.spaceTitle': 'Nébuleuse',
+        'bg.crystal': 'Cristal',
+        'bg.neon': 'Néon',
+        'bg.fluid': 'Fluide',
+
+        // ── Difficulty presets ──
+        'diff.beginner': 'Débutant',
+        'diff.intermediate': 'Intermédiaire',
+        'diff.expert': 'Expert',
+        'diff.giant': 'Géant',
+        'diff.tooltip': '{w}×{h}, {b} bombes',
+
+        // ── HUD ──
+        'hud.timer': '⏱️ {time}',
+        'hud.score': '🏆 Score: {score}',
+        'hud.hints': '🧩 Indices: {count}',
+        'hud.hintBtn': '🧩 BESOIN D\'AIDE',
+        'hud.hintBtnTitle': 'Obtenir un indice logique',
+        'hud.retryBtn': '🔁 REESSAYER',
+        'hud.retryBtnTitle': 'Recommencer au dernier coup sûr',
+        'hud.muteOn': '🔊 ON',
+        'hud.muteOff': '🔇 OFF',
+        'hud.muteBtnTitle': 'Désactiver le son',
+        'hud.flagStars': '⭐ ÉTOILES',
+        'hud.flagFlags': '🚩 DRAPEAUX',
+        'hud.flagBtnTitle': 'Basculer vers les drapeaux 3D',
+        'hud.player': '👤 Joueur: {name}',
+
+        // ── Multiplayer ──
+        'mp.title': 'Multijoueur',
+        'mp.checking': 'Vérification du serveur...',
+        'mp.online': 'Serveur disponible',
+        'mp.offline': 'Serveur hors ligne',
+        'mp.unavailable': 'Serveur non disponible',
+        'mp.connectFailed': 'Connexion au serveur échouée',
+        'mp.connect': 'Connexion',
+        'mp.playerPlaceholder': 'Votre pseudo',
+        'mp.playerDefault': 'Joueur',
+        'mp.configToggle': '⚙️ Configurer le serveur',
+        'mp.configLabel': 'URL du serveur (Tunnel Cloudflare / IP):',
+        'mp.configPlaceholder': 'https://votre-id.trycloudflare.com',
+        'mp.configSave': 'Enregistrer',
+        'mp.configReset': 'Défaut',
+        'mp.createTitle': '🎮 Créer une partie',
+        'mp.maxPlayers': 'Nombre de joueurs (2-8)',
+        'mp.createBtn': 'Créer la partie',
+        'mp.leave': 'Quitter',
+        'mp.waiting': '⏳ En attente des joueurs...',
+        'mp.startBtn': 'Démarrer la partie',
+        'mp.cancelBtn': 'Annuler',
+        'mp.joinTitle': '🎮 Rejoindre',
+        'mp.guestWaiting': '⏳ En attente que l\'hôte crée la partie...',
+        'mp.guestReady': 'Partie prête !',
+        'mp.joinBtn': 'Rejoindre la partie',
+        'mp.hostLeft': 'L\'hôte a quitté la partie',
+        'mp.hostBadge': 'HÔTE',
+        'mp.serverLimit': 'Les dimensions maximales sont {maxW}x{maxH} avec {maxB} bombes pour la stabilité du serveur.',
+        'mp.densityLimit': 'Mode \'No Guess\': Densité trop élevée! Max {max} bombes (22%).',
+        'mp.configSummary': '{w}×{h} • {b} 💣 (Max: {max} joueurs)',
+        'mp.generatingGrid': 'Calcul de la grille... ({attempt})',
+        'mp.eliminated': 'ÉLIMINÉ',
+        'mp.spectatorMode': 'Mode Spectateur Actif',
+        'mp.spectatorLeave': 'QUITTER LA PARTIE',
+        'mp.playerEliminated': '{name} a été éliminé!',
+        'mp.eliminatedMsg': 'a été éliminé!',
+
+        // ── Loading ──
+        'loading.title': 'Génération de la grille...',
+        'loading.text': 'Recherche d\'une configuration valide...',
+        'loading.attempt': 'Tentative {current} / {max}',
+        'loading.cancel': 'ARRÊTER',
+
+        // ── Leaderboard ──
+        'lb.title': '🏆 Meilleurs Scores',
+        'lb.empty': 'Aucun score enregistré',
+        'lb.clear': 'Effacer les scores',
+        'lb.analytics': '📊 Analytics',
+        'lb.clearConfirm': 'Êtes-vous sûr de vouloir supprimer tous les scores ?',
+        'lb.noScoreManager': 'Score manager non disponible',
+        'lb.easy': 'Facile',
+        'lb.medium': 'Moyen',
+        'lb.hard': 'Difficile',
+        'lb.custom': 'Personnalisé',
+
+        // ── Multiplayer Leaderboard ──
+        'mlb.title': '🎮 Multijoueur',
+        'mlb.tabWins': 'Victoires',
+        'mlb.tabScore': 'Score',
+        'mlb.tabRecord': 'Record',
+        'mlb.loading': 'Chargement...',
+        'mlb.recentGames': '📜 Parties récentes',
+        'mlb.recentGamesTitle': '📜 Parties Récentes',
+        'mlb.stats': 'Statistiques',
+        'mlb.serverError': 'Erreur serveur',
+        'mlb.noGames': 'Aucune partie enregistrée',
+        'mlb.playerNotFound': 'Joueur non trouvé',
+        'mlb.sectionPerf': 'Performance',
+        'mlb.sectionScores': 'Scores',
+        'mlb.sectionStats': 'Statistiques',
+        'mlb.wins': 'Victoires',
+        'mlb.games': 'Parties',
+        'mlb.winRate': 'Win Rate',
+        'mlb.record': 'Record',
+        'mlb.average': 'Moyenne',
+        'mlb.total': 'Total',
+        'mlb.cells': 'Cellules',
+        'mlb.correctFlags': 'Drapeaux ✓',
+        'mlb.eliminated': '💀 Éliminé',
+        'mlb.recentSection': 'Parties récentes',
+        'mlb.winsDetail': '{wins}V / {games} parties · {rate}%',
+
+        // ── Scoreboard ──
+        'sb.title': '🏆 Scores',
+        'sb.resultsTitle': 'Partie Terminée',
+        'sb.rank': '#',
+        'sb.player': 'Joueur',
+        'sb.score': 'Score',
+        'sb.cells': 'Cellules',
+        'sb.flags': 'Drapeaux ✓',
+        'sb.menuBtn': 'Menu',
+        'sb.winner': '🏆 {name} gagne!',
+        'sb.allEliminated': '💀 Tous éliminés!',
+        'sb.gameOver': '💥 Partie terminée',
+
+        // ── 3D Text ──
+        'game.win': 'BRAVO',
+        'game.loss': 'PERDU',
+        'game.genFailed': 'Note : La génération a été {reason}. La grille n\'est pas garantie 100% logique.',
+        'game.genCancelled': 'interrompue',
+        'game.genLimited': 'limitée à {max} essais',
+    },
+
+    en: {
+        // ── Page ──
+        'page.title': '3D Minesweeper - Multiplayer',
+        'page.heading': '3D Minesweeper',
+
+        // ── Menu ──
+        'menu.title': 'Configuration',
+        'menu.width': 'Width',
+        'menu.height': 'Height',
+        'menu.bombs': 'Bombs',
+        'menu.media': 'Background media',
+        'menu.uploadBtn': 'Or import a file...',
+        'menu.uploadPlaceholder': 'Using preset above',
+        'menu.webcam': 'Use webcam',
+        'menu.webcamHint': 'If the webcam is denied or unavailable, the default preset is used.',
+        'menu.hoverHelper': 'Hover helper',
+        'menu.noGuess': 'No Guess mode',
+        'menu.play': 'PLAY (Solo)',
+        'menu.replay': '🔄 REPLAY GRID',
+        'menu.instructions': 'Left Click: Reveal | Right Click: Flag',
+
+        // ── Preset backgrounds ──
+        'bg.storm': 'Storm',
+        'bg.stormTitle': 'Storm (Video)',
+        'bg.marble': 'Marble',
+        'bg.marbleTitle': 'Grey Marble',
+        'bg.metal': 'Metal',
+        'bg.metalTitle': 'Dark Metal',
+        'bg.wood': 'Wood',
+        'bg.woodTitle': 'Light Wood',
+        'bg.grid': 'Grid',
+        'bg.carbon': 'Carbon',
+        'bg.space': 'Space',
+        'bg.spaceTitle': 'Nebula',
+        'bg.crystal': 'Crystal',
+        'bg.neon': 'Neon',
+        'bg.fluid': 'Fluid',
+
+        // ── Difficulty presets ──
+        'diff.beginner': 'Beginner',
+        'diff.intermediate': 'Intermediate',
+        'diff.expert': 'Expert',
+        'diff.giant': 'Giant',
+        'diff.tooltip': '{w}×{h}, {b} bombs',
+
+        // ── HUD ──
+        'hud.timer': '⏱️ {time}',
+        'hud.score': '🏆 Score: {score}',
+        'hud.hints': '🧩 Hints: {count}',
+        'hud.hintBtn': '🧩 NEED HELP',
+        'hud.hintBtnTitle': 'Get a logic-based hint',
+        'hud.retryBtn': '🔁 RETRY',
+        'hud.retryBtnTitle': 'Restart from last safe move',
+        'hud.muteOn': '🔊 ON',
+        'hud.muteOff': '🔇 OFF',
+        'hud.muteBtnTitle': 'Toggle sound',
+        'hud.flagStars': '⭐ STARS',
+        'hud.flagFlags': '🚩 FLAGS',
+        'hud.flagBtnTitle': 'Switch to 3D flags',
+        'hud.player': '👤 Player: {name}',
+
+        // ── Multiplayer ──
+        'mp.title': 'Multiplayer',
+        'mp.checking': 'Checking server...',
+        'mp.online': 'Server available',
+        'mp.offline': 'Server offline',
+        'mp.unavailable': 'Server unavailable',
+        'mp.connectFailed': 'Connection to server failed',
+        'mp.connect': 'Connect',
+        'mp.playerPlaceholder': 'Your nickname',
+        'mp.playerDefault': 'Player',
+        'mp.configToggle': '⚙️ Configure server',
+        'mp.configLabel': 'Server URL (Cloudflare Tunnel / IP):',
+        'mp.configPlaceholder': 'https://your-id.trycloudflare.com',
+        'mp.configSave': 'Save',
+        'mp.configReset': 'Default',
+        'mp.createTitle': '🎮 Create a game',
+        'mp.maxPlayers': 'Number of players (2-8)',
+        'mp.createBtn': 'Create game',
+        'mp.leave': 'Leave',
+        'mp.waiting': '⏳ Waiting for players...',
+        'mp.startBtn': 'Start game',
+        'mp.cancelBtn': 'Cancel',
+        'mp.joinTitle': '🎮 Join',
+        'mp.guestWaiting': '⏳ Waiting for the host to create a game...',
+        'mp.guestReady': 'Game ready!',
+        'mp.joinBtn': 'Join game',
+        'mp.hostLeft': 'The host has left the game',
+        'mp.hostBadge': 'HOST',
+        'mp.serverLimit': 'Max dimensions are {maxW}x{maxH} with {maxB} bombs for server stability.',
+        'mp.densityLimit': 'No Guess mode: Density too high! Max {max} bombs (22%).',
+        'mp.configSummary': '{w}×{h} • {b} 💣 (Max: {max} players)',
+        'mp.generatingGrid': 'Computing grid... ({attempt})',
+        'mp.eliminated': 'ELIMINATED',
+        'mp.spectatorMode': 'Spectator Mode Active',
+        'mp.spectatorLeave': 'LEAVE GAME',
+        'mp.playerEliminated': '{name} was eliminated!',
+        'mp.eliminatedMsg': 'was eliminated!',
+
+        // ── Loading ──
+        'loading.title': 'Generating grid...',
+        'loading.text': 'Searching for a valid configuration...',
+        'loading.attempt': 'Attempt {current} / {max}',
+        'loading.cancel': 'STOP',
+
+        // ── Leaderboard ──
+        'lb.title': '🏆 High Scores',
+        'lb.empty': 'No scores recorded',
+        'lb.clear': 'Clear scores',
+        'lb.analytics': '📊 Analytics',
+        'lb.clearConfirm': 'Are you sure you want to delete all scores?',
+        'lb.noScoreManager': 'Score manager unavailable',
+        'lb.easy': 'Easy',
+        'lb.medium': 'Medium',
+        'lb.hard': 'Hard',
+        'lb.custom': 'Custom',
+
+        // ── Multiplayer Leaderboard ──
+        'mlb.title': '🎮 Multiplayer',
+        'mlb.tabWins': 'Wins',
+        'mlb.tabScore': 'Score',
+        'mlb.tabRecord': 'Record',
+        'mlb.loading': 'Loading...',
+        'mlb.recentGames': '📜 Recent games',
+        'mlb.recentGamesTitle': '📜 Recent Games',
+        'mlb.stats': 'Statistics',
+        'mlb.serverError': 'Server error',
+        'mlb.noGames': 'No games recorded',
+        'mlb.playerNotFound': 'Player not found',
+        'mlb.sectionPerf': 'Performance',
+        'mlb.sectionScores': 'Scores',
+        'mlb.sectionStats': 'Statistics',
+        'mlb.wins': 'Wins',
+        'mlb.games': 'Games',
+        'mlb.winRate': 'Win Rate',
+        'mlb.record': 'Record',
+        'mlb.average': 'Average',
+        'mlb.total': 'Total',
+        'mlb.cells': 'Cells',
+        'mlb.correctFlags': 'Correct Flags',
+        'mlb.eliminated': '💀 Eliminated',
+        'mlb.recentSection': 'Recent games',
+        'mlb.winsDetail': '{wins}W / {games} games · {rate}%',
+
+        // ── Scoreboard ──
+        'sb.title': '🏆 Scores',
+        'sb.resultsTitle': 'Game Over',
+        'sb.rank': '#',
+        'sb.player': 'Player',
+        'sb.score': 'Score',
+        'sb.cells': 'Cells',
+        'sb.flags': 'Correct Flags',
+        'sb.menuBtn': 'Menu',
+        'sb.winner': '🏆 {name} wins!',
+        'sb.allEliminated': '💀 All eliminated!',
+        'sb.gameOver': '💥 Game over',
+
+        // ── 3D Text ──
+        'game.win': 'BRAVO',
+        'game.loss': 'GAME OVER',
+        'game.genFailed': 'Note: Generation was {reason}. The grid is not guaranteed 100% logical.',
+        'game.genCancelled': 'cancelled',
+        'game.genLimited': 'limited to {max} attempts',
+    }
+};
+
+// ─────────────────────────────────────────────
+//  State
+// ─────────────────────────────────────────────
+
+const STORAGE_KEY = 'minesweeper_lang';
+const SUPPORTED_LANGS = ['fr', 'en'];
+const DEFAULT_LANG = 'fr';
+
+let currentLang = DEFAULT_LANG;
+
+// ─────────────────────────────────────────────
+//  Core API
+// ─────────────────────────────────────────────
+
+/**
+ * Translate a key, optionally interpolating parameters.
+ * 
+ * @param {string} key - Dot-notation key (e.g. 'menu.title')
+ * @param {Object} [params] - Interpolation values (e.g. { w: 30, h: 16 })
+ * @returns {string} Translated string, or the key itself if not found
+ * 
+ * @example
+ * t('diff.tooltip', { w: 30, h: 16, b: 99 })
+ * // FR → "30×16, 99 bombes"
+ * // EN → "30×16, 99 bombs"
+ */
+export function t(key, params) {
+    const dict = translations[currentLang] || translations[DEFAULT_LANG];
+    let str = dict[key];
+    if (str === undefined) {
+        // Fallback to default language
+        str = translations[DEFAULT_LANG][key];
+    }
+    if (str === undefined) return key; // Key not found at all
+
+    if (params) {
+        for (const [k, v] of Object.entries(params)) {
+            str = str.replaceAll(`{${k}}`, v);
+        }
+    }
+    return str;
+}
+
+/**
+ * Get the current language code.
+ * @returns {string} 'fr' or 'en'
+ */
+export function getLang() {
+    return currentLang;
+}
+
+/**
+ * Get the locale string for date/number formatting.
+ * @returns {string} e.g. 'fr-FR' or 'en-US'
+ */
+export function getLocale() {
+    return currentLang === 'fr' ? 'fr-FR' : 'en-US';
+}
+
+/**
+ * Set the active language and re-translate the DOM.
+ * @param {string} lang - Language code ('fr' or 'en')
+ */
+export function setLang(lang) {
+    if (!SUPPORTED_LANGS.includes(lang)) return;
+    currentLang = lang;
+    try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) { /* ignore */ }
+    document.documentElement.lang = lang;
+    document.title = t('page.title');
+    translateDOM();
+    // Notify dynamic components that need to re-render
+    window.dispatchEvent(new CustomEvent('langchange', { detail: { lang } }));
+}
+
+/**
+ * Scan the DOM for elements with `data-i18n` attributes and update their text.
+ * 
+ * Supported attributes:
+ * - `data-i18n="key"` → sets textContent
+ * - `data-i18n-placeholder="key"` → sets placeholder
+ * - `data-i18n-title="key"` → sets title
+ * - `data-i18n-value="key"` → sets value
+ */
+export function translateDOM() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.dataset.i18nPlaceholder);
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        el.title = t(el.dataset.i18nTitle);
+    });
+    document.querySelectorAll('[data-i18n-value]').forEach(el => {
+        el.value = t(el.dataset.i18nValue);
+    });
+}
+
+// ─────────────────────────────────────────────
+//  Initialization
+// ─────────────────────────────────────────────
+
+/**
+ * Initialize language from localStorage or browser preference.
+ */
+export function initLang() {
+    // 1. Check localStorage
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored && SUPPORTED_LANGS.includes(stored)) {
+            currentLang = stored;
+            document.documentElement.lang = currentLang;
+            document.title = t('page.title');
+            translateDOM();
+            return;
+        }
+    } catch (e) { /* ignore */ }
+
+    // 2. Check browser language
+    const browserLang = (navigator.language || '').slice(0, 2).toLowerCase();
+    if (SUPPORTED_LANGS.includes(browserLang)) {
+        currentLang = browserLang;
+    } else {
+        currentLang = DEFAULT_LANG;
+    }
+
+    document.documentElement.lang = currentLang;
+    document.title = t('page.title');
+    translateDOM();
+}

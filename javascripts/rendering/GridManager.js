@@ -199,7 +199,7 @@ export class GridManager {
      * Update a cell's visual state when revealed
      * @param {number} x - Grid X coordinate
      * @param {number} y - Grid Y coordinate
-     * @param {number} value - Cell value (0-8)
+     * @param {number} value - Cell value (0-8, or 10 for bomb)
      */
     updateCellVisual(x, y, value) {
         const index = x * this.game.height + y;
@@ -216,10 +216,41 @@ export class GridManager {
         this.gridMesh.setMatrixAt(index, this.dummy.matrix);
         this.gridMesh.instanceMatrix.needsUpdate = true;
 
-        // Add number mesh if value > 0
-        if (value > 0) {
+        // Bomb display
+        if (value === 10) {
+            this._createBombMesh(x, y);
+        } else if (value > 0 && value <= 8) {
             this._createNumberMesh(x, y, value);
         }
+    }
+
+    /**
+     * Create a bomb mesh for a revealed mine cell
+     * @private
+     * @param {number} x - Grid X coordinate
+     * @param {number} y - Grid Y coordinate
+     */
+    _createBombMesh(x, y) {
+        const planeGeo = new THREE.PlaneGeometry(18, 18);
+        const material = new THREE.MeshBasicMaterial({
+            map: this.textures['bomb'],
+            transparent: true,
+            opacity: 1.0,
+            depthWrite: true,
+            depthTest: true,
+            side: THREE.DoubleSide,
+            alphaTest: 0.1
+        });
+        const mesh = new THREE.Mesh(planeGeo, material);
+        mesh.position.set(
+            -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
+            GRID_CONFIG.NUMBER_HEIGHT,
+            (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
+        );
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.renderOrder = 2;
+        this.scene.add(mesh);
+        this.numberMeshes.push(mesh);
     }
 
     /**
@@ -266,7 +297,7 @@ export class GridManager {
     updateHover(instanceId, useHoverHelper) {
         // Reset last hovered if changed
         if (this.lastHoveredId !== instanceId && this.lastHoveredId !== -1) {
-            this._resetInstance(this.lastHoveredId);
+            this.resetInstance(this.lastHoveredId);
         }
 
         if (useHoverHelper && instanceId !== -1 && !this.isExploding && !this.game.victory) {
@@ -305,10 +336,9 @@ export class GridManager {
 
     /**
      * Reset an instance to its default state
-     * @private
      * @param {number} instanceId - Instance to reset
      */
-    _resetInstance(instanceId) {
+    resetInstance(instanceId) {
         const y = instanceId % this.game.height;
         const x = Math.floor(instanceId / this.game.height);
 
@@ -340,7 +370,7 @@ export class GridManager {
      */
     resetAllInstances() {
         for (let i = 0; i < this.game.width * this.game.height; i++) {
-            this._resetInstance(i);
+            this.resetInstance(i);
         }
     }
 

@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide covers deploying the 3D Video Minesweeper project for both local development and production (GitHub Pages + Raspberry Pi).
+This guide covers deploying the 3D Minesweeper project for both local development and production (GitHub Pages + Raspberry Pi).
 
 ## Architecture Overview
 
@@ -8,9 +8,10 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
 ┌─────────────────────────────────────────────────────────────────┐
 │                     GitHub Pages                                │
 │              https://username.github.io/3d-video-minesweeper    │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │ HTTPS
-                              ▼
+└─────────────────────────────────────────────────────────────────┘
+                              │ HTTPS (Static frontend)
+                              │
+                              ▼ WebSocket (Multiplayer)
 ┌─────────────────────────────────────────────────────────────────┐
 │                   Cloudflare Quick Tunnel                       │
 │              https://abc123.trycloudflare.com                   │
@@ -21,7 +22,7 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
 │                     Raspberry Pi Server                         │
 │                     raspberrol:3001                             │
 │              ┌─────────────────────────────────┐                │
-│              │   Node.js + Express + yt-dlp    │                │
+│              │   Node.js + Express + Socket.io │                │
 │              │   PM2 process manager           │                │
 │              └─────────────────────────────────┘                │
 └─────────────────────────────────────────────────────────────────┘
@@ -34,7 +35,6 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
 ### Prerequisites
 
 - Node.js v20+
-- yt-dlp installed and in PATH
 - Git
 
 ### Steps
@@ -62,9 +62,9 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
    
    > ⚠️ This file is gitignored and will never be pushed.
 
-3. **Start the proxy server** (Option A: Local)
+3. **Start the multiplayer server**
    ```bash
-   cd server
+   cd server-multiplayer
    npm install
    npm start
    ```
@@ -101,13 +101,7 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
    npm install --omit=dev
    ```
 
-3. **Install yt-dlp**
-   ```bash
-   sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-   sudo chmod a+rx /usr/local/bin/yt-dlp
-   ```
-
-4. **Configure environment**
+3. **Configure environment**
    ```bash
    cat > .env << EOF
    PORT=3001
@@ -116,7 +110,7 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
    EOF
    ```
 
-5. **Setup PM2**
+4. **Setup PM2**
    ```bash
    npm install -g pm2
    pm2 start server.js --name minesweeper-multiplayer
@@ -124,9 +118,10 @@ This guide covers deploying the 3D Video Minesweeper project for both local deve
    pm2 startup  # Follow instructions to enable on boot
    ```
 
-   > **Note**: The server now includes a Gaussian Elimination solver for "No Guess" mode.
+   > **Note**: The server includes a Gaussian Elimination solver for "No Guess" mode.
    > It enforces a hard limit of **150x100** grid and **2000 bombs** to ensure stability on the Pi 3 hardware.
-   > **New**: Live feedback is provided during grid generation (e.g., "Tentative 50/10000") to keep players informed on slower devices.
+   > Live feedback is provided during grid generation (e.g., "Tentative 50/10000") to keep players informed on slower devices.
+   > The solver code lives in `shared/` and is shared between client and server.
 
 ### Cloudflare Tunnel Setup
 
@@ -191,7 +186,7 @@ The project includes a PowerShell script to automate deployment:
 ```
 
 This script:
-1. Compresses the `server-multiplayer` folder (excluding node_modules).
+1. Compresses `server-multiplayer/` and `shared/` (excluding node_modules).
 2. Transfers the archive to the Pi via SCP.
 3. Extracts, installs dependencies, and restarts the PM2 process.
 
@@ -236,12 +231,6 @@ grep -o 'https://[^"]*\.trycloudflare\.com' ~/3d-video-minesweeper/tunnel.log | 
 3. Test server directly: `curl http://localhost:3001/health`
 4. Check CORS: Ensure your origin is in ALLOWED_ORIGINS
 
-### Video not loading
-
-1. Verify yt-dlp is installed: `yt-dlp --version`
-2. Update yt-dlp: `sudo yt-dlp -U`
-3. Check server logs: `pm2 logs minesweeper-server`
-
 ### Tunnel URL changed
 
 Quick tunnels get new URLs on restart. Either:
@@ -256,4 +245,4 @@ Quick tunnels get new URLs on restart. Either:
 - [ ] No hardcoded IPs in committed code
 - [ ] `ALLOWED_ORIGINS` is set to specific domains
 - [ ] Server running behind firewall (only tunnel exposed)
-- [ ] yt-dlp regularly updated
+- [ ] Node.js and dependencies regularly updated

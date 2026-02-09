@@ -5,6 +5,8 @@ export class ParticleSystem {
         this.scene = scene;
         this.textures = textures;
         this.systems = []; // Active particle systems
+        // Reusable color object to avoid GC pressure in update loop
+        this._tempColor = new THREE.Color();
     }
 
     createEmitter(position, type, options = {}) {
@@ -142,12 +144,12 @@ export class ParticleSystem {
                     positions[j * 3 + 1] += sys.velocities[j * 3 + 1] * dt;
                     positions[j * 3 + 2] += sys.velocities[j * 3 + 2] * dt;
 
-                    // Color Lerp
+                    // Color Lerp (reuse temp object to avoid GC pressure)
                     const lifeRatio = sys.ages[j] / sys.config.lifeTime;
-                    const color = sys.config.colorStart.clone().lerp(sys.config.colorEnd, lifeRatio);
-                    colors[j * 3] = color.r;
-                    colors[j * 3 + 1] = color.g;
-                    colors[j * 3 + 2] = color.b;
+                    this._tempColor.copy(sys.config.colorStart).lerp(sys.config.colorEnd, lifeRatio);
+                    colors[j * 3] = this._tempColor.r;
+                    colors[j * 3 + 1] = this._tempColor.g;
+                    colors[j * 3 + 2] = this._tempColor.b;
                 }
             }
 

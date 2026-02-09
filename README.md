@@ -1,4 +1,4 @@
-# 💣 3D Video Minesweeper
+# 💣 3D Minesweeper
 
 A modern, immersive, and social take on the classic Minesweeper. Built with **Three.js** for stunning 3D visuals, and **Socket.io** for intense competitive multiplayer.
 
@@ -7,23 +7,25 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 
 ## ✨ Features
 
-- **Immersive 3D Grid**: Navigate a floating minefield in a 3D space with smooth animations and lighting.
-- **Video Backgrounds**: Play with high-quality video backgrounds for a more dynamic experience.
+- **Immersive 3D Grid**: Navigate a floating minefield in a 3D space with smooth camera, animations and lighting.
+- **Custom Media Backgrounds**: Play with uploaded images or videos as dynamic backgrounds.
+- **No-Guess Mode**: Gaussian elimination + multi-strategy solver guarantees every board is solvable without guessing.
 - **Competitive Multiplayer**:
     - **Lobby System**: Support for up to 8 players.
-    - **Host Control**: Configure grid size, bomb count, and player limits.
+    - **Host Control**: Configure grid size, bomb count, player limits, and No-Guess mode.
     - **Elimination Mode**: Click a bomb? You're out! But the game continues for the rest.
     - **Real-time Sync**: Watch your friends' cursors and actions in real-time.
+    - **Leaderboard & Scoring**: Points for reveals, flags, time bonus, and win bonus.
 - **Premium UI**: Sleek, modern interface built with a glassmorphism aesthetic.
 - **First-Click Safety**: Never lose on your first move.
-- **Headless Server**: Authoritative server logic ensures a fair and synchronized game.
+- **Headless Server**: Authoritative server logic with input validation, rate limiting, and name sanitization.
+- **Sensitivity Analysis**: Behavioural analytics detects emotional impact of custom media backgrounds.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - **Node.js** (v20 or higher)
-- **yt-dlp** (Required for video features on the server)
 
 ### Quick Start (Local)
 
@@ -45,6 +47,7 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 ## 🛠 Project Structure
 
 - `javascripts/`: Core frontend logic, Three.js rendering, and UI components.
+- `shared/`: Solver algorithms shared between client and server (GaussianElimination, MinesweeperSolver).
 - `server-multiplayer/`: Node.js authoritative game server.
 - `css/`: Modern styling and animations.
 - `docs/`: Technical documentation and implementation plans.

@@ -378,13 +378,13 @@ export class GameController {
         );
         this.uiManager.renderer = this.renderer; // Update reference
 
-        // Set flag style if provided
+        // Wait for Renderer Readiness (The Fix for setTimeout)
+        await this.waitForRendererReady();
+
+        // Set flag style if provided (must be after renderer is ready so flagManager exists)
         if (config.flagStyle) {
             this.renderer.setFlagStyle(config.flagStyle);
         }
-
-        // Wait for Renderer Readiness (The Fix for setTimeout)
-        await this.waitForRendererReady();
 
         // Apply initial state if provided (Multiplayer Join)
         if (config.initialState) {
