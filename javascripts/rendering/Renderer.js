@@ -289,6 +289,19 @@ export class MinesweeperRenderer {
         this.gridManager.numberMeshes.forEach(mesh => mesh.visible = false);
         this.flagManager.clearAll();
 
+        // Save pre-explosion state so reassembly can lerp back to exact positions
+        this.preExplosionState = [];
+        const gridMeshPre = this.gridManager.gridMesh;
+        for (let i = 0; i < this.game.width * this.game.height; i++) {
+            gridMeshPre.getMatrixAt(i, this.dummy.matrix);
+            this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
+            this.preExplosionState[i] = {
+                position: this.dummy.position.clone(),
+                rotation: this.dummy.rotation.clone(),
+                scale: this.dummy.scale.clone()
+            };
+        }
+
         this.isExploding = true;
         this.explosionTime = 0;
         this.isReassembling = false;
@@ -302,6 +315,7 @@ export class MinesweeperRenderer {
 
             this.reassemblyStartPositions = [];
             this.reassemblyStartRotations = [];
+            this.reassemblyStartScales = [];
 
             const gridMesh = this.gridManager.gridMesh;
             for (let i = 0; i < this.game.width * this.game.height; i++) {
@@ -309,6 +323,7 @@ export class MinesweeperRenderer {
                 this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
                 this.reassemblyStartPositions[i] = this.dummy.position.clone();
                 this.reassemblyStartRotations[i] = this.dummy.rotation.clone();
+                this.reassemblyStartScales[i] = this.dummy.scale.clone();
             }
 
             this.scene.traverse(obj => {
@@ -448,28 +463,26 @@ export class MinesweeperRenderer {
             }
         });
 
-        const targetScale = new THREE.Vector3(0.9, 0.9, 0.9);
         const gridMesh = this.gridManager.gridMesh;
 
         for (let i = 0; i < this.game.width * this.game.height; i++) {
-            const x = i % this.game.width;
-            const y = Math.floor(i / this.game.width);
-            const targetPos = new THREE.Vector3(
-                (x - this.game.width / 2) * 22 + 10,
-                0,
-                (y - this.game.height / 2) * 22 + 10
-            );
+            // Use saved pre-explosion state as target (exact original positions)
+            const target = this.preExplosionState?.[i];
+            const targetPos = target?.position ?? new THREE.Vector3(0, 0, 0);
+            const targetRot = target?.rotation ?? new THREE.Euler(-Math.PI / 2, 0, 0);
+            const targetScale = target?.scale ?? new THREE.Vector3(1, 1, 1);
 
             const startPos = this.reassemblyStartPositions?.[i] ?? targetPos;
-            const startRot = this.reassemblyStartRotations?.[i] ?? new THREE.Euler(0, 0, 0);
+            const startRot = this.reassemblyStartRotations?.[i] ?? targetRot;
+            const startScale = this.reassemblyStartScales?.[i] ?? targetScale;
 
             this.dummy.position.lerpVectors(startPos, targetPos, easeFactor);
             this.dummy.rotation.set(
-                startRot.x * (1 - easeFactor),
-                startRot.y * (1 - easeFactor),
-                startRot.z * (1 - easeFactor)
+                startRot.x + (targetRot.x - startRot.x) * easeFactor,
+                startRot.y + (targetRot.y - startRot.y) * easeFactor,
+                startRot.z + (targetRot.z - startRot.z) * easeFactor
             );
-            this.dummy.scale.copy(targetScale);
+            this.dummy.scale.lerpVectors(startScale, targetScale, easeFactor);
 
             this.dummy.updateMatrix();
             gridMesh.setMatrixAt(i, this.dummy.matrix);
