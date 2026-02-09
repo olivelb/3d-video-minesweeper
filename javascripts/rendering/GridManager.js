@@ -72,6 +72,9 @@ export class GridManager {
         /** @type {number} Explosion animation time */
         this.explosionTime = 0;
 
+        /** Reusable color for hover highlight (avoids per-frame allocation) */
+        this._hoverColor = new THREE.Color();
+
         this._createGrid();
     }
 
@@ -319,7 +322,7 @@ export class GridManager {
                 const colorVal = (pulse + 1.0) * 0.2;
                 this.gridMesh.setColorAt(
                     instanceId, 
-                    new THREE.Color(colorVal, colorVal, colorVal)
+                    this._hoverColor.setRGB(colorVal, colorVal, colorVal)
                 );
 
                 this.gridMesh.instanceMatrix.needsUpdate = true;

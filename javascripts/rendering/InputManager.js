@@ -23,7 +23,12 @@ export class InputManager {
         // Ground plane for reliable grid coordinate resolution —
         // revealed cells are scaled to 0 in the InstancedMesh and can't be
         // raycasted, so we raycast this invisible plane instead.
-        this._groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        // Plane sits at Y = 10 (top surface of 20×20×20 cubes after -PI/2
+        // rotation). THREE.Plane constant: n·p + c = 0 → c = -10.
+        this._groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -10);
+
+        // Reusable Vector3 for hit-point calculation (avoid per-click alloc)
+        this._hitPoint = new THREE.Vector3();
 
         // Bindings
         this._boundOnMouseMove = (e) => this.onMouseMove(e);
@@ -76,8 +81,9 @@ export class InputManager {
 
     /**
      * Get grid cell (x, y) from a mouse/pointer event by raycasting a ground
-     * plane at Y=0.  This works regardless of whether the cell is still
-     * visible in the InstancedMesh (revealed cells are scaled to 0).
+     * plane at Y=10 (top surface of cubes).  This works regardless of whether
+     * the cell is still visible in the InstancedMesh (revealed cells are
+     * scaled to 0).
      * @returns {{ x: number, y: number } | null}
      */
     _getGridCellFromEvent(event) {
@@ -86,7 +92,7 @@ export class InputManager {
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        const hitPoint = new THREE.Vector3();
+        const hitPoint = this._hitPoint;
         if (!this.raycaster.ray.intersectPlane(this._groundPlane, hitPoint)) return null;
 
         // Grid formula: wx = -(width*10) + x*22,  wz = (height*10) - y*22

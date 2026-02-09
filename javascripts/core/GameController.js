@@ -517,14 +517,9 @@ export class GameController {
                     }
                 }
 
-                // Update mine counter
+                // Update mine counter (use tracked flagCount — no grid iteration)
                 if (this.uiManager && this.uiManager.hudController) {
-                    let flagCount = 0;
-                    for (let fx = 0; fx < this.game.width; fx++) {
-                        for (let fy = 0; fy < this.game.height; fy++) {
-                            if (this.game.flags[fx][fy]) flagCount++;
-                        }
-                    }
+                    const flagCount = this.game.flagCount ?? 0;
                     this.uiManager.hudController.updateMineCounter(this.game.bombCount - flagCount);
                 }
             }

@@ -58,6 +58,11 @@ export class MinesweeperRenderer {
         this.reassemblyStartPositions = [];
         this.reassemblyStartRotations = [];
 
+        // Reusable fallback objects for reassembly (avoid per-cell-per-frame alloc)
+        this._defaultPos = new THREE.Vector3(0, 0, 0);
+        this._defaultRot = new THREE.Euler(-Math.PI / 2, 0, 0);
+        this._defaultScale = new THREE.Vector3(1, 1, 1);
+
         this.onGameEnd = null;
 
         this._boundOnWindowResize = () => this.onWindowResize();
@@ -337,6 +342,17 @@ export class MinesweeperRenderer {
                     obj.userData.originalIntensity = obj.intensity;
                 }
             });
+
+            // Cache light references for _animateReassembly (avoid scene.traverse per frame)
+            this._reassemblyLights = [];
+            this.scene.traverse(obj => {
+                if (obj.isLight && obj.userData.originalIntensity !== undefined) {
+                    this._reassemblyLights.push(obj);
+                }
+            });
+
+            // Pre-create fog so _animateReassembly only updates density
+            this.scene.fog = new THREE.FogExp2(0x1a1a1a, 0);
         }, 1500);
 
         // Schedule completion (3.2 s total)
@@ -458,27 +474,30 @@ export class MinesweeperRenderer {
         const t = this.reassemblyProgress;
         const easeFactor = t * t * t * t * t * t; // Ease-in exponential (t^6)
 
-        // Synchronize fog
+        // Synchronize fog (reuse existing fog object — just update density)
         const targetFogDensity = 0.001;
-        this.scene.fog = new THREE.FogExp2(0x1a1a1a, targetFogDensity * easeFactor);
+        if (this.scene.fog) {
+            this.scene.fog.density = targetFogDensity * easeFactor;
+        }
 
-        // Synchronize lights
+        // Synchronize lights (use cached references instead of scene.traverse)
         const targetLightFactor = 0.85;
         const currentLightFactor = 1.0 - ((1.0 - targetLightFactor) * easeFactor);
-        this.scene.traverse(obj => {
-            if (obj.isLight && obj.userData.originalIntensity !== undefined) {
-                obj.intensity = obj.userData.originalIntensity * currentLightFactor;
+        const lights = this._reassemblyLights;
+        if (lights) {
+            for (let i = 0; i < lights.length; i++) {
+                lights[i].intensity = lights[i].userData.originalIntensity * currentLightFactor;
             }
-        });
+        }
 
         const gridMesh = this.gridManager.gridMesh;
 
         for (let i = 0; i < this.game.width * this.game.height; i++) {
             // Use saved pre-explosion state as target (exact original positions)
             const target = this.preExplosionState?.[i];
-            const targetPos = target?.position ?? new THREE.Vector3(0, 0, 0);
-            const targetRot = target?.rotation ?? new THREE.Euler(-Math.PI / 2, 0, 0);
-            const targetScale = target?.scale ?? new THREE.Vector3(1, 1, 1);
+            const targetPos = target?.position ?? this._defaultPos;
+            const targetRot = target?.rotation ?? this._defaultRot;
+            const targetScale = target?.scale ?? this._defaultScale;
 
             const startPos = this.reassemblyStartPositions?.[i] ?? targetPos;
             const startRot = this.reassemblyStartRotations?.[i] ?? targetRot;
