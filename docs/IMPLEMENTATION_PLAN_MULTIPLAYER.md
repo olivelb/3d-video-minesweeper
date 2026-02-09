@@ -1,6 +1,6 @@
 # 📋 Multiplayer Implementation Plan & Technical Details
 
-> **Document Version:** 2.3  
+> **Document Version:** 2.4  
 > **Branch:** `coop-2player`  
 > **Purpose:** Deep technical reference for maintainers and developers
 > **Mode:** Competitive elimination - click bomb = eliminated, others continue
@@ -153,7 +153,7 @@ _isMultiplayer: bool  // Explicit multiplayer mode flag
 connectToServer(url, playerName) → Promise<WelcomeData>
 createGame(width, height, bombCount) → void
 joinGame() → void
-sendAction({ type, x, y }) → void
+sendAction({ type, x, y }) → void  // type: 'reveal'|'flag'|'chord'
 sendCursor(x, y) → void
 disconnect() → void
 ```
@@ -219,7 +219,7 @@ onBroadcast(eventName, data, excludePlayerId?)
 'join'       → Assign player number, add to lobby
 'createGame' → Host creates GameServer with config
 'joinGame'   → Guest joins, triggers game start
-'action'     → Delegate to gameServer.processAction()
+'action'     → Delegate to gameServer.processAction()  // type: 'reveal'|'flag'|'chord'
 'cursor'     → Delegate to gameServer.updateCursor()
 'disconnect' → Cleanup, potentially reset server
 ```
@@ -241,6 +241,7 @@ init()                    // Reset game state
 placeMines(x, y)          // Async, respects safe zone
 reveal(x, y)              // Returns { type, changes }
 toggleFlag(x, y)          // Returns { type, x, y, active }
+chord(x, y)               // Returns { type, changes } or { type: 'explode', x, y, changes }
 checkWin()                // Boolean
 getMinePositions()        // For state sync
 setMinesFromPositions()   // For replays
@@ -334,10 +335,13 @@ const DEDICATED_SERVER_URL =
 
 - [ ] Host creates game, guest joins
 - [ ] First click places mines for both players
-- [ ] Actions sync correctly (reveal, flag)
+- [ ] Actions sync correctly (reveal, flag, chord)
+- [ ] Chord reveals neighbors when flags match cell value
+- [ ] Chord explosion uses correct mine coordinates (not action coords)
+- [ ] Chord pre-explosion reveals are broadcast to all clients
 - [ ] Partner cursor visible
 - [ ] Win condition triggers for both
-- [ ] Loss condition triggers for both
+- [ ] Player elimination triggers spectator mode
 - [ ] Host disconnect resets guest
 - [ ] Guest disconnect doesn't affect host
 - [ ] Server reset after game end
@@ -459,7 +463,16 @@ CMD ["node", "server.js"]
 
 ## 📝 Changelog
 
-### v2.3 (Current)
+### v2.4 (Current)
+- **Chord Clicking**: Double-click chord mechanic in solo and multiplayer. Server validates `chord` action type. Pre-explosion reveals are broadcast to prevent state desync.
+- **Ground-Plane Raycasting**: `InputManager` now raycasts an invisible `THREE.Plane(Y=0)` for click/dblclick, solving the zero-scaled InstancedMesh raycast miss on revealed cells.
+- **HUD Bar**: Timer, score, and mine counter aligned horizontally in a flex `#hud-bar` container.
+- **Toast Notifications**: All `alert()` calls replaced with CSS-animated toast messages.
+- **No-Guess Default**: No-Guess checkbox defaults to checked.
+- **Dead Code Removal**: Removed `legacy/` directory, `TextureManager.js`, `MediaHandler.js`.
+- **Chord Explosion Sync Fix**: Chord mine coordinates now correctly reference `result.x, result.y` (not action coords). Pre-explosion `changes` are included in the `revealedBomb` broadcast so surviving players stay in sync.
+
+### v2.3
 - **Spectator Mode**: Eliminated players can continue watching the game (ghost mode + "Back to lobby" button).
 - **Full i18n (FR/EN)**: All UI components, menus, HUD, leaderboard, scoreboard, and analytics page support live language switching.
 - **Analytics i18n**: `analytics.html` converted to ES module with `import` from `i18n.js`. ~65 `an.*` translation keys. Integrated FR/EN toggle. All charts, tables, badges, alerts re-render on language change.

@@ -173,7 +173,7 @@ export class NetworkManager {
 
     /**
      * Send an action to the server
-     * @param {object} action - { type: 'reveal'|'flag', x, y }
+     * @param {object} action - { type: 'reveal'|'flag'|'chord', x, y }
      */
     sendAction(action) {
         if (this.socket) {

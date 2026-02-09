@@ -598,17 +598,27 @@ body::before {
         font-size: 1.1em;
     }
 
+    #hud-bar {
+        gap: 8px;
+        top: 15px;
+    }
+
     #timer-display {
-        font-size: 1em;
-        padding: 10px 20px;
-        min-width: 110px;
+        font-size: 0.9em;
+        padding: 8px 16px;
+        min-width: 100px;
     }
 
     #score-display {
-        font-size: 1em;
-        padding: 10px 20px;
-        min-width: 140px;
-        top: 75px;
+        font-size: 0.9em;
+        padding: 8px 16px;
+        min-width: 120px;
+    }
+
+    #mines-display {
+        font-size: 0.85em;
+        padding: 8px 14px;
+        min-width: 100px;
     }
 
     .preset-grid {
@@ -627,12 +637,25 @@ body::before {
     }
 }
 
-/* Chronometer / Timer Display */
-#timer-display {
+/* HUD Bar - horizontal container for timer/score/mines */
+#hud-bar {
     position: absolute;
     top: 25px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 100;
+    align-items: center;
+    pointer-events: none;
+}
+
+#hud-bar > * {
+    pointer-events: auto;
+}
+
+/* Chronometer / Timer Display */
+#timer-display {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -642,7 +665,6 @@ body::before {
     border: 1px solid rgba(255, 255, 255, 0.2);
     font-size: 1.25em;
     font-weight: 700;
-    z-index: 100;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     display: none;
     font-family: 'Inter', sans-serif;
@@ -678,10 +700,6 @@ body::before {
 
 /* Score Display */
 #score-display {
-    position: absolute;
-    top: 85px;
-    left: 50%;
-    transform: translateX(-50%);
     background: rgba(255, 215, 0, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -700,6 +718,64 @@ body::before {
 
 #score-display.active {
     display: block;
+}
+
+/* Mine Counter Display */
+#mines-display {
+    background: rgba(255, 50, 50, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #ff6666;
+    padding: 10px 24px;
+    border-radius: 50px;
+    border: 1px solid rgba(255, 50, 50, 0.3);
+    font-size: 1.1em;
+    font-weight: 700;
+    z-index: 100;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    display: none;
+    min-width: 140px;
+    text-align: center;
+}
+
+#mines-display.active {
+    display: block;
+}
+
+/* In-game Notification Toast */
+.game-notification {
+    position: fixed;
+    top: 30px;
+    right: 30px;
+    background: rgba(255, 165, 0, 0.15);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #ffaa00;
+    padding: 16px 24px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 165, 0, 0.3);
+    font-size: 0.95em;
+    font-weight: 600;
+    z-index: 1000;
+    max-width: 400px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: translateX(40px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    pointer-events: none;
+    font-family: 'Inter', sans-serif;
+}
+
+.game-notification.visible {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+}
+
+.game-notification.error {
+    background: rgba(255, 50, 50, 0.15);
+    border-color: rgba(255, 50, 50, 0.3);
+    color: #ff6666;
 }
 
 /* Hint Display - Now inside ui-container */

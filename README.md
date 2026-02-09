@@ -9,14 +9,18 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 
 - **Immersive 3D Grid**: Navigate a floating minefield in a 3D space with smooth camera, animations and lighting.
 - **Custom Media Backgrounds**: Play with uploaded images or videos as dynamic backgrounds.
-- **No-Guess Mode**: Gaussian elimination + multi-strategy solver guarantees every board is solvable without guessing.
+- **No-Guess Mode**: Gaussian elimination + multi-strategy solver guarantees every board is solvable without guessing. Enabled by default.
+- **Chord Clicking**: Double-click a numbered cell with the correct adjacent flags to auto-reveal its neighbors.
 - **Competitive Multiplayer**:
     - **Lobby System**: Support for up to 8 players.
     - **Host Control**: Configure grid size, bomb count, player limits, and No-Guess mode.
     - **Elimination Mode**: Click a bomb? You're out! But the game continues for the rest.
+    - **Spectator Mode**: Eliminated players enter ghost mode and can continue watching.
+    - **Chord in Multiplayer**: Chord clicks are server-validated with full state sync.
     - **Real-time Sync**: Watch your friends' cursors and actions in real-time.
     - **Leaderboard & Scoring**: Points for reveals, flags, time bonus, and win bonus.
-- **Premium UI**: Sleek, modern interface built with a glassmorphism aesthetic.
+- **Bilingual (FR/EN)**: Full internationalization with live language switching (~190 translation keys).
+- **Premium UI**: Sleek, modern interface with glassmorphism aesthetic and toast notifications.
 - **First-Click Safety**: Never lose on your first move.
 - **Headless Server**: Authoritative server logic with input validation, rate limiting, and name sanitization.
 - **Sensitivity Analysis**: Behavioural analytics detects emotional impact of custom media backgrounds.

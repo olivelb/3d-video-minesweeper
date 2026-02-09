@@ -180,6 +180,12 @@ export class MinesweeperRenderer {
             });
             if (result.type === 'win') this.triggerWin();
         } else if (result.type === 'explode') {
+            // Apply any pre-explosion changes (from chord revealing safe cells before hitting mine)
+            if (result.changes && result.changes.length > 0) {
+                result.changes.forEach(change => {
+                    this.updateCellVisual(change.x, change.y, change.value);
+                });
+            }
             this.triggerExplosion();
         } else if (result.type === 'flag') {
             this.updateFlagVisual(result.x, result.y, result.active);
@@ -386,7 +392,9 @@ export class MinesweeperRenderer {
     // ─────────────────────────────────────────────
 
     animate() {
-        const dt = 0.016;
+        const now = performance.now();
+        const dt = this._lastFrameTime ? Math.min((now - this._lastFrameTime) / 1000, 0.1) : 0.016;
+        this._lastFrameTime = now;
 
         // Camera (intro animation or orbit controls)
         this.cameraController.update(dt);

@@ -1,6 +1,6 @@
 # 🏗️ Technical Architecture & Module Hierarchy
 
-> **Version:** 3.1 (Feb 2026)
+> **Version:** 3.2 (Feb 2026)
 > **Status:** Active
 
 This document provides a technical overview of the **3D Minesweeper** codebase, its module hierarchy, and data flow.
@@ -31,7 +31,7 @@ Detailed lifecycle of a multiplayer session.
 
 ### 1. Core (`javascripts/core/`)
 *   **`GameController.js`**: The central orchestrator. It connects the Game Logic, UI, Renderer, and Network via **EventBus**. It listens for `CELL_INTERACTION` and `NET_*` events to drive the game state.
-*   **`Game.js`**: Pure game logic (Grid state, Rules, Win/Loss conditions). No DOM/WebGL references.
+*   **`Game.js`**: Pure game logic (Grid state, Rules, Win/Loss conditions, Chord logic). No DOM/WebGL references.
 *   **`EventBus.js`**: Pub/Sub system for decoupled communication (e.g., `Events.GAME_OVER`, `Events.NET_GAME_START`). Includes try/catch error isolation in `emit()` to prevent one bad listener from crashing others.
 
 ### 1b. Shared (`shared/`)
@@ -44,13 +44,13 @@ Detailed lifecycle of a multiplayer session.
     *   **`FlagManager.js`**: Manages 3D Flag instances and particle effects for flags.
     *   **`CameraController.js`**: Camera positioning, orbit controls, intro animation, and zoom-to-board.
     *   **`EndGameEffects.js`**: Victory/defeat text billboards, confetti, and auto-return timer.
-*   **`InputManager.js`**: Handles Raycasting. **Decoupled**: Emits `CELL_INTERACTION` events instead of calling logic directly.
+*   **`InputManager.js`**: Handles input & raycasting. Uses a **ground-plane raycast** (`THREE.Plane` at Y=0) for click/double-click to resolve grid coordinates reliably (even on zero-scaled revealed cells), and `InstancedMesh` raycasting for hover highlights only. Supports three interaction types: `reveal` (left click), `flag` (right click), `chord` (double-click). **Decoupled**: Emits `CELL_INTERACTION` events instead of calling logic directly.
 *   **`MediaTextureManager.js`**: Manages loading of Textures, Fonts, and media resources.
 *   **`ParticleSystem.js`**: Flag particles, fireworks, and explosion effects. Uses reusable `_tempColor` to minimize GC pressure.
 
 ### 3. Managers (`javascripts/managers/`)
 *   **`ScoreManager.js`**: Scoring, High Scores (LocalStorage), and Click Analytics.
-*   **`UIManager.js`**: Manages HTML overlays (Menu, HUD, Modals) and DOM event listeners.
+*   **`UIManager.js`**: Manages HTML overlays (Menu, HUD, Modals) and DOM event listeners. Uses **toast notifications** (CSS-animated slide-in/out) instead of `alert()` for all user-facing messages.
 
 ### 3b. Internationalization (`javascripts/i18n.js`)
 *   **`i18n.js`**: Lightweight i18n module (~190 keys FR/EN). Exports `t(key, params?)` for parameterized translations, `translateDOM()` for scanning `data-i18n` attributes, `setLang()`/`getLang()`/`getLocale()`/`initLang()`. `setLang()` dispatches a `langchange` CustomEvent so dynamic components can re-render. Language persisted in `localStorage`.
@@ -66,9 +66,9 @@ Detailed lifecycle of a multiplayer session.
 ## 🔄 Data Flow
 
 ### 1. Local Single Player
-1.  **Input**: User clicks canvas -> `InputManager` detects intersection.
-2.  **Event**: `InputManager` emits `CELL_INTERACTION` ({ x, y, type }).
-3.  **Logic**: `GameController` hears event -> calls `Game.reveal(x,y)`.
+1.  **Input**: User clicks canvas -> `InputManager` raycasts a ground plane at Y=0 to resolve grid (x,y).
+2.  **Event**: `InputManager` emits `CELL_INTERACTION` ({ x, y, type: 'reveal'|'flag'|'chord' }).
+3.  **Logic**: `GameController` hears event -> calls `Game.reveal(x,y)`, `Game.toggleFlag(x,y)`, or `Game.chord(x,y)`.
 4.  **Result**: `Game` returns a `Result` object.
 5.  **Update**: `GameController` passes result to `Renderer` -> visuals update.
 
@@ -88,11 +88,8 @@ Detailed lifecycle of a multiplayer session.
 ### 1. TypeScript
 The project uses extensive JSDoc, but migrating to TypeScript would strictly enforce the interfaces between `GameController` and its Sub-Managers.
 
-### 2. TextureManager Consolidation
-`MediaTextureManager.js` and `TextureManager.js` have overlapping responsibilities. They should be merged into a single unified texture loading pipeline.
+### 2. HUD Overlay System
+`HUDController.js` could be expanded into a proper overlay rendering system for real-time game stats. The current `#hud-bar` (flexbox row with timer, score, mines counter) is functional but minimal.
 
-### 3. HUD Overlay System
-`HUDController.js` could be expanded into a proper overlay rendering system for real-time game stats.
-
-### 4. Lobby Transition Animations
+### 3. Lobby Transition Animations
 The multiplayer lobby panel switching (connecting → waiting → in-game) could benefit from slide-with-crossfade CSS transitions for a smoother UX.

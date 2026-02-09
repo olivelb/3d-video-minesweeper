@@ -210,13 +210,14 @@ export class MinesweeperGame {
             // If user stopped or limit reached, we still play but with a warning
             if (success.cancelled || success.warning) {
                 const reason = success.cancelled
-                    ? (_t ? _t('game.genCancelled') : 'interrompue')
-                    : (_t ? _t('game.genLimited', { max: 10000 }) : 'limitée à 10000 essais');
-                if (isBrowser && typeof alert === 'function') {
-                    const msg = _t
-                        ? _t('game.genFailed', { reason })
-                        : `Note : La génération a été ${reason}. La grille n'est pas garantie 100% logique.`;
-                    alert(msg);
+                    ? (_t ? _t('hud.notifGenCancelled') : 'interrompue')
+                    : (_t ? _t('hud.notifGenLimited', { max: 10000 }) : 'limitée à 10000 essais');
+                const msg = _t
+                    ? _t('hud.notifGenWarning', { reason })
+                    : `Note : La génération a été ${reason}. La grille n'est pas garantie 100% logique.`;
+                // Emit notification instead of blocking alert()
+                if (isBrowser && window._gameController?.uiManager?.hudController) {
+                    window._gameController.uiManager.hudController.showNotification(msg, 'warning');
                 }
                 // In headless mode, just log it
                 if (typeof Logger !== 'undefined') {
@@ -307,6 +308,68 @@ export class MinesweeperGame {
 
         this.flags[x][y] = !this.flags[x][y];
         return { type: 'flag', x, y, active: this.flags[x][y] };
+    }
+
+    /**
+     * Chord click: si la cellule est révélée et que le nombre de flags adjacents
+     * correspond à la valeur de la cellule, révèle tous les voisins non-flaggés.
+     * Si un flag est mal placé, le joueur meurt.
+     * @param {number} x 
+     * @param {number} y 
+     * @returns {Object} Résultat de l'action
+     */
+    chord(x, y) {
+        if (this.gameOver || this.victory) return { type: 'none', changes: [] };
+
+        const value = this.visibleGrid[x][y];
+        // Only works on revealed numbered cells (1-8)
+        if (value <= 0 || value > 8) return { type: 'none', changes: [] };
+
+        // Count adjacent flags
+        let adjacentFlags = 0;
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx, ny = y + dy;
+                if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && this.flags[nx][ny]) {
+                    adjacentFlags++;
+                }
+            }
+        }
+
+        // If flags don't match the number, do nothing
+        if (adjacentFlags !== value) return { type: 'none', changes: [] };
+
+        // Reveal all non-flagged, non-revealed neighbors
+        const changes = [];
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
+                if (this.flags[nx][ny] || this.visibleGrid[nx][ny] !== -1) continue;
+
+                // If there's a mine here (bad flag elsewhere), game over
+                if (this.mines[nx][ny]) {
+                    this.gameOver = true;
+                    this.lastMove = { x: nx, y: ny };
+                    this.visibleGrid[nx][ny] = 9;
+                    // Include pre-explosion changes so renderer can show them
+                    return { type: 'explode', x: nx, y: ny, changes };
+                }
+
+                this.floodFill(nx, ny, changes);
+            }
+        }
+
+        if (changes.length === 0) return { type: 'none', changes: [] };
+
+        if (this.checkWin()) {
+            this.victory = true;
+            return { type: 'win', changes };
+        }
+
+        return { type: 'reveal', changes };
     }
 
     checkWin() {

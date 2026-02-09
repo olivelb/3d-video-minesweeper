@@ -24,7 +24,7 @@
 ### Comportement quand un joueur clique sur une bombe:
 1. Le joueur est marqué comme **éliminé** sur le serveur.
 2. Un événement `playerEliminated` est envoyé à tous les clients.
-3. Le joueur éliminé voit l'**animation d'explosion** et retourne au **menu après 3 secondes**.
+3. Le joueur éliminé voit l'**animation d'explosion**, puis entre en **Mode Spectateur** après 3 secondes (effet fantôme, lumières tamisées, bouton "Retour au lobby").
 4. Les autres joueurs voient la **bombe révélée** (icône bombe avec X rouge) et une **notification**.
 5. La partie **continue** pour les joueurs restants.
 6. Le **serveur ne reset PAS** - même si c'est l'hôte qui est éliminé.
@@ -53,6 +53,9 @@
 5. **Gestionnaire de Score** - Implémentation de `getScores()` pour filtrer le leaderboard correctement.
 6. **Reset Multijoueur** - Implémentation d'un reset propre côté client et serveur après chaque partie.
 7. **Performance Génération** - Optimisation de la boucle de génération et ajout d'un feedback visuel pour l'attente.
+8. **Coordonnées de mine dans chord** - L'élimination par chord envoyait les coordonnées de la case cliquée au lieu de celles de la mine réelle (`result.x, result.y`).
+9. **Désync état après chord + explosion** - Le chord révélait des cases safe avant de toucher une mine, mais ces changements n'étaient pas broadcastés. Les clients survivants ne pouvaient plus cliquer sur ces cases (serveur les voyait comme révélées, client comme cachées). Corrigé en incluant les `changes` pré-explosion dans le broadcast `revealedBomb`.
+10. **Cellules invisibles au raycast** - Les cellules révélées (scale 0,0,0 dans InstancedMesh) n'étaient pas détectables au clic/double-clic. Résolu par un raycast sur un plan invisible `THREE.Plane(Y=0)` pour les clics, indépendant de l'état visuel des cellules.
 
 ## Internationalisation (i18n) 🌍
 
@@ -74,12 +77,17 @@ Un système i18n complet a été intégré :
 13. **Mode Spectateur** — Les joueurs éliminés peuvent continuer à observer la partie (mode fantôme + bouton "Retour au lobby").
 14. **Internationalisation (FR/EN)** — Toutes les pages et composants dynamiques supportent le français et l'anglais avec switching live.
 15. **Analytics i18n** — `analytics.html` entièrement internationalisée (~65 clés `an.*`), avec sélecteur de langue intégré et re-rendu complet des graphiques/tables au changement.
+16. **Chord Clicking (Double-clic)** — Double-clic sur une case numérotée avec le bon nombre de drapeaux adjacents révèle les voisins non-flaggés. Fonctionne en solo ET en multijoueur (action `chord` validée par le serveur).
+17. **HUD Horizontal Bar** — Timer, score et compteur de mines alignés horizontalement dans une barre flex `#hud-bar` en haut de l'écran.
+18. **Notifications Toast** — Tous les `alert()` remplacés par des toasts CSS animés (slide-in/fade-out).
+19. **No-Guess activé par défaut** — La checkbox "No Guess" est cochée par défaut.
 
 ## Prochaines Étapes 🚀
 
 1. [ ] Animations de transition plus fluides dans le lobby (slide-with-crossfade CSS).
 2. [ ] Système de chat d'avant-partie.
 3. [ ] Statistiques de fin de partie détaillées (cases révélées par joueur).
+4. [ ] Migration TypeScript pour les interfaces inter-modules.
 
 ## Notes Techniques
 

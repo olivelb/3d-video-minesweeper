@@ -100,7 +100,6 @@ export class GameController {
             if (!this.game || !this.renderer) return;
             if (this.game.retryLastMove()) {
                 this.renderer.resetExplosion();
-                this.renderer.resetExplosion();
                 if (this.uiManager?.hudController) {
                     this.uiManager.hudController.onRetryUsed();
                 }
@@ -123,6 +122,8 @@ export class GameController {
                     result = await this.game.reveal(x, y);
                 } else if (type === 'flag') {
                     result = this.game.toggleFlag(x, y);
+                } else if (type === 'chord') {
+                    result = this.game.chord(x, y);
                 }
 
                 // Update Visuals via Renderer
@@ -242,6 +243,13 @@ export class GameController {
                     this.renderer.triggerWin();
                 }
             } else if (result.type === 'revealedBomb') {
+                // Apply any pre-explosion reveals (e.g., chord revealed safe cells before hitting a mine)
+                if (result.changes && result.changes.length > 0) {
+                    result.changes.forEach(c => {
+                        this.game.visibleGrid[c.x][c.y] = c.value;
+                        this.renderer.updateCellVisual(c.x, c.y, c.value);
+                    });
+                }
                 this.game.visibleGrid[result.x][result.y] = 10;
                 this.renderer.updateCellVisual(result.x, result.y, 10);
             } else if (result.type === 'explode' && !this.game.gameOver) {
@@ -424,7 +432,7 @@ export class GameController {
         this.uiManager.showMenu();
 
         // Multiplayer cleanup
-        if (networkManager.isConnected) {
+        if (networkManager.socket) {
             Logger.log('GameController', 'Disconnecting multiplayer...');
             networkManager.disconnect();
             // UI reset is handled by UIManager listening to GAME_ENDED
@@ -507,6 +515,17 @@ export class GameController {
                     if (this.uiManager && this.uiManager.hudController) {
                         this.uiManager.hudController.updateScore(currentScore);
                     }
+                }
+
+                // Update mine counter
+                if (this.uiManager && this.uiManager.hudController) {
+                    let flagCount = 0;
+                    for (let fx = 0; fx < this.game.width; fx++) {
+                        for (let fy = 0; fy < this.game.height; fy++) {
+                            if (this.game.flags[fx][fy]) flagCount++;
+                        }
+                    }
+                    this.uiManager.hudController.updateMineCounter(this.game.bombCount - flagCount);
                 }
             }
         }, 100);

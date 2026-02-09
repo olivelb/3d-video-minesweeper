@@ -12,9 +12,11 @@ export class HUDController {
         // UI Elements
         this.timerEl = document.getElementById('timer-display');
         this.scoreEl = document.getElementById('score-display');
+        this.minesEl = document.getElementById('mines-display');
         this.hintBtn = document.getElementById('hint-btn');
         this.retryBtn = document.getElementById('retry-btn');
         this.hintDisplay = document.getElementById('hint-display');
+        this.notificationEl = document.getElementById('game-notification');
 
         this.bindEvents();
     }
@@ -42,6 +44,10 @@ export class HUDController {
             this.scoreEl.innerText = t('hud.score', { score: 0 });
             this.scoreEl.classList.remove('active');
         }
+        if (this.minesEl) {
+            this.minesEl.innerText = t('hud.mines', { count: 0 });
+            this.minesEl.classList.remove('active');
+        }
         if (this.hintDisplay) {
             this.hintDisplay.innerText = '';
             this.hintDisplay.classList.remove('active');
@@ -54,11 +60,13 @@ export class HUDController {
     show() {
         if (this.timerEl) this.timerEl.classList.add('active');
         if (this.scoreEl) this.scoreEl.classList.add('active');
+        if (this.minesEl) this.minesEl.classList.add('active');
     }
 
     hide() {
         if (this.timerEl) this.timerEl.classList.remove('active');
         if (this.scoreEl) this.scoreEl.classList.remove('active');
+        if (this.minesEl) this.minesEl.classList.remove('active');
         if (this.hintDisplay) this.hintDisplay.classList.remove('active');
     }
 
@@ -71,6 +79,12 @@ export class HUDController {
     updateScore(score) {
         if (this.scoreEl) {
             this.scoreEl.innerText = t('hud.score', { score: score });
+        }
+    }
+
+    updateMineCounter(remaining) {
+        if (this.minesEl) {
+            this.minesEl.innerText = t('hud.mines', { count: remaining });
         }
     }
 
@@ -113,5 +127,26 @@ export class HUDController {
     onRetryUsed() {
         this.hideRetryButton();
         this.showHintButton();
+    }
+
+    /**
+     * Show an in-game notification toast (replaces alert())
+     * @param {string} message - The message to display
+     * @param {string} type - 'warning' or 'error'
+     * @param {number} duration - Duration in ms (default 5000)
+     */
+    showNotification(message, type = 'warning', duration = 5000) {
+        if (!this.notificationEl) return;
+
+        this.notificationEl.textContent = message;
+        this.notificationEl.classList.remove('error');
+        if (type === 'error') this.notificationEl.classList.add('error');
+
+        this.notificationEl.classList.add('visible');
+
+        if (this._notifTimeout) clearTimeout(this._notifTimeout);
+        this._notifTimeout = setTimeout(() => {
+            this.notificationEl.classList.remove('visible');
+        }, duration);
     }
 }

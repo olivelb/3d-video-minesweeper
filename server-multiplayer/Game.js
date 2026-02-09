@@ -355,6 +355,61 @@ export class MinesweeperGame {
         return { type: 'flag', x, y, active: this.flags[x][y] };
     }
 
+    /**
+     * Chord click: if the cell is a revealed number and the adjacent flag count
+     * matches the cell value, reveal all non-flagged neighbors.
+     * If a flag is misplaced, the player hits a mine.
+     */
+    chord(x, y) {
+        if (this.gameOver || this.victory) return { type: 'none', changes: [] };
+
+        const value = this.visibleGrid[x][y];
+        if (value <= 0 || value > 8) return { type: 'none', changes: [] };
+
+        let adjacentFlags = 0;
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx, ny = y + dy;
+                if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && this.flags[nx][ny]) {
+                    adjacentFlags++;
+                }
+            }
+        }
+
+        if (adjacentFlags !== value) return { type: 'none', changes: [] };
+
+        const changes = [];
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
+                if (this.flags[nx][ny] || this.visibleGrid[nx][ny] !== -1) continue;
+
+                if (this.mines[nx][ny]) {
+                    this.gameOver = true;
+                    this.lastMove = { x: nx, y: ny };
+                    this.visibleGrid[nx][ny] = 9;
+                    // Include pre-explosion changes so clients can sync cells
+                    // revealed before the mine was hit
+                    return { type: 'explode', x: nx, y: ny, changes };
+                }
+
+                this.floodFill(nx, ny, changes);
+            }
+        }
+
+        if (changes.length === 0) return { type: 'none', changes: [] };
+
+        if (this.checkWin()) {
+            this.victory = true;
+            return { type: 'win', changes };
+        }
+
+        return { type: 'reveal', changes };
+    }
+
     checkWin() {
         let revealedCount = 0;
         for (let x = 0; x < this.width; x++) {

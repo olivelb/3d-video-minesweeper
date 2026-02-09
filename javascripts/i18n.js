@@ -33,7 +33,7 @@ const translations = {
         'menu.noGuess': 'Sans hasard (No Guess)',
         'menu.play': 'JOUER (Solo)',
         'menu.replay': '🔄 REJOUER LA GRILLE',
-        'menu.instructions': 'Clic Gauche: Révéler | Clic Droit: Drapeau',
+        'menu.instructions': 'Clic Gauche: Révéler | Clic Droit: Drapeau | Double-Clic: Chord',
 
         // ── Preset backgrounds ──
         'bg.storm': 'Orage',
@@ -62,6 +62,7 @@ const translations = {
         // ── HUD ──
         'hud.timer': '⏱️ {time}',
         'hud.score': '🏆 Score: {score}',
+        'hud.mines': '💣 Mines: {count}',
         'hud.hints': '🧩 Indices: {count}',
         'hud.hintBtn': '🧩 BESOIN D\'AIDE',
         'hud.hintBtnTitle': 'Obtenir un indice logique',
@@ -74,6 +75,9 @@ const translations = {
         'hud.flagFlags': '🚩 DRAPEAUX',
         'hud.flagBtnTitle': 'Basculer vers les drapeaux 3D',
         'hud.player': '👤 Joueur: {name}',
+        'hud.notifGenWarning': 'La génération a été {reason}. La grille n\'est pas garantie 100% logique.',
+        'hud.notifGenCancelled': 'interrompue',
+        'hud.notifGenLimited': 'limitée à {max} essais',
 
         // ── Multiplayer ──
         'mp.title': 'Multijoueur',
@@ -174,9 +178,6 @@ const translations = {
         // ── 3D Text ──
         'game.win': 'BRAVO',
         'game.loss': 'PERDU',
-        'game.genFailed': 'Note : La génération a été {reason}. La grille n\'est pas garantie 100% logique.',
-        'game.genCancelled': 'interrompue',
-        'game.genLimited': 'limitée à {max} essais',
 
         // ── Analytics ──
         'an.pageTitle': 'Démineur 3D - Analytics',
@@ -264,7 +265,7 @@ const translations = {
         'menu.noGuess': 'No Guess mode',
         'menu.play': 'PLAY (Solo)',
         'menu.replay': '🔄 REPLAY GRID',
-        'menu.instructions': 'Left Click: Reveal | Right Click: Flag',
+        'menu.instructions': 'Left Click: Reveal | Right Click: Flag | Double-Click: Chord',
 
         // ── Preset backgrounds ──
         'bg.storm': 'Storm',
@@ -293,6 +294,7 @@ const translations = {
         // ── HUD ──
         'hud.timer': '⏱️ {time}',
         'hud.score': '🏆 Score: {score}',
+        'hud.mines': '💣 Mines: {count}',
         'hud.hints': '🧩 Hints: {count}',
         'hud.hintBtn': '🧩 NEED HELP',
         'hud.hintBtnTitle': 'Get a logic-based hint',
@@ -305,6 +307,9 @@ const translations = {
         'hud.flagFlags': '🚩 FLAGS',
         'hud.flagBtnTitle': 'Switch to 3D flags',
         'hud.player': '👤 Player: {name}',
+        'hud.notifGenWarning': 'Generation was {reason}. The grid is not guaranteed 100% logical.',
+        'hud.notifGenCancelled': 'cancelled',
+        'hud.notifGenLimited': 'limited to {max} attempts',
 
         // ── Multiplayer ──
         'mp.title': 'Multiplayer',
@@ -405,9 +410,6 @@ const translations = {
         // ── 3D Text ──
         'game.win': 'BRAVO',
         'game.loss': 'GAME OVER',
-        'game.genFailed': 'Note: Generation was {reason}. The grid is not guaranteed 100% logical.',
-        'game.genCancelled': 'cancelled',
-        'game.genLimited': 'limited to {max} attempts',
 
         // ── Analytics ──
         'an.pageTitle': '3D Minesweeper - Analytics',

@@ -132,10 +132,9 @@ export class MenuController {
     }
 
     checkReplayAvailable() {
-        const savedMines = localStorage.getItem('lastMinePositions');
-        const savedConfig = localStorage.getItem('lastGameConfig');
+        const savedData = localStorage.getItem('minesweeper3d_last_grid');
 
-        if (savedMines && savedConfig && this.replayBtn) {
+        if (savedData && this.replayBtn) {
             this.replayBtn.style.display = 'inline-block';
         }
     }
@@ -327,27 +326,25 @@ export class MenuController {
     }
 
     handleReplay() {
-        const savedMines = localStorage.getItem('lastMinePositions');
-        const savedConfig = localStorage.getItem('lastGameConfig');
+        const savedData = localStorage.getItem('minesweeper3d_last_grid');
 
-        if (savedMines && savedConfig) {
-            const mines = JSON.parse(savedMines);
-            const config = JSON.parse(savedConfig);
+        if (savedData) {
+            const data = JSON.parse(savedData);
 
-            this.widthInput.value = config.width;
-            this.heightInput.value = config.height;
-            this.bombInput.value = config.bombs;
+            this.widthInput.value = data.width;
+            this.heightInput.value = data.height;
+            this.bombInput.value = data.bombCount;
 
             this.hide();
 
             this.events.emit(Events.GAME_START, {
-                width: config.width,
-                height: config.height,
-                bombs: config.bombs,
-                useHoverHelper: config.hoverHelper ?? true,
-                noGuessMode: config.noGuess ?? false,
-                bgName: config.bgName || 'Replay',
-                replayMines: mines
+                width: data.width,
+                height: data.height,
+                bombs: data.bombCount,
+                useHoverHelper: true,
+                noGuessMode: data.noGuessMode ?? false,
+                bgName: 'Replay',
+                replayMines: data.minePositions
             });
         }
     }

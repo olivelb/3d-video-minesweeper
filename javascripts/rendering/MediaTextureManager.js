@@ -16,10 +16,6 @@ export class MediaTextureManager {
         this.videoCheckInterval = null;
         this._videoEventListeners = [];
 
-        // Flag assets
-        this.flag2DGeometry = null;
-        this.flag2DMaterial = null;
-        this.flag2DTexture = null;
         this.font = null;
     }
 
@@ -97,9 +93,6 @@ export class MediaTextureManager {
             }
         }
 
-        // Create the 3D flag assets now that we are initialized
-        this.create3DFlagAssets();
-
         // Load Font
         this.font = await this.loadFont('https://unpkg.com/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json');
 
@@ -150,76 +143,6 @@ export class MediaTextureManager {
      */
     update() {
         // VideoTextures update automatically in Three.js usually
-    }
-
-    /**
-     * Create reusable 2D flag geometry and material (same size as numbers: 16x16)
-     */
-    create3DFlagAssets() {
-        // 2D horizontal plane, same size as number textures
-        this.flag2DGeometry = new THREE.PlaneGeometry(16, 16);
-
-        // Create a canvas texture for the flag icon - bold stylized design
-        const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 128;
-        const ctx = canvas.getContext('2d');
-
-        // Clear with full transparency
-        ctx.clearRect(0, 0, 128, 128);
-
-        // Outer glow effect (makes it visible on any background)
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 15;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-
-        // Bold triangular flag - large and visible
-        ctx.fillStyle = '#ff2222';
-        ctx.beginPath();
-        ctx.moveTo(20, 15);      // Top-left of flag
-        ctx.lineTo(108, 45);     // Right point
-        ctx.lineTo(20, 75);      // Bottom-left of flag
-        ctx.closePath();
-        ctx.fill();
-
-        // Inner highlight
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#ff6666';
-        ctx.beginPath();
-        ctx.moveTo(25, 25);
-        ctx.lineTo(75, 42);
-        ctx.lineTo(25, 55);
-        ctx.closePath();
-        ctx.fill();
-
-        // Bold white border for visibility
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(20, 15);
-        ctx.lineTo(108, 45);
-        ctx.lineTo(20, 75);
-        ctx.closePath();
-        ctx.stroke();
-
-        // Pole - thick and visible
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(12, 10, 8, 108);
-        ctx.fillStyle = '#cccccc';
-        ctx.fillRect(12, 10, 4, 108);
-
-        this.flag2DTexture = new THREE.CanvasTexture(canvas);
-        this.flag2DTexture.minFilter = THREE.LinearFilter;
-        this.flag2DTexture.magFilter = THREE.LinearFilter;
-        this.flag2DMaterial = new THREE.MeshBasicMaterial({
-            map: this.flag2DTexture,
-            transparent: true,
-            opacity: 1.0,
-            depthTest: true,
-            depthWrite: false,
-            side: THREE.DoubleSide
-        });
     }
 
     /**
@@ -336,9 +259,6 @@ export class MediaTextureManager {
         Object.values(this.textures).forEach(t => t?.dispose());
         if (this.mediaTexture) this.mediaTexture.dispose();
         if (this.placeholderTexture) this.placeholderTexture.dispose();
-        if (this.flag2DTexture) this.flag2DTexture.dispose();
-        if (this.flag2DMaterial) this.flag2DMaterial.dispose();
-        if (this.flag2DGeometry) this.flag2DGeometry.dispose();
 
         if (this.videoCheckInterval) clearInterval(this.videoCheckInterval);
 

@@ -8,7 +8,6 @@ export class ScoreManager {
         this.analyticsKey = 'minesweeper3d_analytics';
         this.playerIdKey = 'minesweeper3d_player_id';
         this.initPlayer();
-        this.clickTimestamps = [];
     }
 
     initPlayer() {
@@ -60,16 +59,20 @@ export class ScoreManager {
         const bombDensity = bombs / gridSize;
         const difficultyFactor = gridSize * bombDensity * 10;
 
-        // Bonus de vitesse : 10000 points de base moins 10 par seconde
-        const timeBonus = Math.max(0, 10000 - timeSeconds * 10);
+        // Time bonus scales with grid size: larger grids get more time before penalty
+        // Base: 10000pts, loses points proportionally slower on bigger boards
+        const timeFactor = Math.max(5, gridSize / 50); // ~6 for 9x9, ~12 for 30x16, ~30 for 50x30
+        const timeBonus = Math.max(0, 10000 - timeSeconds * (1000 / timeFactor));
 
         let finalScore = difficultyFactor * 100 + timeBonus;
 
         // Pénalité Mode No Guess (-25%) car la chance est éliminée
         if (noGuessMode) finalScore *= 0.75;
 
-        // Pénalité par indice utilisé (-2500 pts)
-        finalScore -= hintCount * 2500;
+        // Hints: first hint is free, then progressive cost (-1500, -2500, -3500, ...)
+        for (let i = 1; i < hintCount; i++) {
+            finalScore -= 1500 + (i - 1) * 1000;
+        }
 
         // Pénalité par retry (-5000 pts + -25% score total par retry)
         for (let i = 0; i < retryCount; i++) {
@@ -224,46 +227,5 @@ export class ScoreManager {
         const topScores = this.getTopScores(10);
         if (topScores.length < 10) return true;
         return score > topScores[topScores.length - 1].score;
-    }
-    /**
- * Reset click analytics for a new game
- */
-    resetAnalytics() {
-        this.clickTimestamps = [];
-    }
-
-    /**
-     * Track a click event for analytics
-     */
-    trackClick() {
-        const now = Date.now();
-        if (this.clickTimestamps.length > 0) {
-            const delta = now - this.clickTimestamps[this.clickTimestamps.length - 1].time;
-            this.clickTimestamps.push({ time: now, delta: delta });
-        } else {
-            this.clickTimestamps.push({ time: now, delta: 0 });
-        }
-    }
-
-    /**
-     * Calculate click timing analytics
-     * @returns {Object} Click timing metrics
-     */
-    getClickAnalytics() {
-        if (this.clickTimestamps.length === 0) {
-            return { avgDecisionTime: 0, maxPause: 0, clickCount: 0, hesitations: 0 };
-        }
-
-        const deltas = this.clickTimestamps.map(c => c.delta);
-        const avgDecisionTime = Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length);
-        const maxPause = Math.max(...deltas);
-        const hesitations = deltas.filter(d => d > 5000).length;
-
-        return {
-            avgDecisionTime,
-            maxPause,
-            clickCount: this.clickTimestamps.length,
-            hesitations
-        };
     }
 }

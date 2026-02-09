@@ -37,7 +37,7 @@
 
     <div id="ui-container">
         <h1 data-i18n="page.heading">Démineur 3D</h1>
-        <p data-i18n="menu.instructions">Clic Gauche: Révéler | Clic Droit: Drapeau</p>
+        <p data-i18n="menu.instructions">Clic Gauche: Révéler | Clic Droit: Drapeau | Double-Clic: Chord</p>
         <button id="hint-btn" class="control-btn" data-i18n="hud.hintBtn" data-i18n-title="hud.hintBtnTitle" title="Obtenir un indice logique">🧩 BESOIN D'AIDE</button>
         <button id="mute-btn" class="control-btn" data-i18n="hud.muteOn" data-i18n-title="hud.muteBtnTitle" title="Désactiver le son">🔊 ON</button>
         <button id="flag-style-btn" class="control-btn" style="margin-left: 10px;"
@@ -46,9 +46,12 @@
         <button id="retry-btn" data-i18n="hud.retryBtn" data-i18n-title="hud.retryBtnTitle" title="Recommencer au dernier coup sûr">🔁 REESSAYER</button>
     </div>
 
-    <div id="timer-display">⏱️ 00:00</div>
-    <div id="score-display">🏆 Score: 0</div>
-
+    <div id="hud-bar">
+        <div id="timer-display">⏱️ 00:00</div>
+        <div id="score-display">🏆 Score: 0</div>
+        <div id="mines-display">💣 Mines: 0</div>
+    </div>
+    <div id="game-notification" class="game-notification"></div>
     <!-- Menu de démarrage -->
     <div id="menu-overlay">
         <div class="menu-box">
@@ -134,7 +137,7 @@
                         <label class="checkbox-label"><input type="checkbox" id="hover-helper" checked> <span data-i18n="menu.hoverHelper">Aide au survol</span></label>
                     </div>
                     <div class="input-group">
-                        <label class="checkbox-label"><input type="checkbox" id="no-guess-mode"> <span data-i18n="menu.noGuess">Sans hasard (No Guess)</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="no-guess-mode" checked> <span data-i18n="menu.noGuess">Sans hasard (No Guess)</span></label>
                     </div>
                 </div>
             </div>

@@ -115,7 +115,7 @@ export class GameServer {
     /**
      * Process a player action
      * @param {string} playerId - Who did it
-     * @param {object} action - { type: 'reveal'|'flag', x, y }
+     * @param {object} action - { type: 'reveal'|'flag'|'chord', x, y }
      * @returns {object} Result to broadcast
      */
     async processAction(playerId, action) {
@@ -147,7 +147,7 @@ export class GameServer {
         const { type, x, y } = action;
 
         // === INPUT VALIDATION ===
-        if (type !== 'reveal' && type !== 'flag') {
+        if (type !== 'reveal' && type !== 'flag' && type !== 'chord') {
             return { success: false, error: 'Invalid action type' };
         }
         if (!Number.isInteger(x) || !Number.isInteger(y)) {
@@ -196,6 +196,13 @@ export class GameServer {
             if (result.type === 'flag') {
                 this._updateFlagStats(playerId, x, y, result.active);
             }
+        } else if (type === 'chord') {
+            result = this.game.chord(x, y);
+            // Update player stats for revealed cells from chord
+            // (covers both successful chord AND explosion with pre-explosion reveals)
+            if (result.changes && result.changes.length > 0) {
+                this._updateRevealStats(playerId, result.changes);
+            }
         } else {
             return { success: false, error: 'Unknown action type' };
         }
@@ -206,8 +213,13 @@ export class GameServer {
 
         // Handle explosion - player elimination in multiplayer
         if (result.type === 'explode') {
+            // The mine coordinates are in result.x, result.y (may differ from
+            // action x,y when the explosion comes from a chord click)
+            const mineX = result.x;
+            const mineY = result.y;
+
             // Mark the bomb as revealed (value 10) instead of explosion (value 9)
-            this.game.revealBombForElimination(x, y);
+            this.game.revealBombForElimination(mineX, mineY);
             // Reset gameOver flag since game continues for other players
             this.game.gameOver = false;
 
@@ -215,6 +227,7 @@ export class GameServer {
             const eliminationResult = this.eliminatePlayer(playerId);
 
             // Broadcast the revealed bomb to all players
+            // Include any pre-explosion changes (cells revealed by chord before hitting the mine)
             const update = {
                 actor: {
                     id: playerId,
@@ -222,7 +235,7 @@ export class GameServer {
                     number: player.number
                 },
                 action: { type, x, y },
-                result: { type: 'revealedBomb', x, y },
+                result: { type: 'revealedBomb', x: mineX, y: mineY, changes: result.changes || [] },
                 scores: this.getScoreboard()
             };
 
@@ -237,8 +250,8 @@ export class GameServer {
                     playerName: player.name,
                     playerNumber: player.number,
                     finalScore: player.score,
-                    bombX: x,
-                    bombY: y,
+                    bombX: mineX,
+                    bombY: mineY,
                     remainingPlayers: eliminationResult.remainingPlayers
                 });
             }
