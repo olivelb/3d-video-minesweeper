@@ -1,6 +1,6 @@
 # 🏗️ Technical Architecture & Module Hierarchy
 
-> **Version:** 3.0 (Feb 2026)
+> **Version:** 3.1 (Feb 2026)
 > **Status:** Active
 
 This document provides a technical overview of the **3D Minesweeper** codebase, its module hierarchy, and data flow.
@@ -52,6 +52,12 @@ Detailed lifecycle of a multiplayer session.
 *   **`ScoreManager.js`**: Scoring, High Scores (LocalStorage), and Click Analytics.
 *   **`UIManager.js`**: Manages HTML overlays (Menu, HUD, Modals) and DOM event listeners.
 
+### 3b. Internationalization (`javascripts/i18n.js`)
+*   **`i18n.js`**: Lightweight i18n module (~190 keys FR/EN). Exports `t(key, params?)` for parameterized translations, `translateDOM()` for scanning `data-i18n` attributes, `setLang()`/`getLang()`/`getLocale()`/`initLang()`. `setLang()` dispatches a `langchange` CustomEvent so dynamic components can re-render. Language persisted in `localStorage`.
+
+### 3c. Standalone Pages
+*   **`analytics.html`**: Behavioral analytics dashboard (Chart.js). Uses `<script type="module">` importing from `i18n.js`. Includes its own FR/EN language switcher and re-renders all charts/tables on language change.
+
 ### 4. Network (`javascripts/network/`)
 *   **`NetworkManager.js`**: Singleton wrapper around `Socket.io-client`. **Decoupled**: Emits `NET_*` events to `EventBus` instead of accepting callbacks.
 
@@ -87,3 +93,6 @@ The project uses extensive JSDoc, but migrating to TypeScript would strictly enf
 
 ### 3. HUD Overlay System
 `HUDController.js` could be expanded into a proper overlay rendering system for real-time game stats.
+
+### 4. Lobby Transition Animations
+The multiplayer lobby panel switching (connecting → waiting → in-game) could benefit from slide-with-crossfade CSS transitions for a smoother UX.

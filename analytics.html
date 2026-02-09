@@ -311,18 +311,21 @@
 
 <body>
     <div class="analytics-container">
-        <a href="index.html" class="back-btn">← Retour au jeu</a>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <a href="index.html" class="back-btn" data-i18n="an.back">← Retour au jeu</a>
+            <button id="lang-toggle" class="back-btn" style="cursor:pointer;">FR / EN</button>
+        </div>
 
         <div class="analytics-header">
-            <h1>📊 Analytics Dashboard</h1>
-            <p>Analyse comportementale et détection de sensibilité aux médias</p>
+            <h1 data-i18n="an.title">📊 Analytics Dashboard</h1>
+            <p data-i18n="an.subtitle">Analyse comportementale et détection de sensibilité aux médias</p>
         </div>
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('general')">📈 Vue Générale</button>
-            <button class="tab-btn" onclick="showTab('sensitivity')">🧠 Analyse de Sensibilité</button>
-            <button class="tab-btn" onclick="showTab('history')">📜 Historique</button>
+            <button class="tab-btn active" data-tab="general" data-i18n="an.tabGeneral">📈 Vue Générale</button>
+            <button class="tab-btn" data-tab="sensitivity" data-i18n="an.tabSensitivity">🧠 Analyse de Sensibilité</button>
+            <button class="tab-btn" data-tab="history" data-i18n="an.tabHistory">📜 Historique</button>
         </div>
 
         <!-- General Tab -->
@@ -331,13 +334,13 @@
 
             <div class="charts-grid">
                 <div class="chart-card">
-                    <h3>🎯 Taux de Victoire par Fond</h3>
+                    <h3 data-i18n="an.winRateByBg">🎯 Taux de Victoire par Fond</h3>
                     <div class="chart-container">
                         <canvas id="winRateChart"></canvas>
                     </div>
                 </div>
                 <div class="chart-card">
-                    <h3>⏱️ Temps de Décision Moyen</h3>
+                    <h3 data-i18n="an.avgDecisionTime">⏱️ Temps de Décision Moyen</h3>
                     <div class="chart-container">
                         <canvas id="decisionTimeChart"></canvas>
                     </div>
@@ -345,7 +348,7 @@
             </div>
 
             <div class="chart-card">
-                <h3>📊 Comparaison Préréglages vs Uploads Personnalisés</h3>
+                <h3 data-i18n="an.presetVsCustom">📊 Comparaison Préréglages vs Uploads Personnalisés</h3>
                 <div id="preset-vs-custom"></div>
             </div>
         </div>
@@ -353,8 +356,8 @@
         <!-- Sensitivity Analysis Tab -->
         <div id="tab-sensitivity" class="tab-content">
             <div class="chart-card">
-                <h3>🔍 Détection d'Anomalies sur Fichiers Uploadés</h3>
-                <p style="opacity: 0.7; margin-bottom: 20px;">
+                <h3 data-i18n="an.anomalyTitle">🔍 Détection d'Anomalies sur Fichiers Uploadés</h3>
+                <p style="opacity: 0.7; margin-bottom: 20px;" data-i18n="an.anomalyDesc">
                     Cette analyse détecte si un fichier uploadé (image/vidéo personnelle) affecte négativement vos
                     performances
                     par rapport à votre niveau habituel. Des signes de distraction, hésitation ou attachement émotionnel
@@ -364,7 +367,7 @@
             </div>
 
             <div class="chart-card" style="margin-top: 30px;">
-                <h3>📉 Indicateurs Comportementaux</h3>
+                <h3 data-i18n="an.behavioralTitle">📉 Indicateurs Comportementaux</h3>
                 <div class="charts-grid" style="margin-bottom: 0;">
                     <div class="chart-container">
                         <canvas id="hesitationChart"></canvas>
@@ -379,18 +382,20 @@
         <!-- History Tab -->
         <div id="tab-history" class="tab-content">
             <div class="chart-card">
-                <h3>📜 Historique Complet des Parties</h3>
+                <h3 data-i18n="an.historyTitle">📜 Historique Complet des Parties</h3>
                 <div id="history-table"></div>
             </div>
         </div>
 
         <div class="actions">
-            <button class="export-btn" onclick="exportCSV()">📥 Exporter CSV</button>
-            <button class="export-btn clear-btn" onclick="clearData()">🗑️ Effacer les données</button>
+            <button class="export-btn" id="export-csv-btn" data-i18n="an.exportCsv">📥 Exporter CSV</button>
+            <button class="export-btn clear-btn" id="clear-data-btn" data-i18n="an.clearData">🗑️ Effacer les données</button>
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { t, initLang, setLang, getLang, getLocale, translateDOM } from './javascripts/i18n.js';
+
         const analyticsKey = 'minesweeper3d_analytics';
         const scoresKey = 'minesweeper3d_scores';
         let charts = {};
@@ -413,7 +418,7 @@
         function showTab(tabName) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
@@ -438,23 +443,23 @@
             document.getElementById('stats-grid').innerHTML = `
                 <div class="stat-card">
                     <span class="stat-value">${total}</span>
-                    <span class="stat-label">Parties Totales</span>
+                    <span class="stat-label" data-i18n="an.totalGames">${t('an.totalGames')}</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-value">${winRate}%</span>
-                    <span class="stat-label">Taux Global</span>
+                    <span class="stat-label" data-i18n="an.globalRate">${t('an.globalRate')}</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-value">${customTotal}</span>
-                    <span class="stat-label">Parties Custom</span>
+                    <span class="stat-label" data-i18n="an.customGames">${t('an.customGames')}</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-value ${customWinRate < winRate - 15 ? 'win-rate-low' : ''}">${customWinRate}%</span>
-                    <span class="stat-label">Taux Custom</span>
+                    <span class="stat-label" data-i18n="an.customRate">${t('an.customRate')}</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-value">${avgDecision > 0 ? (avgDecision / 1000).toFixed(1) + 's' : '-'}</span>
-                    <span class="stat-label">Décision Moy.</span>
+                    <span class="stat-label" data-i18n="an.avgDecision">${t('an.avgDecision')}</span>
                 </div>
             `;
         }
@@ -480,7 +485,7 @@
                 data: {
                     labels,
                     datasets: [{
-                        label: 'Taux de Victoire (%)',
+                        label: t('an.winRateLabel'),
                         data: winRates,
                         backgroundColor: colors,
                         borderRadius: 8
@@ -519,7 +524,7 @@
                 data: {
                     labels,
                     datasets: [{
-                        label: 'Temps de Décision (s)',
+                        label: t('an.decisionLabel'),
                         data: avgTimes,
                         backgroundColor: colors,
                         borderRadius: 8
@@ -563,42 +568,42 @@
 
             const diff = customWinRate - presetWinRate;
             const diffClass = diff < -15 ? 'win-rate-low' : diff < -5 ? 'win-rate-medium' : 'win-rate-high';
-            const diffLabel = diff < -15 ? '⚠️ Écart significatif' : diff < -5 ? '➖ Écart modéré' : '✅ Normal';
+            const diffLabel = diff < -15 ? t('an.gapSignificant') : diff < -5 ? t('an.gapModerate') : t('an.gapNormal');
 
             document.getElementById('preset-vs-custom').innerHTML = `
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Métrique</th>
-                            <th>Préréglages</th>
-                            <th>Uploads Personnalisés</th>
-                            <th>Analyse</th>
+                            <th>${t('an.colMetric')}</th>
+                            <th>${t('an.colPresets')}</th>
+                            <th>${t('an.colCustom')}</th>
+                            <th>${t('an.colAnalysis')}</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td>Parties jouées</td>
+                            <td>${t('an.gamesPlayed')}</td>
                             <td>${presetEvents.length}</td>
                             <td>${customEvents.length}</td>
                             <td>-</td>
                         </tr>
                         <tr>
-                            <td>Taux de victoire</td>
+                            <td>${t('an.winRate')}</td>
                             <td class="win-rate-high">${presetWinRate}%</td>
                             <td class="${customWinRate < presetWinRate - 15 ? 'win-rate-low' : ''}">${customWinRate}%</td>
                             <td class="${diffClass}">${diffLabel}</td>
                         </tr>
                         <tr>
-                            <td>Temps de décision moyen</td>
+                            <td>${t('an.decisionTime')}</td>
                             <td>${presetAvgTime > 0 ? (presetAvgTime / 1000).toFixed(1) + 's' : '-'}</td>
                             <td>${customAvgTime > 0 ? (customAvgTime / 1000).toFixed(1) + 's' : '-'}</td>
-                            <td>${(presetAvgTime > 0 && customAvgTime > 0 && customAvgTime > presetAvgTime * 1.3) ? '⚠️ Hésitation détectée' : '✅ Normal'}</td>
+                            <td>${(presetAvgTime > 0 && customAvgTime > 0 && customAvgTime > presetAvgTime * 1.3) ? t('an.hesitationDetected') : t('an.gapNormal')}</td>
                         </tr>
                         <tr>
-                            <td>Pauses longues (>5s)</td>
+                            <td>${t('an.longPauses')}</td>
                             <td>${presetHesitations}</td>
                             <td>${customHesitations}</td>
-                            <td>${customHesitations > presetHesitations * 2 ? '⚠️ Distraction possible' : '✅ Normal'}</td>
+                            <td>${customHesitations > presetHesitations * 2 ? t('an.distractionPossible') : t('an.gapNormal')}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -611,7 +616,7 @@
             const customUploads = [...new Set(events.filter(e => isCustomUpload(e.background)).map(e => e.background))];
 
             if (customUploads.length === 0) {
-                document.getElementById('sensitivity-analysis').innerHTML = '<p class="no-data">Aucun fichier personnalisé détecté. Uploadez une image ou vidéo pour commencer l\'analyse.</p>';
+                document.getElementById('sensitivity-analysis').innerHTML = `<p class="no-data">${t('an.noCustom')}</p>`;
                 return;
             }
 
@@ -650,44 +655,44 @@
                 let severityLabel = '';
                 if (winRateDiff > 30 || decisionDiff > 50) {
                     severityClass = 'danger';
-                    severityLabel = '🚨 Sensibilité Élevée';
+                    severityLabel = t('an.sensitivityHigh');
                 } else if (winRateDiff > 15 || decisionDiff > 25) {
                     severityClass = 'warning';
-                    severityLabel = '⚠️ Sensibilité Modérée';
+                    severityLabel = t('an.sensitivityMedium');
                 } else {
-                    severityLabel = '✅ Normal';
+                    severityLabel = t('an.sensitivityNormal');
                 }
 
                 html += `
                     <div class="sensitivity-card ${severityClass}">
                         <h4>📁 ${upload} ${severityLabel}</h4>
                         <div class="sensitivity-metric">
-                            <span class="metric-label">Parties jouées</span>
+                            <span class="metric-label">${t('an.gamesPlayed')}</span>
                             <span class="metric-value">${total}</span>
                         </div>
                         <div class="sensitivity-metric">
-                            <span class="metric-label">Taux de victoire</span>
+                            <span class="metric-label">${t('an.winRate')}</span>
                             <span class="metric-value ${winRate < baselineWinRate - 15 ? 'win-rate-low' : ''}">${Math.round(winRate)}% 
-                                ${winRateDiff > 15 ? `<span class="anomaly-badge ${winRateDiff > 30 ? 'high' : 'medium'}">-${Math.round(winRateDiff)}% vs baseline</span>` : ''}
+                                ${winRateDiff > 15 ? `<span class="anomaly-badge ${winRateDiff > 30 ? 'high' : 'medium'}">${t('an.vsBaseline', { diff: Math.round(winRateDiff) })}</span>` : ''}
                             </span>
                         </div>
                         <div class="sensitivity-metric">
-                            <span class="metric-label">Temps de décision moyen</span>
+                            <span class="metric-label">${t('an.decisionTime')}</span>
                             <span class="metric-value">${avgDecision > 0 ? (avgDecision / 1000).toFixed(1) + 's' : '-'} 
-                                ${decisionDiff > 25 ? `<span class="anomaly-badge ${decisionDiff > 50 ? 'high' : 'medium'}">+${Math.round(decisionDiff)}% plus lent</span>` : ''}
+                                ${decisionDiff > 25 ? `<span class="anomaly-badge ${decisionDiff > 50 ? 'high' : 'medium'}">${t('an.slowerPct', { diff: Math.round(decisionDiff) })}</span>` : ''}
                             </span>
                         </div>
                         <div class="sensitivity-metric">
-                            <span class="metric-label">Pauses longues détectées</span>
-                            <span class="metric-value">${totalHesitations} ${totalHesitations > 5 ? '<span class="anomaly-badge medium">Hésitation fréquente</span>' : ''}</span>
+                            <span class="metric-label">${t('an.pausesDetected')}</span>
+                            <span class="metric-value">${totalHesitations} ${totalHesitations > 5 ? `<span class="anomaly-badge medium">${t('an.frequentHesitation')}</span>` : ''}</span>
                         </div>
                         <div class="sensitivity-metric">
-                            <span class="metric-label">Plus longue pause</span>
-                            <span class="metric-value">${maxPause > 0 ? (maxPause / 1000).toFixed(1) + 's' : '-'} ${maxPause > 30000 ? '<span class="anomaly-badge high">Distraction majeure</span>' : ''}</span>
+                            <span class="metric-label">${t('an.longestPause')}</span>
+                            <span class="metric-value">${maxPause > 0 ? (maxPause / 1000).toFixed(1) + 's' : '-'} ${maxPause > 30000 ? `<span class="anomaly-badge high">${t('an.majorDistraction')}</span>` : ''}</span>
                         </div>
                         <div class="sensitivity-metric">
-                            <span class="metric-label">Utilisations répétées</span>
-                            <span class="metric-value">${total} ${total > 10 ? '<span class="anomaly-badge medium">Attachement possible</span>' : ''}</span>
+                            <span class="metric-label">${t('an.repeatedUse')}</span>
+                            <span class="metric-value">${total} ${total > 10 ? `<span class="anomaly-badge medium">${t('an.possibleAttachment')}</span>` : ''}</span>
                         </div>
                     </div>
                 `;
@@ -717,7 +722,7 @@
                 data: {
                     labels: hesLabels,
                     datasets: [{
-                        label: 'Hésitations (pauses >5s)',
+                        label: t('an.hesitationLabel'),
                         data: hesValues,
                         backgroundColor: hesColors,
                         borderRadius: 8
@@ -726,7 +731,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { title: { display: true, text: 'Hésitations par Fond', color: 'white' } },
+                    plugins: { title: { display: true, text: t('an.hesitationByBg'), color: 'white' } },
                     scales: {
                         y: { beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.7)' }, grid: { color: 'rgba(255,255,255,0.1)' } },
                         x: { ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 }, grid: { display: false } }
@@ -749,7 +754,7 @@
             charts.attachment = new Chart(document.getElementById('attachmentChart'), {
                 type: 'doughnut',
                 data: {
-                    labels: usageLabels.length > 0 ? usageLabels : ['Aucun upload'],
+                    labels: usageLabels.length > 0 ? usageLabels : [t('an.noUpload')],
                     datasets: [{
                         data: usageValues.length > 0 ? usageValues : [1],
                         backgroundColor: ['rgba(240, 147, 251, 0.8)', 'rgba(102, 126, 234, 0.8)', 'rgba(255, 200, 100, 0.8)', 'rgba(100, 255, 200, 0.8)']
@@ -759,7 +764,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        title: { display: true, text: 'Répartition Uploads Personnalisés', color: 'white' },
+                        title: { display: true, text: t('an.customDistribution'), color: 'white' },
                         legend: { labels: { color: 'white' } }
                     }
                 }
@@ -771,7 +776,7 @@
             const events = getAnalytics().filter(e => e.type !== 'start').reverse();
 
             if (events.length === 0) {
-                document.getElementById('history-table').innerHTML = '<p class="no-data">Aucun historique disponible.</p>';
+                document.getElementById('history-table').innerHTML = `<p class="no-data">${t('an.noHistory')}</p>`;
                 return;
             }
 
@@ -779,22 +784,22 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>Résultat</th>
-                            <th>Fond</th>
-                            <th>Difficulté</th>
-                            <th>Temps</th>
-                            <th>Décision Moy.</th>
-                            <th>Hésitations</th>
+                            <th>${t('an.colDate')}</th>
+                            <th>${t('an.colResult')}</th>
+                            <th>${t('an.colBg')}</th>
+                            <th>${t('an.colDifficulty')}</th>
+                            <th>${t('an.colTime')}</th>
+                            <th>${t('an.colAvgDecision')}</th>
+                            <th>${t('an.colHesitations')}</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
 
             events.slice(0, 50).forEach(e => {
-                const date = new Date(e.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+                const date = new Date(e.date).toLocaleString(getLocale(), { dateStyle: 'short', timeStyle: 'short' });
                 const resultClass = e.type === 'win' ? 'win-rate-high' : 'win-rate-low';
-                const resultLabel = e.type === 'win' ? '🏆 Victoire' : '💥 Défaite';
+                const resultLabel = e.type === 'win' ? t('an.win') : t('an.loss');
                 const isCustom = isCustomUpload(e.background);
 
                 html += `
@@ -822,7 +827,7 @@
 
         function exportCSV() {
             const events = getAnalytics();
-            if (events.length === 0) { alert('Aucune donnée.'); return; }
+            if (events.length === 0) { alert(t('an.noData')); return; }
 
             const headers = ['date', 'type', 'background', 'isCustomUpload', 'difficulty', 'bombs', 'time', 'avgDecisionTime', 'hesitations', 'maxPause', 'playerId', 'codename'];
             const rows = events.map(e => [
@@ -842,20 +847,52 @@
         }
 
         function clearData() {
-            if (confirm('Effacer toutes les données analytics?')) {
+            if (confirm(t('an.clearConfirm'))) {
                 localStorage.removeItem(analyticsKey);
                 location.reload();
             }
         }
 
-        // Initialize
-        renderSummaryStats();
-        renderWinRateChart();
-        renderDecisionTimeChart();
-        renderPresetVsCustom();
-        renderSensitivityAnalysis();
-        renderBehavioralCharts();
-        renderHistoryTable();
+        function renderAll() {
+            renderSummaryStats();
+            renderWinRateChart();
+            renderDecisionTimeChart();
+            renderPresetVsCustom();
+            renderSensitivityAnalysis();
+            renderBehavioralCharts();
+            renderHistoryTable();
+        }
+
+        // ========== INITIALIZATION ==========
+        initLang();
+        document.documentElement.lang = getLang();
+        document.title = t('an.pageTitle');
+        translateDOM();
+
+        // Tab switching via data-tab attributes
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => showTab(btn.dataset.tab));
+        });
+
+        // Action buttons
+        document.getElementById('export-csv-btn').addEventListener('click', exportCSV);
+        document.getElementById('clear-data-btn').addEventListener('click', clearData);
+
+        // Language switcher
+        document.getElementById('lang-toggle').addEventListener('click', () => {
+            const newLang = getLang() === 'fr' ? 'en' : 'fr';
+            setLang(newLang);
+        });
+
+        // Re-render everything on language change
+        window.addEventListener('langchange', () => {
+            document.documentElement.lang = getLang();
+            document.title = t('an.pageTitle');
+            translateDOM();
+            renderAll();
+        });
+
+        renderAll();
     </script>
 </body>
 

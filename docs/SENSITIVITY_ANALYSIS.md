@@ -1,10 +1,10 @@
 # Système d'Analyse de Sensibilité aux Médias
 
-## Document Technique - Version 1.0
+## Document Technique - Version 1.1
 
 **Objectif** : Ce document décrit le fonctionnement technique complet du système d'analyse comportementale intégré au Démineur 3D. L'objectif est de détecter si un joueur est affecté émotionnellement ou cognitivement par une image ou vidéo qu'il a uploadée, en comparant ses performances avec et sans ce média.
 
-**Date de publication** : Janvier 2026  
+**Date de publication** : Février 2026  
 **Auteur** : Équipe Démineur 3D
 
 ---
@@ -269,12 +269,12 @@ let severityLabel = '';
 
 if (winRateDiff > 30 || decisionDiff > 50) {
     severityClass = 'danger';
-    severityLabel = '🚨 Sensibilité Élevée';
+    severityLabel = t('an.sensitivityHigh');   // 🚨 Sensibilité Élevée / High Sensitivity
 } else if (winRateDiff > 15 || decisionDiff > 25) {
     severityClass = 'warning';
-    severityLabel = '⚠️ Sensibilité Modérée';
+    severityLabel = t('an.sensitivityMedium'); // ⚠️ Sensibilité Modérée / Moderate Sensitivity
 } else {
-    severityLabel = '✅ Normal';
+    severityLabel = t('an.sensitivityNormal'); // ✅ Normal
 }
 ```
 
@@ -297,10 +297,10 @@ Des badges supplémentaires sont affichés selon des critères spécifiques :
 | Attachement possible | `total > 10` | ⚠️ | Nombre de parties jouées avec cet upload malgré les difficultés |
 
 ```javascript
-// Badges conditionnels dans l'affichage
-${totalHesitations > 5 ? '<span class="anomaly-badge medium">Hésitation fréquente</span>' : ''}
-${maxPause > 30000 ? '<span class="anomaly-badge high">Distraction majeure</span>' : ''}
-${total > 10 ? '<span class="anomaly-badge medium">Attachement possible</span>' : ''}
+// Badges conditionnels dans l'affichage (utilise t() pour l'i18n)
+${totalHesitations > 5 ? `<span class="anomaly-badge medium">${t('an.frequentHesitation')}</span>` : ''}
+${maxPause > 30000 ? `<span class="anomaly-badge high">${t('an.majorDistraction')}</span>` : ''}
+${total > 10 ? `<span class="anomaly-badge medium">${t('an.possibleAttachment')}</span>` : ''}
 ```
 
 ---
@@ -329,7 +329,7 @@ Le système génère un tableau comparant l'ensemble des parties "préréglages"
 // RÈGLE 1 : Écart significatif de taux de victoire
 // ═══════════════════════════════════════════════════════════════════
 if (customWinRate < presetWinRate - 15) {
-    label = '⚠️ Écart significatif';
+    label = t('an.gapSignificant'); // ⚠️ Écart significatif / Significant gap
 }
 // Déclencheur: L'upload fait baisser le taux de >15 points
 
@@ -337,7 +337,7 @@ if (customWinRate < presetWinRate - 15) {
 // RÈGLE 2 : Hésitation détectée
 // ═══════════════════════════════════════════════════════════════════
 if (customAvgTime > presetAvgTime * 1.3) {
-    label = '⚠️ Hésitation détectée';
+    label = t('an.hesitationDetected'); // ⚠️ Hésitation détectée / Hesitation detected
 }
 // Déclencheur: Plus de 30% plus lent avec les uploads
 
@@ -345,7 +345,7 @@ if (customAvgTime > presetAvgTime * 1.3) {
 // RÈGLE 3 : Distraction possible
 // ═══════════════════════════════════════════════════════════════════
 if (customHesitations > presetHesitations * 2) {
-    label = '⚠️ Distraction possible';
+    label = t('an.distractionPossible'); // ⚠️ Distraction possible / Possible distraction
 }
 // Déclencheur: 2× plus de pauses longues avec les uploads
 ```
@@ -629,7 +629,8 @@ Le système respecte les principes de minimisation des données :
 | `Renderer.js` | Collecte des timestamps, calcul de `clickData` |
 | `ScoreManager.js` | Stockage des événements, génération des IDs |
 | `UIManager.js` | Extraction du nom du background |
-| `analytics.html` | Chargement, calculs, visualisation |
+| `i18n.js` | Traductions FR/EN des labels analytiques (~65 clés `an.*`) |
+| `analytics.html` | Chargement, calculs, visualisation (ES module, importe i18n.js) |
 
 ### 12.2 Export CSV
 
@@ -656,4 +657,17 @@ Ce fichier peut être analysé dans Excel, Python (pandas), R, ou tout autre out
 
 ---
 
-*Document généré le 25 janvier 2026*
+## Note : Internationalisation (v1.1)
+
+Depuis février 2026, `analytics.html` est entièrement internationalisée :
+
+- Le `<script>` est désormais un **module ES** (`<script type="module">`) qui importe `t()`, `translateDOM()`, `setLang()`, `getLang()`, `getLocale()` depuis `javascripts/i18n.js`.
+- Tous les labels visibles utilisent `t('an.*')` au lieu de chaînes hardcodées.
+- Les dates dans l'historique utilisent `getLocale()` (retourne `'fr-FR'` ou `'en-US'`) au lieu de `'fr-FR'` hardcodé.
+- Un bouton **FR / EN** est intégré dans le header de la page.
+- Au changement de langue, tous les graphiques (Chart.js) et les tables HTML sont entièrement re-rendus via un listener sur l'événement `langchange`.
+- Les ~65 clés de traduction sont préfixées `an.*` dans le dictionnaire i18n.
+
+---
+
+*Document mis à jour le 9 février 2026*

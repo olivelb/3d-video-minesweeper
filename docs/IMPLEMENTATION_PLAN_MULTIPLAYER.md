@@ -1,7 +1,7 @@
 # 📋 Multiplayer Implementation Plan & Technical Details
 
-> **Document Version:** 2.0  
-> **Branch:** `competitive-multiplayer`  
+> **Document Version:** 2.3  
+> **Branch:** `coop-2player`  
 > **Purpose:** Deep technical reference for maintainers and developers
 > **Mode:** Competitive elimination - click bomb = eliminated, others continue
 
@@ -459,7 +459,13 @@ CMD ["node", "server.js"]
 
 ## 📝 Changelog
 
-### v2.2 (Current)
+### v2.3 (Current)
+- **Spectator Mode**: Eliminated players can continue watching the game (ghost mode + "Back to lobby" button).
+- **Full i18n (FR/EN)**: All UI components, menus, HUD, leaderboard, scoreboard, and analytics page support live language switching.
+- **Analytics i18n**: `analytics.html` converted to ES module with `import` from `i18n.js`. ~65 `an.*` translation keys. Integrated FR/EN toggle. All charts, tables, badges, alerts re-render on language change.
+- **Live Language Switching**: `setLang()` dispatches `langchange` CustomEvent. Dynamic components listen and re-render parameterized text. `data-i18n` attributes on static and dynamically created elements.
+
+### v2.2
 - **Performance Optimization**: Gaussian Elimination solver for faster grid generation.
 - **Generation Feedback**: Live progress modal for slow generations on Raspberry Pi.
 - **Improved Stability**: Throttled event loop yielding to prevent UI freezes.

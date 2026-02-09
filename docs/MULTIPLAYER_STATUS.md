@@ -54,12 +54,32 @@
 6. **Reset Multijoueur** - Implémentation d'un reset propre côté client et serveur après chaque partie.
 7. **Performance Génération** - Optimisation de la boucle de génération et ajout d'un feedback visuel pour l'attente.
 
+## Internationalisation (i18n) 🌍
+
+Un système i18n complet a été intégré :
+
+- **Module** : `javascripts/i18n.js` — Fournit `t(key, params?)`, `translateDOM()`, `setLang()`, `getLang()`, `getLocale()`, `initLang()`.
+- **Langues** : Français (par défaut) et Anglais.
+- **Mécanisme** : Attributs `data-i18n` sur le HTML statique + appels `t()` dans le JS dynamique.
+- **Switching live** : `setLang()` envoie un `CustomEvent('langchange')` que tous les composants écoutent pour se re-rendre.
+- **Couverture** :
+  - `index.html` — Menu, HUD, boutons, presets, tooltips, labels.
+  - Composants UI — `MenuController`, `MultiplayerUI`, `MultiplayerLeaderboard`, `Scoreboard`, `HUDController`, `LeaderboardController`.
+  - `analytics.html` — Toutes les ~65 chaînes (stats, graphiques, tables, badges, alertes). Script converti en `<script type="module">` avec import i18n. Sélecteur FR/EN intégré.
+- **Persistance** : Langue stockée dans `localStorage` (`minesweeper_lang`), respectée au rechargement.
+- **Date locale** : `getLocale()` retourne `'fr-FR'` ou `'en-US'` pour `toLocaleString()`.
+
+## Fonctionnalités Récemment Complétées ✅
+
+13. **Mode Spectateur** — Les joueurs éliminés peuvent continuer à observer la partie (mode fantôme + bouton "Retour au lobby").
+14. **Internationalisation (FR/EN)** — Toutes les pages et composants dynamiques supportent le français et l'anglais avec switching live.
+15. **Analytics i18n** — `analytics.html` entièrement internationalisée (~65 clés `an.*`), avec sélecteur de langue intégré et re-rendu complet des graphiques/tables au changement.
+
 ## Prochaines Étapes 🚀
 
-1. [ ] Mode Spectateur pour les éliminés (pour voir la fin de la partie sans pouvoir cliquer).
-2. [ ] Animations de transition plus fluides dans le lobby.
-3. [ ] Système de chat d'avant-partie.
-4. [ ] Statistiques de fin de partie détaillées (cases révélées par joueur).
+1. [ ] Animations de transition plus fluides dans le lobby (slide-with-crossfade CSS).
+2. [ ] Système de chat d'avant-partie.
+3. [ ] Statistiques de fin de partie détaillées (cases révélées par joueur).
 
 ## Notes Techniques
 
@@ -67,3 +87,4 @@
 - **Shared States** : Les positions des mines sont générées côté serveur pour garantir l'équité.
 - **Autorité** : Le serveur maintient la "visibleGrid" réelle pour prévenir la triche.
 - **Sécurité Serveur** : Validation des entrées, sanitization des noms, et rate limiting (10 actions/s, 30 curseurs/s).
+- **i18n** : Module `javascripts/i18n.js` avec ~190 clés FR/EN. `data-i18n` sur le DOM statique, `t()` pour le JS dynamique, `langchange` event pour le re-rendu live.
