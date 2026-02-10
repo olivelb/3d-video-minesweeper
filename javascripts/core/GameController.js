@@ -184,6 +184,11 @@ export class GameController {
                         type: 'loss',
                         ...gameState
                     });
+
+                    // Show retry button only in solo mode
+                    if (networkManager.mode !== 'multiplayer' && this.uiManager?.hudController) {
+                        this.uiManager.hudController.showRetryButton();
+                    }
                 }
             }
         });

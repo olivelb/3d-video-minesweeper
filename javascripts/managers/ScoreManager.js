@@ -57,14 +57,11 @@ export class ScoreManager {
 
         const gridSize = width * height;
         const bombDensity = bombs / gridSize;
-        const difficultyFactor = gridSize * bombDensity * 10;
+        const difficultyFactor = gridSize * bombDensity * 1000;
 
-        // Time bonus scales with grid size: larger grids get more time before penalty
-        // Base: 10000pts, loses points proportionally slower on bigger boards
-        const timeFactor = Math.max(5, gridSize / 50); // ~6 for 9x9, ~12 for 30x16, ~30 for 50x30
-        const timeBonus = Math.max(0, 10000 - timeSeconds * (1000 / timeFactor));
-
-        let finalScore = difficultyFactor * 100 + timeBonus;
+        // Le score est le facteur de difficulté moins le temps passé (en secondes)
+        // L'avantage de score est déjà donné par la difficulté (nombre de bombes)
+        let finalScore = difficultyFactor - timeSeconds * 10;
 
         // Pénalité Mode No Guess (-25%) car la chance est éliminée
         if (noGuessMode) finalScore *= 0.75;
