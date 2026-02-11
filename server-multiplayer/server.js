@@ -121,6 +121,11 @@ const gameConfig = {
     maxPlayers: 8
 };
 
+import { SolverBridge } from '../shared/SolverBridge.js';
+
+// Pre-load WASM solver (non-blocking, falls back to JS)
+SolverBridge.init().catch(() => { });
+
 createGameServer(io, gameConfig, statsDb);
 
 httpServer.listen(PORT, '0.0.0.0', () => {

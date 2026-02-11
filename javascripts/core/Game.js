@@ -1,4 +1,4 @@
-import { MinesweeperSolver } from '../../shared/MinesweeperSolver.js';
+import { SolverBridge } from '../../shared/SolverBridge.js';
 
 // Environment detection
 const isBrowser = typeof window !== 'undefined';
@@ -6,7 +6,7 @@ const isBrowser = typeof window !== 'undefined';
 // Lazy i18n import for browser only
 let _t = null;
 if (isBrowser) {
-    import('../i18n.js').then(m => { _t = m.t; }).catch(() => {});
+    import('../i18n.js').then(m => { _t = m.t; }).catch(() => { });
 }
 
 const storage = isBrowser ? localStorage : {
@@ -105,14 +105,17 @@ export class MinesweeperGame {
         const safeRadius = this.noGuessMode ? 2 : 1;
         this.cancelGeneration = false;
 
+        // Use JS loop with per-attempt WASM-accelerated isSolvable calls (with yields)
+        // so the browser can repaint the loading overlay with live attempt counts.
+        // The WASM generateSolvableBoard fast path is not used because it blocks
+        // the main thread and prevents progress updates.
         do {
             if (this.cancelGeneration) {
                 return { cancelled: true };
             }
 
-            // Yield to event loop every few attempts to keep UI responsive
-            // Optimized: Increase batch size to reduce context switch overhead
-            if (attempts > 0 && attempts % 100 === 0) {
+            // Yield to event loop every 10 attempts to update the loading overlay
+            if (attempts > 0 && attempts % 10 === 0) {
                 if (onProgress) onProgress(attempts, maxAttempts);
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
@@ -145,7 +148,7 @@ export class MinesweeperGame {
             attempts++;
             if (!this.noGuessMode) break;
 
-        } while (!MinesweeperSolver.isSolvable(this, safeX, safeY) && attempts < maxAttempts);
+        } while (!SolverBridge.isSolvable(this, safeX, safeY) && attempts < maxAttempts);
 
         if (this.noGuessMode && attempts >= maxAttempts) {
             return { warning: true };
@@ -397,7 +400,7 @@ export class MinesweeperGame {
     getHint() {
         if (this.gameOver || this.victory) return null;
 
-        const hint = MinesweeperSolver.getHint(this);
+        const hint = SolverBridge.getHint(this);
         if (hint) {
             this.hintCount++;
         }

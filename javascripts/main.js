@@ -5,6 +5,10 @@
 
 import { GameController } from './core/GameController.js';
 import { initLang, setLang, getLang } from './i18n.js';
+import { SolverBridge } from '../shared/SolverBridge.js';
+
+// Pre-load WASM solver in background (non-blocking, falls back to JS)
+SolverBridge.init().catch(() => { });
 
 // Initialize the Game Controller
 const gameController = new GameController();

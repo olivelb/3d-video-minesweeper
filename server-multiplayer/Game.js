@@ -1,4 +1,4 @@
-import { MinesweeperSolver } from '../shared/MinesweeperSolver.js';
+import { SolverBridge } from '../shared/SolverBridge.js';
 
 // Environment detection
 const isBrowser = typeof window !== 'undefined';
@@ -98,6 +98,9 @@ export class MinesweeperGame {
         const safeRadius = this.noGuessMode ? 2 : 1;
         this.cancelGeneration = false;
 
+        // Server uses JS loop with per-attempt WASM isSolvable calls (with yields)
+        // to avoid blocking the Node.js event loop. The WASM generateSolvableBoard
+        // fast path is only used in the browser (see client Game.js).
         do {
             if (this.cancelGeneration) {
                 return { cancelled: true };
@@ -137,7 +140,7 @@ export class MinesweeperGame {
             attempts++;
             if (!this.noGuessMode) break;
 
-        } while (!MinesweeperSolver.isSolvable(this, safeX, safeY) && attempts < maxAttempts);
+        } while (!SolverBridge.isSolvable(this, safeX, safeY) && attempts < maxAttempts);
 
         if (this.noGuessMode && attempts >= maxAttempts) {
             return { warning: true };
@@ -435,7 +438,7 @@ export class MinesweeperGame {
     getHint() {
         if (this.gameOver || this.victory) return null;
 
-        const hint = MinesweeperSolver.getHint(this);
+        const hint = SolverBridge.getHint(this);
         if (hint) {
             this.hintCount++;
         }

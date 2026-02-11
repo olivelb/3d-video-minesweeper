@@ -1,6 +1,6 @@
 # État du Multijoueur Compétitif - Session de Dev
 
-**Dernière mise à jour**: 9 Février 2026  
+**Dernière mise à jour**: 11 Février 2026  
 **Serveur**: Raspberry Pi `raspberrol` @ `your-pi-ip:3001`  
 **Déploiement**: PM2 (minesweeper-multiplayer)
 
@@ -78,6 +78,10 @@ Un système i18n complet a été intégré :
 14. **Internationalisation (FR/EN)** — Toutes les pages et composants dynamiques supportent le français et l'anglais avec switching live.
 15. **Analytics i18n** — `analytics.html` entièrement internationalisée (~65 clés `an.*`), avec sélecteur de langue intégré et re-rendu complet des graphiques/tables au changement.
 16. **Chord Clicking (Double-clic)** — Double-clic sur une case numérotée avec le bon nombre de drapeaux adjacents révèle les voisins non-flaggés. Fonctionne en solo ET en multijoueur (action `chord` validée par le serveur).
+17. **SolverBridge WASM** — Nouveau module `shared/SolverBridge.js` unifiant l'accès au solveur WASM (Rust) avec fallback JS automatique. Chargé au démarrage côté client (`main.js`) et serveur (`server.js`).
+18. **Loading Overlay Solo** — Le mode solo affiche désormais la même modal de chargement que le mode multijoueur lors de la génération No-Guess (compteur de tentatives en temps réel, bouton Annuler).
+19. **Gestion d'erreurs serveur** — `GameServer.js` catch les erreurs de `placeMines()` et broadcast `generatingGrid { error: true }` pour que les clients masquent l'overlay. `MultiplayerUI.js` gère le flag `error`.
+20. **WASM Solver (Rust)** — Port complet du solveur en Rust/WebAssembly (`shared/solver-wasm/`). 6 stratégies, génération de grille, élimination gaussienne. Accélère `isSolvable()` par appel via SolverBridge.
 17. **HUD Horizontal Bar** — Timer, score et compteur de mines alignés horizontalement dans une barre flex `#hud-bar` en haut de l'écran.
 18. **Notifications Toast** — Tous les `alert()` remplacés par des toasts CSS animés (slide-in/fade-out).
 19. **No-Guess activé par défaut** — La checkbox "No Guess" est cochée par défaut.

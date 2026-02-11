@@ -349,6 +349,11 @@ export class MultiplayerUI {
         // Grid Generation Loading State
         on(Events.NET_GENERATING_GRID, (data) => {
             const overlay = document.getElementById('loading-overlay');
+            if (data.error) {
+                // Generation failed or cancelled on server — hide overlay
+                if (overlay) overlay.style.display = 'none';
+                return;
+            }
             if (overlay) {
                 overlay.style.display = 'flex';
                 const details = document.getElementById('loading-details');

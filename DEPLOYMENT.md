@@ -69,7 +69,21 @@ This guide covers deploying the 3D Minesweeper project for both local developmen
    npm start
    ```
 
-4. **Serve the frontend**
+4. **(Optional) Build the WASM solver**
+   
+   The game works without WASM (falls back to JS). To build the WASM solver for faster board generation:
+   ```bash
+   # Requires: rustup, wasm-pack (cargo install wasm-pack)
+   cd shared/solver-wasm
+   wasm-pack build --target web --out-dir pkg
+   ```
+   Or use the included PowerShell script:
+   ```powershell
+   .\shared\solver-wasm\build.ps1         # dev build
+   .\shared\solver-wasm\build.ps1 -Release # optimized build
+   ```
+
+5. **Serve the frontend**
    ```bash
    # From project root, use any static server:
    npx serve .
@@ -119,6 +133,7 @@ This guide covers deploying the 3D Minesweeper project for both local developmen
    ```
 
    > **Note**: The server includes a Gaussian Elimination solver for "No Guess" mode.
+   > It also supports WASM-accelerated solving via `SolverBridge.js` (falls back to JS if WASM is unavailable).
    > It enforces a hard limit of **150x100** grid and **2000 bombs** to ensure stability on the Pi 3 hardware.
    > Live feedback is provided during grid generation (e.g., "Tentative 50/10000") to keep players informed on slower devices.
    > The solver code lives in `shared/` and is shared between client and server.

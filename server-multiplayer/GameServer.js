@@ -169,14 +169,28 @@ export class GameServer {
                 this.onBroadcast('generatingGrid', { attempt: 0, max: 10000 });
             }
 
-            const placementResult = await this.game.placeMines(x, y, (attempt, max) => {
-                // Throttle progress updates: Let Game.js control frequency (every 10 attempts)
+            let placementResult;
+            try {
+                placementResult = await this.game.placeMines(x, y, (attempt, max) => {
+                    // Throttle progress updates: Let Game.js control frequency (every 10 attempts)
+                    if (this.onBroadcast) {
+                        this.onBroadcast('generatingGrid', { attempt, max });
+                    }
+                });
+            } catch (err) {
+                console.error('[GameServer] Mine placement failed:', err);
+                // Broadcast gameUpdate so clients hide the loading overlay
                 if (this.onBroadcast) {
-                    this.onBroadcast('generatingGrid', { attempt, max });
+                    this.onBroadcast('generatingGrid', { attempt: -1, max: 0, error: true });
                 }
-            });
+                return { success: false, error: 'Mine placement failed: ' + err.message };
+            }
 
             if (placementResult && placementResult.cancelled) {
+                // Broadcast so clients hide the loading overlay
+                if (this.onBroadcast) {
+                    this.onBroadcast('generatingGrid', { attempt: -1, max: 0, error: true });
+                }
                 return { success: false, error: 'Generation cancelled' };
             }
             firstClickMines = this.game.getMinePositions();

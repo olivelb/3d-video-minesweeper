@@ -1,6 +1,6 @@
 # 🏗️ Technical Architecture & Module Hierarchy
 
-> **Version:** 3.2 (Feb 2026)
+> **Version:** 3.3 (Feb 2026)
 > **Status:** Active
 
 This document provides a technical overview of the **3D Minesweeper** codebase, its module hierarchy, and data flow.
@@ -30,13 +30,15 @@ Detailed lifecycle of a multiplayer session.
 ![State Machine](./diagrams/state_machine.png)
 
 ### 1. Core (`javascripts/core/`)
-*   **`GameController.js`**: The central orchestrator. It connects the Game Logic, UI, Renderer, and Network via **EventBus**. It listens for `CELL_INTERACTION` and `NET_*` events to drive the game state.
+*   **`GameController.js`**: The central orchestrator. It connects the Game Logic, UI, Renderer, and Network via **EventBus**. It listens for `CELL_INTERACTION` and `NET_*` events to drive the game state. In solo mode, displays a **loading overlay** with live attempt counter during No-Guess board generation on first click.
 *   **`Game.js`**: Pure game logic (Grid state, Rules, Win/Loss conditions, Chord logic). No DOM/WebGL references.
 *   **`EventBus.js`**: Pub/Sub system for decoupled communication (e.g., `Events.GAME_OVER`, `Events.NET_GAME_START`). Includes try/catch error isolation in `emit()` to prevent one bad listener from crashing others.
 
 ### 1b. Shared (`shared/`)
 *   **`MinesweeperSolver.js`**: Multi-strategy deterministic solver (Basic Rules → Subset Logic → Gaussian Elimination → Proof by Contradiction → Tank Solver → Global Mine Count). Used by both client (hint system) and server (No-Guess grid generation).
 *   **`GaussianElimination.js`**: Optimized matrix solver using flat `Int32Array` lookups and component windowing.
+*   **`SolverBridge.js`**: Unified solver interface with WASM acceleration and JS fallback. Lazy-loads the WASM module at startup; if unavailable, transparently delegates to `MinesweeperSolver.js`. Exports `isSolvable()`, `generateSolvableBoard()`, `getHint()`, `calculateNumbers()`.
+*   **`solver-wasm/`**: Rust crate compiled to WebAssembly via `wasm-pack`. Contains a full port of all 6 solver strategies, board generation, and Gaussian elimination. Built artifacts live in `solver-wasm/pkg/` (gitignored).
 
 ### 2. Rendering (`javascripts/rendering/`)
 *   **`Renderer.js`**: The Three.js entry point (~370 lines). Manages Scene, WebGLRenderer, and animation loop. **Delegates** all domain logic to managers:

@@ -8,6 +8,7 @@ import { networkManager } from '../network/NetworkManager.js';
 import { EventBus, Events } from './EventBus.js';
 
 import { Logger } from '../utils/Logger.js';
+import { t } from '../i18n.js';
 
 /**
  * GameController - The Central Brain of the Application
@@ -119,7 +120,37 @@ export class GameController {
                 // Local Logic
                 let result;
                 if (type === 'reveal') {
-                    result = await this.game.reveal(x, y);
+                    // Show loading overlay on first click (grid generation may take time in no-guess mode)
+                    const isFirstClick = this.game.firstClick;
+                    let cancelHandler;
+                    if (isFirstClick) {
+                        const overlay = document.getElementById('loading-overlay');
+                        const details = document.getElementById('loading-details');
+                        const cancelBtn = document.getElementById('cancel-gen-btn');
+                        if (overlay) overlay.style.display = 'flex';
+                        if (details) details.textContent = t('loading.attempt', { current: 0, max: 10000 });
+
+                        // Wire cancel button
+                        if (cancelBtn) {
+                            cancelHandler = () => { this.game.cancelGeneration = true; };
+                            cancelBtn.addEventListener('click', cancelHandler, { once: true });
+                        }
+                    }
+
+                    result = await this.game.reveal(x, y, (attempt, max) => {
+                        const details = document.getElementById('loading-details');
+                        if (details) details.textContent = t('loading.attempt', { current: attempt, max });
+                    });
+
+                    // Hide loading overlay after generation completes
+                    if (isFirstClick) {
+                        const overlay = document.getElementById('loading-overlay');
+                        const cancelBtn = document.getElementById('cancel-gen-btn');
+                        if (overlay) overlay.style.display = 'none';
+                        if (cancelBtn && cancelHandler) {
+                            cancelBtn.removeEventListener('click', cancelHandler);
+                        }
+                    }
                 } else if (type === 'flag') {
                     result = this.game.toggleFlag(x, y);
                 } else if (type === 'chord') {

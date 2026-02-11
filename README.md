@@ -10,6 +10,8 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 - **Immersive 3D Grid**: Navigate a floating minefield in a 3D space with smooth camera, animations and lighting.
 - **Custom Media Backgrounds**: Play with uploaded images or videos as dynamic backgrounds.
 - **No-Guess Mode**: Gaussian elimination + multi-strategy solver guarantees every board is solvable without guessing. Enabled by default.
+- **WASM Solver Acceleration**: Rust-compiled WebAssembly solver with automatic JS fallback via `SolverBridge`. Accelerates board generation on both client and server.
+- **Live Generation Feedback**: Calculating overlay with real-time attempt counter in both solo and multiplayer modes.
 - **Chord Clicking**: Double-click a numbered cell with the correct adjacent flags to auto-reveal its neighbors.
 - **Competitive Multiplayer**:
     - **Lobby System**: Support for up to 8 players.
@@ -51,7 +53,7 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 ## 🛠 Project Structure
 
 - `javascripts/`: Core frontend logic, Three.js rendering, and UI components.
-- `shared/`: Solver algorithms shared between client and server (GaussianElimination, MinesweeperSolver).
+- `shared/`: Solver algorithms shared between client and server (GaussianElimination, MinesweeperSolver, SolverBridge, solver-wasm/).
 - `server-multiplayer/`: Node.js authoritative game server.
 - `css/`: Modern styling and animations.
 - `docs/`: Technical documentation and implementation plans.
@@ -63,6 +65,7 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 - [Sensitivity Analysis](./docs/SENSITIVITY_ANALYSIS.md): Behavioural analysis system details.
 - [Deployment Guide](./DEPLOYMENT.md): Instructions for Raspberry Pi and Cloudflare deployment.
 - [Implementation Plan](./docs/IMPLEMENTATION_PLAN_MULTIPLAYER.md): Technical plan.
+- [WASM Solver Plan](./docs/TODO_WASM_SOLVER.md): Rust/WASM solver implementation roadmap.
 
 ## 🐞 Debugging
 
