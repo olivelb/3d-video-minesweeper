@@ -64,8 +64,6 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 - [Architecture Guide](./docs/ARCHITECTURE.md): Technical module hierarchy and data flow.
 - [Sensitivity Analysis](./docs/SENSITIVITY_ANALYSIS.md): Behavioural analysis system details.
 - [Deployment Guide](./DEPLOYMENT.md): Instructions for Raspberry Pi and Cloudflare deployment.
-- [Implementation Plan](./docs/IMPLEMENTATION_PLAN_MULTIPLAYER.md): Technical plan.
-- [WASM Solver Plan](./docs/TODO_WASM_SOLVER.md): Rust/WASM solver implementation roadmap.
 
 ## 🐞 Debugging
 
