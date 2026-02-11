@@ -287,7 +287,12 @@ export class GameController {
                     });
                 }
                 this.game.visibleGrid[result.x][result.y] = 10;
-                this.renderer.updateCellVisual(result.x, result.y, 10);
+                // Set flag so chord-clicking counts this revealed bomb
+                if (!this.game.flags[result.x][result.y]) {
+                    this.game.flags[result.x][result.y] = true;
+                    this.game.flagCount++;
+                }
+                this.renderer.showDeathFlag(result.x, result.y);
             } else if (result.type === 'explode' && !this.game.gameOver) {
                 this.game.gameOver = true;
                 this.game.visibleGrid[update.action.x][update.action.y] = 9;
@@ -338,7 +343,7 @@ export class GameController {
                 // Show the bomb that killed them (if we can see it)
                 if (this.renderer) {
                     // data.bombX/Y are passed from server
-                    this.renderer.updateCellVisual(data.bombX, data.bombY, 10); // 10 = Revealed Bomb
+                    this.renderer.showDeathFlag(data.bombX, data.bombY);
                 }
             }
         });
@@ -507,7 +512,16 @@ export class GameController {
                 // Only update if revealed
                 if (cellValue !== -1 && cellValue !== 9) {
                     this.game.visibleGrid[x][y] = cellValue;
-                    if (this.renderer) this.renderer.updateCellVisual(x, y, cellValue);
+                    if (cellValue === 10) {
+                        // Revealed bomb — show death flag and set flag state for chord
+                        if (!this.game.flags[x][y]) {
+                            this.game.flags[x][y] = true;
+                            this.game.flagCount++;
+                        }
+                        if (this.renderer) this.renderer.showDeathFlag(x, y);
+                    } else {
+                        if (this.renderer) this.renderer.updateCellVisual(x, y, cellValue);
+                    }
                 }
                 // Flags
                 if (state.flags && state.flags[x][y]) {

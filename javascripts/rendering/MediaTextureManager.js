@@ -39,6 +39,9 @@ export class MediaTextureManager {
         // Generate bomb texture programmatically
         this.textures['bomb'] = this._createBombTexture();
 
+        // Generate death flag texture (skull + flag, for multiplayer eliminations)
+        this.textures['deathFlag'] = this._createDeathFlagTexture();
+
         // VIDEO / BACKGROUND MANAGEMENT
         const customImage = document.getElementById('custom-image-source');
         const video = document.getElementById('image');
@@ -247,6 +250,138 @@ export class MediaTextureManager {
         ctx.lineTo(98, 98);
         ctx.moveTo(98, 30);
         ctx.lineTo(30, 98);
+        ctx.stroke();
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        return texture;
+    }
+
+    /**
+     * Create a "death flag" texture for multiplayer revealed bombs.
+     * Combines a flag shape with a skull symbol so players can see
+     * it counts as a flag AND marks where another player died.
+     * @returns {THREE.CanvasTexture}
+     */
+    _createDeathFlagTexture() {
+        const size = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        ctx.clearRect(0, 0, size, size);
+
+        // --- Pulsing danger diamond background ---
+        ctx.save();
+        ctx.translate(64, 64);
+        ctx.rotate(Math.PI / 4);
+        // Outer glow
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = '#cc0000';
+        ctx.fillRect(-40, -40, 80, 80);
+        // Inner fill
+        ctx.shadowBlur = 0;
+        const dGrad = ctx.createLinearGradient(-40, -40, 40, 40);
+        dGrad.addColorStop(0, '#ff2222');
+        dGrad.addColorStop(0.5, '#cc0000');
+        dGrad.addColorStop(1, '#880000');
+        ctx.fillStyle = dGrad;
+        ctx.fillRect(-36, -36, 72, 72);
+        // Border
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(-38, -38, 76, 76);
+        ctx.restore();
+
+        // --- Skull ---
+        const sx = 64, sy = 52;
+
+        // Skull dome (top half circle)
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 4;
+        ctx.beginPath();
+        ctx.arc(sx, sy - 2, 22, Math.PI, 0, false); // top dome
+        ctx.lineTo(sx + 22, sy + 8);
+        ctx.quadraticCurveTo(sx + 22, sy + 18, sx + 12, sy + 18); // right jaw
+        // Teeth gap bottom
+        ctx.lineTo(sx - 12, sy + 18);
+        ctx.quadraticCurveTo(sx - 22, sy + 18, sx - 22, sy + 8); // left jaw
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+
+        // Eye sockets (dark)
+        ctx.fillStyle = '#cc0000';
+        ctx.beginPath();
+        ctx.ellipse(sx - 9, sy, 7, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(sx + 9, sy, 7, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye inner glow
+        ctx.fillStyle = '#ff4444';
+        ctx.beginPath();
+        ctx.ellipse(sx - 9, sy, 4, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(sx + 9, sy, 4, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose
+        ctx.fillStyle = '#880000';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy + 6);
+        ctx.lineTo(sx - 3, sy + 11);
+        ctx.lineTo(sx + 3, sy + 11);
+        ctx.closePath();
+        ctx.fill();
+
+        // Teeth (vertical lines on jaw)
+        ctx.strokeStyle = '#880000';
+        ctx.lineWidth = 1.5;
+        for (let i = -2; i <= 2; i++) {
+            const tx = sx + i * 5;
+            ctx.beginPath();
+            ctx.moveTo(tx, sy + 13);
+            ctx.lineTo(tx, sy + 18);
+            ctx.stroke();
+        }
+
+        // --- Small flag indicator bottom-right ---
+        // Flag pole
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(88, 68, 3, 40);
+        // Flag triangle
+        ctx.fillStyle = '#ffcc00';
+        ctx.shadowColor = '#ff6600';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.moveTo(91, 68);
+        ctx.lineTo(114, 78);
+        ctx.lineTo(91, 88);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // --- "MINE" crossbones behind skull ---
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        // Left bone
+        ctx.beginPath();
+        ctx.moveTo(28, 72);
+        ctx.lineTo(100, 32);
+        ctx.stroke();
+        // Right bone
+        ctx.beginPath();
+        ctx.moveTo(100, 72);
+        ctx.lineTo(28, 32);
         ctx.stroke();
 
         const texture = new THREE.CanvasTexture(canvas);

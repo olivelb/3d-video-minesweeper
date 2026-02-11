@@ -219,6 +219,18 @@ export class MinesweeperRenderer {
         this.flagManager.updateFlag(x, y, false, this.game.width, this.game.height);
     }
 
+    /**
+     * Show a death-flag on a cell where another player was eliminated.
+     * Hides the cube, places the skull+flag texture, and removes any
+     * existing flag particle/icon so there isn't a visual double-up.
+     */
+    showDeathFlag(x, y) {
+        // Remove any existing flag visual for this cell
+        this.flagManager.updateFlag(x, y, false, this.game.width, this.game.height);
+        // Place the death-flag mesh (skull + flag icon)
+        this.gridManager.createDeathFlagMesh(x, y);
+    }
+
     // ─────────────────────────────────────────────
     //  Flag Delegates
     // ─────────────────────────────────────────────

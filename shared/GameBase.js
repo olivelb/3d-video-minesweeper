@@ -383,7 +383,9 @@ export class MinesweeperGameBase {
         let revealedCount = 0;
         for (let x = 0; x < this.width; x++) {
             for (let y = 0; y < this.height; y++) {
-                if (this.visibleGrid[x][y] !== -1) {
+                const v = this.visibleGrid[x][y];
+                // Count revealed non-mine cells (exclude hidden=-1, explosion=9, revealed bomb=10)
+                if (v !== -1 && v !== 9 && v !== 10) {
                     revealedCount++;
                 }
             }

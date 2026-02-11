@@ -96,6 +96,12 @@ export class MinesweeperGame extends MinesweeperGameBase {
         if (!this.mines[x][y]) return false;
         this.visibleGrid[x][y] = 10;
         this.revealedBombs.push({ x, y });
+
+        // Also set the flag so chord-clicking counts this revealed bomb
+        if (!this.flags[x][y]) {
+            this.flags[x][y] = true;
+            this.flagCount++;
+        }
         return true;
     }
 }

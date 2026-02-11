@@ -257,6 +257,49 @@ export class GridManager {
     }
 
     /**
+     * Create a death-flag mesh for a cell where another player was eliminated.
+     * Shows a skull+flag icon so it's clear this is a flagged mine.
+     * @param {number} x - Grid X coordinate
+     * @param {number} y - Grid Y coordinate
+     */
+    createDeathFlagMesh(x, y) {
+        const index = x * this.game.height + y;
+
+        // Hide the cube (same as updateCellVisual)
+        this.gridMesh.getMatrixAt(index, this.dummy.matrix);
+        this.dummy.matrix.decompose(
+            this.dummy.position,
+            this.dummy.quaternion,
+            this.dummy.scale
+        );
+        this.dummy.scale.set(0, 0, 0);
+        this.dummy.updateMatrix();
+        this.gridMesh.setMatrixAt(index, this.dummy.matrix);
+        this.gridMesh.instanceMatrix.needsUpdate = true;
+
+        const planeGeo = new THREE.PlaneGeometry(18, 18);
+        const material = new THREE.MeshBasicMaterial({
+            map: this.textures['deathFlag'],
+            transparent: true,
+            opacity: 1.0,
+            depthWrite: true,
+            depthTest: true,
+            side: THREE.DoubleSide,
+            alphaTest: 0.1
+        });
+        const mesh = new THREE.Mesh(planeGeo, material);
+        mesh.position.set(
+            -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
+            GRID_CONFIG.NUMBER_HEIGHT,
+            (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
+        );
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.renderOrder = 2;
+        this.scene.add(mesh);
+        this.numberMeshes.push(mesh);
+    }
+
+    /**
      * Create a number mesh for a revealed cell
      * @private
      * @param {number} x - Grid X coordinate
