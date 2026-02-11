@@ -30,6 +30,11 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Test / debug artifacts
+**/test_output.txt
+**/test_gaussian*.mjs
+**/test_server_gaussian*.mjs
+
 # Temporary and deployment files
 *.tmp
 *-player-script.js

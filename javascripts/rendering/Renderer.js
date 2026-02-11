@@ -3,12 +3,49 @@ import { SoundManager } from '../audio/SoundManager.js';
 import { ParticleSystem } from './ParticleSystem.js';
 import { MediaTextureManager } from './MediaTextureManager.js';
 import { InputManager } from './InputManager.js';
-import { GridManager } from './GridManager.js';
+import { GridManager, gridToWorld } from './GridManager.js';
 import { FlagManager } from './FlagManager.js';
 import { CameraController } from './CameraController.js';
 import { EndGameEffects } from './EndGameEffects.js';
 import { Events } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
+
+/**
+ * Configuration for renderer behaviour & timing
+ * @constant
+ */
+const RENDERER_CONFIG = {
+    /** Background scene colour */
+    BG_COLOR: 0x1f1f1f,
+    /** Duration of the reassembly animation (s) */
+    REASSEMBLY_DURATION: 1.6,
+    /** Delay before reassembly starts after elimination explosion (ms) */
+    REASSEMBLY_DELAY: 1500,
+    /** Total elimination sequence duration before ghost mode (ms) */
+    ELIMINATION_DURATION: 3200,
+    /** Number of particle emitters per elimination explosion */
+    ELIMINATION_EMITTER_COUNT: 5,
+    /** Particles per emitter during elimination */
+    ELIMINATION_PARTICLE_COUNT: 50,
+    /** Base speed of elimination particles */
+    ELIMINATION_PARTICLE_SPEED: 100,
+    /** Random speed variation for elimination particles */
+    ELIMINATION_PARTICLE_SPEED_VARIANCE: 50,
+    /** Lifetime of elimination particles (s) */
+    ELIMINATION_PARTICLE_LIFETIME: 1.5,
+    /** Explosion rotation speed multiplier (per frame) */
+    EXPLOSION_ROTATION_SPEED: 10,
+    /** Explosion translation speed multiplier (per frame) */
+    EXPLOSION_TRANSLATION_SPEED: 200,
+    /** Ghost-mode fog colour */
+    GHOST_FOG_COLOR: 0x1a1a1a,
+    /** Ghost-mode fog density */
+    GHOST_FOG_DENSITY: 0.001,
+    /** Ghost-mode light intensity multiplier */
+    GHOST_LIGHT_FACTOR: 0.85,
+    /** Y position for hint particle emitters */
+    HINT_PARTICLE_HEIGHT: 20
+};
 
 export class MinesweeperRenderer {
     constructor(game, containerId, useHoverHelper = true, bgName = 'Unknown', eventBus = null) {
@@ -54,7 +91,7 @@ export class MinesweeperRenderer {
         this.explosionTime = 0;
         this.isReassembling = false;
         this.reassemblyProgress = 0;
-        this.reassemblyDuration = 1.6;
+        this.reassemblyDuration = RENDERER_CONFIG.REASSEMBLY_DURATION;
         this.reassemblyStartPositions = [];
         this.reassemblyStartRotations = [];
 
@@ -72,7 +109,7 @@ export class MinesweeperRenderer {
 
     async init() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1f1f1f);
+        this.scene.background = new THREE.Color(RENDERER_CONFIG.BG_COLOR);
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -126,16 +163,6 @@ export class MinesweeperRenderer {
     /** @returns {THREE.InstancedMesh|null} Convenience getter for external callers */
     get gridMesh() {
         return this.gridManager?.gridMesh ?? null;
-    }
-
-    updateCubeMaterial() {
-        if (this.gridManager) {
-            this.gridManager.updateMediaTexture(this.mediaTexture);
-        }
-    }
-
-    setLoadingProgress(progress) {
-        this._loadingProgress = Math.max(0, Math.min(100, progress));
     }
 
     updateMediaTexture(type, source) {
@@ -202,11 +229,8 @@ export class MinesweeperRenderer {
 
         // Particle effect on hint cell
         const color = type === 'safe' ? new THREE.Color(0x00ff00) : new THREE.Color(0xff0000);
-        const pos = new THREE.Vector3(
-            -(this.game.width * 10) + x * 22,
-            20,
-            (this.game.height * 10) - y * 22
-        );
+        const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
+        const pos = new THREE.Vector3(wx, RENDERER_CONFIG.HINT_PARTICLE_HEIGHT, wz);
         this.particleSystem.createEmitter(pos, 'hint', {
             colorStart: color,
             colorEnd: new THREE.Color(0xffffff),
@@ -290,18 +314,15 @@ export class MinesweeperRenderer {
      * @param {number} y - Bomb y coordinate
      */
     playEliminationSequence(x, y) {
-        const pos = new THREE.Vector3(
-            -(this.game.width * 10) + x * 22,
-            0,
-            (this.game.height * 10) - y * 22
-        );
+        const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
+        const pos = new THREE.Vector3(wx, 0, wz);
 
         // Local feedback — particle explosions
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < RENDERER_CONFIG.ELIMINATION_EMITTER_COUNT; i++) {
             this.particleSystem.createEmitter(pos, 'explosion', {
-                count: 50,
-                speed: 100 + Math.random() * 50,
-                lifeTime: 1.5,
+                count: RENDERER_CONFIG.ELIMINATION_PARTICLE_COUNT,
+                speed: RENDERER_CONFIG.ELIMINATION_PARTICLE_SPEED + Math.random() * RENDERER_CONFIG.ELIMINATION_PARTICLE_SPEED_VARIANCE,
+                lifeTime: RENDERER_CONFIG.ELIMINATION_PARTICLE_LIFETIME,
                 colorStart: new THREE.Color(0xff0000),
                 colorEnd: new THREE.Color(0x222222)
             });
@@ -329,12 +350,12 @@ export class MinesweeperRenderer {
         this.explosionTime = 0;
         this.isReassembling = false;
 
-        // Schedule reassembly (1.5 s out, then reverse)
+        // Schedule reassembly
         setTimeout(() => {
             this.isExploding = false;
             this.isReassembling = true;
             this.reassemblyProgress = 0.0;
-            this.reassemblyDuration = 1.6;
+            this.reassemblyDuration = RENDERER_CONFIG.REASSEMBLY_DURATION;
 
             this.reassemblyStartPositions = [];
             this.reassemblyStartRotations = [];
@@ -364,25 +385,25 @@ export class MinesweeperRenderer {
             });
 
             // Pre-create fog so _animateReassembly only updates density
-            this.scene.fog = new THREE.FogExp2(0x1a1a1a, 0);
-        }, 1500);
+            this.scene.fog = new THREE.FogExp2(RENDERER_CONFIG.GHOST_FOG_COLOR, 0);
+        }, RENDERER_CONFIG.REASSEMBLY_DELAY);
 
-        // Schedule completion (3.2 s total)
+        // Schedule completion
         setTimeout(() => {
             this.isReassembling = false;
             this.resetExplosion();
             this.enableGhostMode();
             this.gridManager.numberMeshes.forEach(mesh => mesh.visible = true);
-        }, 3200);
+        }, RENDERER_CONFIG.ELIMINATION_DURATION);
     }
 
     enableGhostMode() {
         Logger.log('Renderer', 'Enabling Ghost Mode visuals');
-        this.scene.fog = new THREE.FogExp2(0x1a1a1a, 0.001);
+        this.scene.fog = new THREE.FogExp2(RENDERER_CONFIG.GHOST_FOG_COLOR, RENDERER_CONFIG.GHOST_FOG_DENSITY);
         this.scene.traverse(obj => {
             if (obj.isLight) {
                 obj.userData.originalIntensity = obj.intensity;
-                obj.intensity *= 0.85;
+                obj.intensity *= RENDERER_CONFIG.GHOST_LIGHT_FACTOR;
             }
         });
     }
@@ -456,10 +477,10 @@ export class MinesweeperRenderer {
                 this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
                 if (this.dummy.scale.x > 0.1) {
                     const vec = explosionVectors[i];
-                    this.dummy.rotation.x += 10 * vec.dx;
-                    this.dummy.rotation.y += 10 * vec.dy;
-                    this.dummy.position.x += 200 * vec.dx;
-                    this.dummy.position.y += 200 * vec.dy;
+                    this.dummy.rotation.x += RENDERER_CONFIG.EXPLOSION_ROTATION_SPEED * vec.dx;
+                    this.dummy.rotation.y += RENDERER_CONFIG.EXPLOSION_ROTATION_SPEED * vec.dy;
+                    this.dummy.position.x += RENDERER_CONFIG.EXPLOSION_TRANSLATION_SPEED * vec.dx;
+                    this.dummy.position.y += RENDERER_CONFIG.EXPLOSION_TRANSLATION_SPEED * vec.dy;
                     this.dummy.updateMatrix();
                     gridMesh.setMatrixAt(i, this.dummy.matrix);
                 }
@@ -487,14 +508,12 @@ export class MinesweeperRenderer {
         const easeFactor = t * t * t * t * t * t; // Ease-in exponential (t^6)
 
         // Synchronize fog (reuse existing fog object — just update density)
-        const targetFogDensity = 0.001;
         if (this.scene.fog) {
-            this.scene.fog.density = targetFogDensity * easeFactor;
+            this.scene.fog.density = RENDERER_CONFIG.GHOST_FOG_DENSITY * easeFactor;
         }
 
         // Synchronize lights (use cached references instead of scene.traverse)
-        const targetLightFactor = 0.85;
-        const currentLightFactor = 1.0 - ((1.0 - targetLightFactor) * easeFactor);
+        const currentLightFactor = 1.0 - ((1.0 - RENDERER_CONFIG.GHOST_LIGHT_FACTOR) * easeFactor);
         const lights = this._reassemblyLights;
         if (lights) {
             for (let i = 0; i < lights.length; i++) {

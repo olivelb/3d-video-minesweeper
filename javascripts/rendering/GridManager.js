@@ -15,7 +15,7 @@ import * as THREE from 'three';
  * Configuration for grid rendering
  * @constant
  */
-const GRID_CONFIG = {
+export const GRID_CONFIG = {
     /** Size of each cube */
     CUBE_SIZE: 20,
     /** Spacing between cubes */
@@ -25,6 +25,39 @@ const GRID_CONFIG = {
     /** Height of number planes above grid */
     NUMBER_HEIGHT: 11
 };
+
+/**
+ * Convert grid coordinates to world position.
+ * Centralises the formula so it isn't duplicated across modules.
+ * @param {number} x - Grid column
+ * @param {number} y - Grid row
+ * @param {number} gridWidth  - Total grid width  (game.width)
+ * @param {number} gridHeight - Total grid height (game.height)
+ * @returns {{wx: number, wz: number}}
+ */
+export function gridToWorld(x, y, gridWidth, gridHeight) {
+    const half = GRID_CONFIG.CUBE_SPACING / 2;     // 11
+    return {
+        wx: -(gridWidth * half)  + x * GRID_CONFIG.CUBE_SPACING,
+        wz:  (gridHeight * half) - y * GRID_CONFIG.CUBE_SPACING
+    };
+}
+
+/**
+ * Convert world position back to grid coordinates (inverse of gridToWorld).
+ * @param {number} wx - World X
+ * @param {number} wz - World Z
+ * @param {number} gridWidth
+ * @param {number} gridHeight
+ * @returns {{x: number, y: number}}
+ */
+export function worldToGrid(wx, wz, gridWidth, gridHeight) {
+    const half = GRID_CONFIG.CUBE_SPACING / 2;
+    return {
+        x: Math.round((wx + gridWidth * half) / GRID_CONFIG.CUBE_SPACING),
+        y: Math.round((gridHeight * half - wz) / GRID_CONFIG.CUBE_SPACING)
+    };
+}
 
 /**
  * Manages the instanced mesh grid for minesweeper
@@ -171,11 +204,8 @@ export class GridManager {
         for (let x = 0; x < this.game.width; x++) {
             for (let y = 0; y < this.game.height; y++) {
                 // Set position
-                this.dummy.position.set(
-                    -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
-                    0,
-                    (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
-                );
+                const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
+                this.dummy.position.set(wx, 0, wz);
                 this.dummy.rotation.x = -Math.PI / 2;
                 this.dummy.updateMatrix();
                 this.gridMesh.setMatrixAt(i, this.dummy.matrix);
@@ -245,11 +275,8 @@ export class GridManager {
             alphaTest: 0.1
         });
         const mesh = new THREE.Mesh(planeGeo, material);
-        mesh.position.set(
-            -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
-            GRID_CONFIG.NUMBER_HEIGHT,
-            (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
-        );
+        const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
+        mesh.position.set(wx, GRID_CONFIG.NUMBER_HEIGHT, wz);
         mesh.rotation.x = -Math.PI / 2;
         mesh.renderOrder = 2;
         this.scene.add(mesh);
@@ -287,16 +314,13 @@ export class GridManager {
             side: THREE.DoubleSide,
             alphaTest: 0.1
         });
-        const mesh = new THREE.Mesh(planeGeo, material);
-        mesh.position.set(
-            -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
-            GRID_CONFIG.NUMBER_HEIGHT,
-            (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
-        );
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.renderOrder = 2;
-        this.scene.add(mesh);
-        this.numberMeshes.push(mesh);
+        const dfMesh = new THREE.Mesh(planeGeo, material);
+        const df = gridToWorld(x, y, this.game.width, this.game.height);
+        dfMesh.position.set(df.wx, GRID_CONFIG.NUMBER_HEIGHT, df.wz);
+        dfMesh.rotation.x = -Math.PI / 2;
+        dfMesh.renderOrder = 2;
+        this.scene.add(dfMesh);
+        this.numberMeshes.push(dfMesh);
     }
 
     /**
@@ -323,11 +347,8 @@ export class GridManager {
         });
         
         const mesh = new THREE.Mesh(planeGeo, material);
-        mesh.position.set(
-            -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
-            GRID_CONFIG.NUMBER_HEIGHT,
-            (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
-        );
+        const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
+        mesh.position.set(wx, GRID_CONFIG.NUMBER_HEIGHT, wz);
         mesh.rotation.x = -Math.PI / 2;
         mesh.renderOrder = 1;
         
@@ -395,11 +416,8 @@ export class GridManager {
             this.dummy.scale.set(1, 1, 1);
         }
 
-        this.dummy.position.set(
-            -(this.game.width * 10) + x * GRID_CONFIG.CUBE_SPACING,
-            0,
-            (this.game.height * 10) - y * GRID_CONFIG.CUBE_SPACING
-        );
+        const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
+        this.dummy.position.set(wx, 0, wz);
         this.dummy.rotation.x = -Math.PI / 2;
         this.dummy.rotation.y = 0;
         this.dummy.rotation.z = 0;
@@ -464,36 +482,6 @@ export class GridManager {
         this.explosionTime = 0;
         this.numberMeshes.forEach(mesh => mesh.visible = true);
         this.resetAllInstances();
-    }
-
-    /**
-     * Update explosion animation each frame
-     */
-    animateExplosion() {
-        if (!this.isExploding) return;
-
-        this.explosionTime++;
-        
-        for (let i = 0; i < this.game.width * this.game.height; i++) {
-            this.gridMesh.getMatrixAt(i, this.dummy.matrix);
-            this.dummy.matrix.decompose(
-                this.dummy.position, 
-                this.dummy.quaternion, 
-                this.dummy.scale
-            );
-            
-            if (this.dummy.scale.x > 0.1) {
-                const vec = this.explosionVectors[i];
-                this.dummy.rotation.x += 10 * vec.dx;
-                this.dummy.rotation.y += 10 * vec.dy;
-                this.dummy.position.x += 200 * vec.dx;
-                this.dummy.position.y += 200 * vec.dy;
-                this.dummy.updateMatrix();
-                this.gridMesh.setMatrixAt(i, this.dummy.matrix);
-            }
-        }
-        
-        this.gridMesh.instanceMatrix.needsUpdate = true;
     }
 
     /**

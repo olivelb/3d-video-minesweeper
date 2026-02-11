@@ -10,6 +10,7 @@
  */
 
 import * as THREE from 'three';
+import { gridToWorld } from './GridManager.js';
 
 /**
  * Configuration for flag rendering
@@ -170,11 +171,8 @@ export class FlagManager {
      * @returns {THREE.Vector3} World position
      */
     _getWorldPosition(x, y, gridWidth, gridHeight) {
-        return new THREE.Vector3(
-            -(gridWidth * 10) + x * 22,
-            0,
-            (gridHeight * 10) - y * 22
-        );
+        const { wx, wz } = gridToWorld(x, y, gridWidth, gridHeight);
+        return new THREE.Vector3(wx, 0, wz);
     }
 
     /**

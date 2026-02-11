@@ -530,10 +530,8 @@ export class GameServer {
             let correctFlags = 0;
             let incorrectFlags = 0;
 
-            // Count flags for this calculation (check all flags on the board)
-            // We need to track which player placed which flag - for now, 
-            // we use the shared flag grid and divide equally or use stats
-            // Actually, let's count from the current flag state
+            // Count correct/incorrect flags on the board
+            // TODO: Track individual flag ownership for proper per-player scoring
             for (let x = 0; x < this.width; x++) {
                 for (let y = 0; y < this.height; y++) {
                     if (this.game.flags[x][y]) {

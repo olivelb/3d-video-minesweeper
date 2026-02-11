@@ -1,3 +1,14 @@
+/**
+ * ParticleSystem Module
+ *
+ * GPU-friendly particle emitter system using THREE.Points.
+ * Supports burst emitters (flags, hints, explosions, fireworks)
+ * with configurable count, speed, lifetime, size and colour gradients.
+ *
+ * @module ParticleSystem
+ * @requires three
+ */
+
 import * as THREE from 'three';
 
 export class ParticleSystem {

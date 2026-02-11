@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Events } from '../core/EventBus.js';
+import { worldToGrid } from './GridManager.js';
 
 /**
  * InputManager
@@ -18,7 +19,6 @@ export class InputManager {
         this.mouse = new THREE.Vector2();
 
         this.hoveredInstanceId = -1;
-        this.lastHoveredId = -1;
 
         // Ground plane for reliable grid coordinate resolution —
         // revealed cells are scaled to 0 in the InstancedMesh and can't be
@@ -95,9 +95,8 @@ export class InputManager {
         const hitPoint = this._hitPoint;
         if (!this.raycaster.ray.intersectPlane(this._groundPlane, hitPoint)) return null;
 
-        // Grid formula: wx = -(width*10) + x*22,  wz = (height*10) - y*22
-        const x = Math.round((hitPoint.x + this.game.width * 10) / 22);
-        const y = Math.round((this.game.height * 10 - hitPoint.z) / 22);
+        // Grid formula: wx = -(width*half) + x*spacing,  wz = (height*half) - y*spacing
+        const { x, y } = worldToGrid(hitPoint.x, hitPoint.z, this.game.width, this.game.height);
 
         if (x < 0 || x >= this.game.width || y < 0 || y >= this.game.height) return null;
         return { x, y };

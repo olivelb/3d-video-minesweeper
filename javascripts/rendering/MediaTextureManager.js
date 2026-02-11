@@ -14,7 +14,6 @@ export class MediaTextureManager {
         this.placeholderTexture = null;
         this.videoElement = null;
         this.videoCheckInterval = null;
-        this._videoEventListeners = [];
 
         this.font = null;
     }
@@ -77,8 +76,8 @@ export class MediaTextureManager {
 
                 // Ensure connection to video play (user interaction needed)
                 if (video.paused) {
-                    video.play().catch(e => {
-                        console.log("Waiting for user interaction to play video");
+                    video.play().catch(() => {
+                        Logger.log('MediaManager', 'Waiting for user interaction to play video');
                     });
                 }
             } else {
@@ -138,19 +137,11 @@ export class MediaTextureManager {
      */
     getBackgroundTexture() {
         if (this.mediaTexture) return this.mediaTexture;
-        return this.placeholderTexture || new THREE.Texture(); // Return empty texture if nothing
-    }
-
-    /**
-     * Update texture if needed (for video/canvas)
-     */
-    update() {
-        // VideoTextures update automatically in Three.js usually
+        return this.placeholderTexture || new THREE.Texture();
     }
 
     /**
      * Create a bomb texture for revealed bombs (values 10)
-     * Copied from original Renderer.js
      * @returns {THREE.CanvasTexture}
      */
     _createBombTexture() {
@@ -396,9 +387,5 @@ export class MediaTextureManager {
         if (this.placeholderTexture) this.placeholderTexture.dispose();
 
         if (this.videoCheckInterval) clearInterval(this.videoCheckInterval);
-
-        this._videoEventListeners.forEach(l => {
-            l.element.removeEventListener(l.type, l.listener);
-        });
     }
 }

@@ -6,6 +6,7 @@
  */
 
 import { MinesweeperGameBase } from '../../shared/GameBase.js';
+import { Logger } from '../utils/Logger.js';
 
 // ─── Lazy i18n (browser only) ───────────────────────────────────────────────
 
@@ -39,6 +40,6 @@ export class MinesweeperGame extends MinesweeperGameBase {
             window._gameController.uiManager.hudController.showNotification(msg, 'warning');
         }
 
-        console.log(`[Game] Board generation: ${reason}`);
+        Logger.log('Game', `Board generation: ${reason}`);
     }
 }
