@@ -43,7 +43,6 @@ build/
 
 # Rust / WASM build artifacts
 shared/solver-wasm/target/
-shared/solver-wasm/pkg/
 
 # Private/Deployment specific
 patch_renderer_v2.js
