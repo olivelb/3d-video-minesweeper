@@ -1,14 +1,3 @@
-/**
- * ParticleSystem Module
- *
- * GPU-friendly particle emitter system using THREE.Points.
- * Supports burst emitters (flags, hints, explosions, fireworks)
- * with configurable count, speed, lifetime, size and colour gradients.
- *
- * @module ParticleSystem
- * @requires three
- */
-
 import * as THREE from 'three';
 
 export class ParticleSystem {
@@ -28,7 +17,7 @@ export class ParticleSystem {
             colorEnd: new THREE.Color('red'),
             sizeStart: 10,
             sizeEnd: 0,
-            lifeTime: 0.5,
+            lifeTime: 0.3,
             rate: 10,
             speed: 50,
             spread: 0
