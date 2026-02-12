@@ -1,6 +1,6 @@
 # 🏗️ Technical Architecture & Module Hierarchy
 
-> **Version:** 3.3 (Feb 2026)
+> **Version:** 3.4 (Feb 2026)
 > **Status:** Active
 
 This document provides a technical overview of the **3D Minesweeper** codebase, its module hierarchy, and data flow.
@@ -32,12 +32,12 @@ Detailed lifecycle of a multiplayer session.
 ### 1. Core (`javascripts/core/`)
 *   **`GameController.js`**: The central orchestrator. It connects the Game Logic, UI, Renderer, and Network via **EventBus**. It listens for `CELL_INTERACTION` and `NET_*` events to drive the game state. In solo mode, displays a **loading overlay** with live attempt counter during No-Guess board generation on first click.
 *   **`Game.js`**: Pure game logic (Grid state, Rules, Win/Loss conditions, Chord logic). No DOM/WebGL references.
-*   **`EventBus.js`**: Pub/Sub system for decoupled communication (e.g., `Events.GAME_OVER`, `Events.NET_GAME_START`). Includes try/catch error isolation in `emit()` to prevent one bad listener from crashing others.
+*   **`EventBus.js`**: Pub/Sub system for decoupled communication (e.g., `Events.GAME_OVER`, `Events.NET_GAME_START`, `Events.REQUEST_HINT_EXPLAIN`). Includes try/catch error isolation in `emit()` to prevent one bad listener from crashing others.
 
 ### 1b. Shared (`shared/`)
 *   **`MinesweeperSolver.js`**: Multi-strategy deterministic solver (Basic Rules → Subset Logic → Gaussian Elimination → Proof by Contradiction → Tank Solver → Global Mine Count). Used by both client (hint system) and server (No-Guess grid generation).
 *   **`GaussianElimination.js`**: Optimized matrix solver using flat `Int32Array` lookups and component windowing.
-*   **`SolverBridge.js`**: Unified solver interface with WASM acceleration and JS fallback. Lazy-loads the WASM module at startup; if unavailable, transparently delegates to `MinesweeperSolver.js`. Exports `isSolvable()`, `generateSolvableBoard()`, `getHint()`, `calculateNumbers()`.
+*   **`SolverBridge.js`**: Unified solver interface with WASM acceleration and JS fallback. Lazy-loads the WASM module at startup; if unavailable, transparently delegates to `MinesweeperSolver.js`. Exports `isSolvable()`, `generateSolvableBoard()`, `getHint()`, `getHintWithExplanation()`, `calculateNumbers()`.
 *   **`solver-wasm/`**: Rust crate compiled to WebAssembly via `wasm-pack`. Contains a full port of all 6 solver strategies, board generation, and Gaussian elimination. Built artifacts live in `solver-wasm/pkg/` (gitignored).
 
 ### 2. Rendering (`javascripts/rendering/`)
@@ -46,7 +46,7 @@ Detailed lifecycle of a multiplayer session.
     *   **`FlagManager.js`**: Manages 3D Flag instances and particle effects for flags.
     *   **`CameraController.js`**: Camera positioning, orbit controls, intro animation, and zoom-to-board.
     *   **`EndGameEffects.js`**: Victory/defeat text billboards, confetti, and auto-return timer.
-*   **`InputManager.js`**: Handles input & raycasting. Uses a **ground-plane raycast** (`THREE.Plane` at Y=0) for click/double-click to resolve grid coordinates reliably (even on zero-scaled revealed cells), and `InstancedMesh` raycasting for hover highlights only. Supports three interaction types: `reveal` (left click), `flag` (right click), `chord` (double-click). **Decoupled**: Emits `CELL_INTERACTION` events instead of calling logic directly.
+*   **`InputManager.js`**: Handles input & raycasting. Uses a **ground-plane raycast** (`THREE.Plane` at Y=0) for click/double-click to resolve grid coordinates reliably (even on zero-scaled revealed cells), and `InstancedMesh` raycasting for hover highlights only. Supports three interaction types: `reveal` (left click), `flag` (right click), `chord` (double-click). **Decoupled**: Emits `CELL_INTERACTION` events instead of calling logic directly. Blocks clicks/flags during hint explanation mode (`hintMode`) while keeping camera controls active.
 *   **`MediaTextureManager.js`**: Manages loading of Textures, Fonts, and media resources.
 *   **`ParticleSystem.js`**: Flag particles, fireworks, and explosion effects. Uses reusable `_tempColor` to minimize GC pressure.
 

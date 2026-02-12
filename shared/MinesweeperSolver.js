@@ -262,7 +262,7 @@ export class MinesweeperSolver {
             }
 
 
-            // Strategy 4: Tank Solver (very expensive - use sparingly)
+            // Strategy 5: Tank Solver (very expensive - use sparingly)
             const tankResult = this.tankSolver(grid, visibleGrid, flags, width, height, bombCount, flagCount);
             if (tankResult.progress) {
                 progress = true;
@@ -276,7 +276,7 @@ export class MinesweeperSolver {
                 continue;
             }
 
-            // Strategy 5: Global mine counting
+            // Strategy 6: Global mine counting
             const globalResult = this.applyGlobalMineCount(grid, visibleGrid, flags, width, height, bombCount, flagCount);
             if (globalResult.progress) {
                 progress = true;

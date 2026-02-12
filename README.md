@@ -10,6 +10,7 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 - **Immersive 3D Grid**: Navigate a floating minefield in a 3D space with smooth camera, animations and lighting.
 - **Custom Media Backgrounds**: Play with uploaded images or videos as dynamic backgrounds.
 - **No-Guess Mode**: Gaussian elimination + multi-strategy solver guarantees every board is solvable without guessing. Enabled by default.
+- **Explain Hint**: In No-Guess mode, an "Explain" button shows *why* a hinted move is safe, with strategy-specific reasoning (basic counting, subset logic, Gaussian elimination, contradiction, exhaustive analysis) and constraint cell highlighting.
 - **WASM Solver Acceleration**: Rust-compiled WebAssembly solver with automatic JS fallback via `SolverBridge`. Accelerates board generation on both client and server.
 - **Live Generation Feedback**: Calculating overlay with real-time attempt counter in both solo and multiplayer modes.
 - **Chord Clicking**: Double-click a numbered cell with the correct adjacent flags to auto-reveal its neighbors.
@@ -64,6 +65,7 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
 - [Architecture Guide](./docs/ARCHITECTURE.md): Technical module hierarchy and data flow.
 - [Sensitivity Analysis](./docs/SENSITIVITY_ANALYSIS.md): Behavioural analysis system details.
 - [Deployment Guide](./DEPLOYMENT.md): Instructions for Raspberry Pi and Cloudflare deployment.
+- [Changelog](./docs/CHANGELOG.md): Version history and release notes.
 
 ## 🐞 Debugging
 
