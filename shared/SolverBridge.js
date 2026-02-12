@@ -282,4 +282,15 @@ export class SolverBridge {
         }
         return grid;
     }
+
+    /**
+     * Get a hint with explanation of WHY the move is safe.
+     * Always uses JS path (explanation data is JS-only).
+     * 
+     * @param {Object} game - Game state object
+     * @returns {{x, y, score, type, strategy, constraintCells, explanationData}|null}
+     */
+    static getHintWithExplanation(game) {
+        return MinesweeperSolver.getHintWithExplanation(game);
+    }
 }

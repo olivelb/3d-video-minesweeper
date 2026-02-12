@@ -96,6 +96,49 @@ export class GameController {
             }
         });
 
+        // Hint Explain Request (No Guess mode only)
+        this.events.on(Events.REQUEST_HINT_EXPLAIN, () => {
+            if (networkManager.mode === 'multiplayer') return;
+            if (!this.game || !this.renderer) return;
+            if (!this.game.noGuessMode) return;
+
+            const hint = this.game.getHintWithExplanation();
+            if (!hint) {
+                if (this.uiManager?.hudController) {
+                    this.uiManager.hudController.showNoHintFeedback();
+                }
+                return;
+            }
+
+            // Freeze game actions
+            this.game.hintMode = true;
+
+            // Visual: highlight hinted cell (green) + constraint cells (blue)
+            this.renderer.showHint(hint.x, hint.y, hint.type);
+            if (hint.constraintCells?.length > 0) {
+                this.renderer.highlightConstraints(hint.constraintCells);
+            }
+
+            // Build explanation text
+            const explanation = this._buildExplanation(hint);
+
+            // Show overlay with OK button
+            if (this.uiManager?.hudController) {
+                this.uiManager.hudController.showHintExplanation(explanation, () => {
+                    this.events.emit(Events.HINT_EXPLAIN_DISMISS);
+                });
+            }
+        });
+
+        // Hint Explain Dismiss
+        this.events.on(Events.HINT_EXPLAIN_DISMISS, () => {
+            if (!this.game) return;
+            this.game.hintMode = false;
+            if (this.renderer) {
+                this.renderer.clearConstraintHighlights();
+            }
+        });
+
         // Retry Request
         this.events.on(Events.REQUEST_RETRY, () => {
             if (!this.game || !this.renderer) return;
@@ -448,8 +491,15 @@ export class GameController {
         if (this.uiManager?.hudController) {
             if (!config.isMultiplayer) {
                 this.uiManager.hudController.showHintButton();
+                // Show explain button only in No Guess mode
+                if (config.noGuessMode) {
+                    this.uiManager.hudController.showHintExplainButton();
+                } else {
+                    this.uiManager.hudController.hideHintExplainButton();
+                }
             } else {
                 this.uiManager.hudController.hideHintButton();
+                this.uiManager.hudController.hideHintExplainButton();
             }
         }
     }
@@ -609,5 +659,28 @@ export class GameController {
             clickCount: this.clickTimestamps.length,
             hesitations
         };
+    }
+
+    /**
+     * Build a human-readable explanation string from a hint result.
+     * Maps strategy names to i18n keys and fills in the explanation data.
+     * @param {Object} hint - Result from getHintWithExplanation()
+     * @returns {string}
+     * @private
+     */
+    _buildExplanation(hint) {
+        const strategyKeyMap = {
+            basic: 'hint.basicSafe',
+            basicDeduced: 'hint.basicDeduced',
+            subset: 'hint.subset',
+            gaussian: 'hint.gaussian',
+            contradiction: 'hint.contradiction',
+            tank: 'hint.tank',
+            globalCount: 'hint.globalCount',
+            godMode: 'hint.godMode'
+        };
+
+        const key = strategyKeyMap[hint.strategy] || 'hint.godMode';
+        return t(key, hint.explanationData || {});
     }
 }

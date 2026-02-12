@@ -15,6 +15,7 @@ export class HUDController {
         this.minesEl = document.getElementById('mines-display');
         this.hintBtn = document.getElementById('hint-btn');
         this.retryBtn = document.getElementById('retry-btn');
+        this.hintExplainBtn = document.getElementById('hint-explain-btn');
         this.hintDisplay = document.getElementById('hint-display');
         this.notificationEl = document.getElementById('game-notification');
 
@@ -31,6 +32,12 @@ export class HUDController {
         if (this.retryBtn) {
             this.retryBtn.addEventListener('click', () => {
                 this.events.emit(Events.REQUEST_RETRY);
+            });
+        }
+
+        if (this.hintExplainBtn) {
+            this.hintExplainBtn.addEventListener('click', () => {
+                this.events.emit(Events.REQUEST_HINT_EXPLAIN);
             });
         }
     }
@@ -55,6 +62,7 @@ export class HUDController {
 
         this.hideRetryButton();
         this.showHintButton();
+        this.dismissHintExplanation();
     }
 
     show() {
@@ -117,6 +125,14 @@ export class HUDController {
         if (this.hintBtn) this.hintBtn.style.display = 'none';
     }
 
+    showHintExplainButton() {
+        if (this.hintExplainBtn) this.hintExplainBtn.style.display = 'inline-flex';
+    }
+
+    hideHintExplainButton() {
+        if (this.hintExplainBtn) this.hintExplainBtn.style.display = 'none';
+    }
+
     showNoHintFeedback() {
         if (this.hintBtn) {
             this.hintBtn.classList.add('no-hint');
@@ -127,6 +143,53 @@ export class HUDController {
     onRetryUsed() {
         this.hideRetryButton();
         this.showHintButton();
+    }
+
+    /**
+     * Show the hint explanation overlay with glassmorphism panel.
+     * @param {string} text - Explanation text
+     * @param {Function} onDismiss - Callback when OK is clicked
+     */
+    showHintExplanation(text, onDismiss) {
+        this.dismissHintExplanation(); // clean up any existing overlay
+
+        const overlay = document.createElement('div');
+        overlay.id = 'hint-explain-overlay';
+
+        const panel = document.createElement('div');
+        panel.className = 'hint-explain-panel';
+
+        const textEl = document.createElement('p');
+        textEl.className = 'hint-explain-text';
+        textEl.textContent = text;
+
+        const okBtn = document.createElement('button');
+        okBtn.className = 'hint-explain-ok';
+        okBtn.textContent = t('hud.hintExplainOk');
+        okBtn.addEventListener('click', () => {
+            this.dismissHintExplanation();
+            if (onDismiss) onDismiss();
+        });
+
+        panel.appendChild(textEl);
+        panel.appendChild(okBtn);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        // Trigger animation after a frame
+        requestAnimationFrame(() => overlay.classList.add('visible'));
+
+        this._hintOverlay = overlay;
+    }
+
+    /**
+     * Remove the hint explanation overlay if present.
+     */
+    dismissHintExplanation() {
+        if (this._hintOverlay) {
+            this._hintOverlay.remove();
+            this._hintOverlay = null;
+        }
     }
 
     /**

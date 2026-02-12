@@ -57,6 +57,8 @@ export const Events = {
 
     // User Actions
     REQUEST_HINT: 'action:hint',        // User clicked "Besoin d'aide"
+    REQUEST_HINT_EXPLAIN: 'action:hint_explain',    // User clicked "Expliquer"
+    HINT_EXPLAIN_DISMISS: 'action:hint_explain_dismiss', // User dismissed explanation
     REQUEST_RETRY: 'action:retry',      // User clicked "Reessayer"
     TOGGLE_MUTE: 'ui:toggle_mute',      // User toggled mute
     FLAG_STYLE_CHANGED: 'ui:flag_style_changed', // Flag style toggled

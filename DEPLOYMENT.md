@@ -101,12 +101,8 @@ This guide covers deploying the 3D Minesweeper project for both local developmen
 
 ### Initial Setup
 
-1. **SSH to the Pi**
-   ```bash
-   ssh olivier@raspberrol
-   # or
-   ssh olivier@192.168.1.232
-   ```
+1. **SSH to the Server**
+   
 
 2. **Clone/update the server code**
    ```bash

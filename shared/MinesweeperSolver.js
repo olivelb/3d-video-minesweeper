@@ -1171,6 +1171,371 @@ export class MinesweeperSolver {
     }
 
     /**
+     * Get a hint with a detailed explanation of WHY the move is safe.
+     * 
+     * Runs solver strategies on a deep copy of the current visible state
+     * and intercepts the first safe cell found. Returns the cell along
+     * with which strategy found it and which constraint cells justify
+     * the deduction.
+     * 
+     * Only meaningful in No Guess mode with a solvable grid, since the
+     * solver strategies are designed to find cells that are logically
+     * provable from the visible state.
+     * 
+     * @param {Object} game - Game state object
+     * @returns {{x, y, score, type, strategy, constraintCells, explanationData}|null}
+     */
+    static getHintWithExplanation(game) {
+        const { width, height, visibleGrid, flags, grid, bombCount } = game;
+        this.initNeighborCache(width, height);
+
+        // Deep-copy visible state so strategies don't mutate the real game
+        const vgCopy = Array(width).fill(null).map((_, x) => [...visibleGrid[x]]);
+        const fCopy = Array(width).fill(null).map((_, x) => [...flags[x]]);
+
+        // Count current player flags
+        let flagCount = 0;
+        for (let x = 0; x < width; x++) {
+            for (let y = 0; y < height; y++) {
+                if (fCopy[x][y]) flagCount++;
+            }
+        }
+
+        // Build initial dirty cells from all currently visible numbered cells
+        let dirtyCells = new Set();
+        for (let x = 0; x < width; x++) {
+            for (let y = 0; y < height; y++) {
+                if (vgCopy[x][y] > 0) {
+                    dirtyCells.add(this.cellKey(x, y));
+                    for (const n of this.getCachedNeighbors(x, y)) {
+                        dirtyCells.add(this.cellKey(n.x, n.y));
+                    }
+                }
+            }
+        }
+
+        // ── Strategy 1: Basic counting rules ──────────────────────────
+        // Instead of calling applyBasicRules (which modifies state silently),
+        // we scan for the basic rule pattern and return the first safe cell.
+        {
+            const processedCells = new Set();
+            for (const key of dirtyCells) {
+                const { x, y } = this.decodeKey(key);
+                if (x < 0 || x >= width || y < 0 || y >= height) continue;
+                const val = vgCopy[x][y];
+                if (val <= 0) continue;
+                if (processedCells.has(key)) continue;
+                processedCells.add(key);
+
+                const neighbors = this.getCachedNeighbors(x, y);
+                let flaggedCount = 0;
+                const hiddenCells = [];
+
+                for (const n of neighbors) {
+                    if (fCopy[n.x][n.y]) {
+                        flaggedCount++;
+                    } else if (vgCopy[n.x][n.y] === -1) {
+                        hiddenCells.push(n);
+                    }
+                }
+
+                if (hiddenCells.length === 0) continue;
+
+                // All hidden neighbors are mines → flag them (no safe cell yet,
+                // but may unlock safe cells in subsequent basic rule checks)
+                if (val === hiddenCells.length + flaggedCount) {
+                    // Don't return this — it flags mines, not safe cells.
+                    // We'll handle this after trying safe-cell patterns first.
+                    continue;
+                }
+
+                // All remaining mines accounted for → hidden neighbors are SAFE
+                if (val === flaggedCount && hiddenCells.length > 0) {
+                    const target = hiddenCells[0]; // pick the first safe cell
+                    return {
+                        x: target.x, y: target.y,
+                        score: 1, type: 'safe',
+                        strategy: 'basic',
+                        constraintCells: [{ x, y }],
+                        explanationData: {
+                            cx: x + 1, cy: y + 1, n: val, flags: flaggedCount
+                        }
+                    };
+                }
+            }
+        }
+
+        // Try flagging mines via basic rules first, then re-check for safe cells
+        {
+            const basicResult = this.applyBasicRules(grid, vgCopy, fCopy, width, height, dirtyCells, flagCount);
+            if (basicResult.progress) {
+                flagCount = basicResult.flagCount;
+                dirtyCells = basicResult.dirtyCells;
+
+                // Re-scan for safe cells after flags were placed
+                for (const key of dirtyCells) {
+                    const { x, y } = this.decodeKey(key);
+                    if (x < 0 || x >= width || y < 0 || y >= height) continue;
+                    const val = vgCopy[x][y];
+                    if (val <= 0) continue;
+
+                    const neighbors = this.getCachedNeighbors(x, y);
+                    let fc = 0;
+                    const hidden = [];
+                    for (const n of neighbors) {
+                        if (fCopy[n.x][n.y]) fc++;
+                        else if (vgCopy[n.x][n.y] === -1) hidden.push(n);
+                    }
+
+                    if (hidden.length > 0 && val === fc) {
+                        // Filter to only cells that are actually still hidden in the REAL game
+                        const realTarget = hidden.find(
+                            c => visibleGrid[c.x][c.y] === -1 && !flags[c.x][c.y]
+                        );
+                        if (realTarget) {
+                            return {
+                                x: realTarget.x, y: realTarget.y,
+                                score: 1, type: 'safe',
+                                strategy: 'basicDeduced',
+                                constraintCells: [{ x, y }],
+                                explanationData: { cx: x + 1, cy: y + 1, n: val }
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Strategy 2: Subset logic ──────────────────────────────────
+        {
+            // Build constraint data for subset analysis
+            const constraintCells = new Set();
+            for (const key of dirtyCells) {
+                const { x, y } = this.decodeKey(key);
+                if (x < 0 || x >= width || y < 0 || y >= height) continue;
+                if (vgCopy[x][y] > 0) constraintCells.add(key);
+                for (const n of this.getCachedNeighbors(x, y)) {
+                    if (vgCopy[n.x][n.y] > 0) constraintCells.add(this.cellKey(n.x, n.y));
+                }
+            }
+
+            const cellData = new Map();
+            for (const key of constraintCells) {
+                const { x, y } = this.decodeKey(key);
+                const val = vgCopy[x][y];
+                if (val <= 0) continue;
+
+                const neighbors = this.getCachedNeighbors(x, y);
+                const hiddenSet = new Set();
+                const hiddenList = [];
+                let fc = 0;
+
+                for (const n of neighbors) {
+                    if (fCopy[n.x][n.y]) fc++;
+                    else if (vgCopy[n.x][n.y] === -1) {
+                        hiddenSet.add(this.cellKey(n.x, n.y));
+                        hiddenList.push(n);
+                    }
+                }
+                if (hiddenList.length === 0) continue;
+                const remaining = val - fc;
+                if (remaining < 0) continue;
+                cellData.set(key, { x, y, hiddenSet, hiddenList, remaining });
+            }
+
+            for (const [keyA, dataA] of cellData) {
+                if (dataA.hiddenList.length === 0) continue;
+                for (let dx = -2; dx <= 2; dx++) {
+                    for (let dy = -2; dy <= 2; dy++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const nx = dataA.x + dx;
+                        const ny = dataA.y + dy;
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                        const keyB = this.cellKey(nx, ny);
+                        const dataB = cellData.get(keyB);
+                        if (!dataB || dataB.hiddenList.length === 0) continue;
+
+                        if (dataA.hiddenSet.size < dataB.hiddenSet.size) {
+                            let isSubset = true;
+                            for (const k of dataA.hiddenSet) {
+                                if (!dataB.hiddenSet.has(k)) { isSubset = false; break; }
+                            }
+                            if (isSubset) {
+                                const diff = [];
+                                for (const n of dataB.hiddenList) {
+                                    if (!dataA.hiddenSet.has(this.cellKey(n.x, n.y))) diff.push(n);
+                                }
+                                const diffMines = dataB.remaining - dataA.remaining;
+
+                                if (diffMines === 0 && diff.length > 0) {
+                                    // diff cells are all safe
+                                    const realTarget = diff.find(
+                                        c => visibleGrid[c.x][c.y] === -1 && !flags[c.x][c.y]
+                                    );
+                                    if (realTarget) {
+                                        return {
+                                            x: realTarget.x, y: realTarget.y,
+                                            score: 1, type: 'safe',
+                                            strategy: 'subset',
+                                            constraintCells: [
+                                                { x: dataA.x, y: dataA.y },
+                                                { x: dataB.x, y: dataB.y }
+                                            ],
+                                            explanationData: {
+                                                ax: dataA.x + 1, ay: dataA.y + 1,
+                                                bx: dataB.x + 1, by: dataB.y + 1,
+                                                valA: vgCopy[dataA.x][dataA.y],
+                                                valB: vgCopy[dataB.x][dataB.y]
+                                            }
+                                        };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Strategy 3: Gaussian Elimination ──────────────────────────
+        {
+            const frontier = this.getFrontier(vgCopy, fCopy, width, height);
+            if (frontier.length > 0) {
+                const result = GaussianElimination.solve(this, vgCopy, fCopy, frontier);
+                if (result.progress && result.safe.length > 0) {
+                    const realTarget = result.safe.find(
+                        c => visibleGrid[c.x][c.y] === -1 && !flags[c.x][c.y]
+                    );
+                    if (realTarget) {
+                        // Collect constraint cells: numbered cells adjacent to the safe cell
+                        const cCells = [];
+                        for (const n of this.getCachedNeighbors(realTarget.x, realTarget.y)) {
+                            if (vgCopy[n.x][n.y] > 0) cCells.push({ x: n.x, y: n.y });
+                        }
+                        return {
+                            x: realTarget.x, y: realTarget.y,
+                            score: 1, type: 'safe',
+                            strategy: 'gaussian',
+                            constraintCells: cCells,
+                            explanationData: { count: result.safe.length }
+                        };
+                    }
+                }
+                // Apply gaussian changes to copies for subsequent strategies
+                if (result.progress) {
+                    for (const cell of result.mines) {
+                        if (!fCopy[cell.x][cell.y]) { fCopy[cell.x][cell.y] = true; flagCount++; }
+                    }
+                    for (const cell of result.safe) {
+                        if (vgCopy[cell.x][cell.y] === -1) {
+                            this.simulateReveal(grid, vgCopy, fCopy, width, height, cell.x, cell.y);
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Strategy 4: Proof by Contradiction ────────────────────────
+        {
+            const frontier = this.getFrontier(vgCopy, fCopy, width, height);
+            const maxCheck = Math.min(frontier.length, 50);
+            for (let i = 0; i < maxCheck; i++) {
+                const cell = frontier[i];
+                // If assuming "mine" leads to contradiction → cell is safe
+                if (this.checkContradiction(vgCopy, fCopy, width, height, cell, true)) {
+                    if (visibleGrid[cell.x][cell.y] === -1 && !flags[cell.x][cell.y]) {
+                        const cCells = [];
+                        for (const n of this.getCachedNeighbors(cell.x, cell.y)) {
+                            if (vgCopy[n.x][n.y] > 0) cCells.push({ x: n.x, y: n.y });
+                        }
+                        return {
+                            x: cell.x, y: cell.y,
+                            score: 1, type: 'safe',
+                            strategy: 'contradiction',
+                            constraintCells: cCells,
+                            explanationData: { cx: cell.x + 1, cy: cell.y + 1 }
+                        };
+                    }
+                }
+            }
+        }
+
+        // ── Strategy 5: Tank Solver ───────────────────────────────────
+        {
+            const frontier = this.getFrontier(vgCopy, fCopy, width, height);
+            if (frontier.length > 0) {
+                const regions = this.groupFrontierRegions(frontier, vgCopy, width, height);
+                regions.sort((a, b) => a.length - b.length);
+
+                for (const region of regions) {
+                    if (region.length > this.MAX_REGION_SIZE) continue;
+                    const constraints = this.getRegionConstraints(region, vgCopy, fCopy, width, height);
+                    if (constraints.length === 0) continue;
+
+                    const remainingMines = bombCount - flagCount;
+                    const validConfigs = this.enumerateConfigurations(region, constraints, remainingMines);
+                    if (validConfigs.length === 0) continue;
+
+                    const { definiteSafes } = this.analyzeConfigurations(region, validConfigs);
+                    if (definiteSafes.length > 0) {
+                        const realTarget = definiteSafes.find(
+                            c => visibleGrid[c.x][c.y] === -1 && !flags[c.x][c.y]
+                        );
+                        if (realTarget) {
+                            const cCells = constraints.map(c => ({ x: c.x, y: c.y }));
+                            return {
+                                x: realTarget.x, y: realTarget.y,
+                                score: 1, type: 'safe',
+                                strategy: 'tank',
+                                constraintCells: cCells,
+                                explanationData: { configs: validConfigs.length }
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Strategy 6: Global Mine Count ─────────────────────────────
+        {
+            const totalHidden = [];
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    if (vgCopy[x][y] === -1 && !fCopy[x][y]) totalHidden.push({ x, y });
+                }
+            }
+            const remainingMines = bombCount - flagCount;
+            if (totalHidden.length > 0 && remainingMines === 0) {
+                const realTarget = totalHidden.find(
+                    c => visibleGrid[c.x][c.y] === -1 && !flags[c.x][c.y]
+                );
+                if (realTarget) {
+                    return {
+                        x: realTarget.x, y: realTarget.y,
+                        score: 1, type: 'safe',
+                        strategy: 'globalCount',
+                        constraintCells: [],
+                        explanationData: { remaining: 0 }
+                    };
+                }
+            }
+        }
+
+        // ── Fallback: God Mode hint with no explanation ───────────────
+        const godHint = this.getHint(game);
+        if (godHint) {
+            return {
+                ...godHint,
+                strategy: 'godMode',
+                constraintCells: [],
+                explanationData: {}
+            };
+        }
+
+        return null;
+    }
+
+    /**
      * Finds a hint for the current game state (God Mode / Best Move).
      * 
      * Returns the "best" safe cell to reveal, prioritizing:

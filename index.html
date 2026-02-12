@@ -38,12 +38,17 @@
     <div id="ui-container">
         <h1 data-i18n="page.heading">Démineur 3D</h1>
         <p data-i18n="menu.instructions">Clic Gauche: Révéler | Clic Droit: Drapeau | Double-Clic: Chord</p>
-        <button id="hint-btn" class="control-btn" data-i18n="hud.hintBtn" data-i18n-title="hud.hintBtnTitle" title="Obtenir un indice logique">🧩 BESOIN D'AIDE</button>
-        <button id="mute-btn" class="control-btn" data-i18n="hud.muteOn" data-i18n-title="hud.muteBtnTitle" title="Désactiver le son">🔊 ON</button>
-        <button id="flag-style-btn" class="control-btn" style="margin-left: 10px;"
-            data-i18n="hud.flagStars" data-i18n-title="hud.flagBtnTitle" title="Basculer vers les drapeaux 3D">⭐ ÉTOILES</button>
+        <button id="hint-btn" class="control-btn" data-i18n="hud.hintBtn" data-i18n-title="hud.hintBtnTitle"
+            title="Obtenir un indice logique">🧩 BESOIN D'AIDE</button>
+        <button id="hint-explain-btn" class="control-btn" style="display:none;" data-i18n="hud.hintExplainBtn"
+            data-i18n-title="hud.hintExplainBtnTitle" title="Expliquer pourquoi ce coup est sûr">🔍 EXPLIQUER</button>
+        <button id="mute-btn" class="control-btn" data-i18n="hud.muteOn" data-i18n-title="hud.muteBtnTitle"
+            title="Désactiver le son">🔊 ON</button>
+        <button id="flag-style-btn" class="control-btn" style="margin-left: 10px;" data-i18n="hud.flagStars"
+            data-i18n-title="hud.flagBtnTitle" title="Basculer vers les drapeaux 3D">⭐ ÉTOILES</button>
         <div id="hint-display">🧩 Indices: 0</div>
-        <button id="retry-btn" data-i18n="hud.retryBtn" data-i18n-title="hud.retryBtnTitle" title="Recommencer au dernier coup sûr">🔁 REESSAYER</button>
+        <button id="retry-btn" data-i18n="hud.retryBtn" data-i18n-title="hud.retryBtnTitle"
+            title="Recommencer au dernier coup sûr">🔁 REESSAYER</button>
     </div>
 
     <div id="hud-bar">
@@ -77,19 +82,23 @@
             <div class="input-group">
                 <label data-i18n="menu.media">Média de fond</label>
                 <div id="background-presets-container" class="preset-grid">
-                    <div class="preset-item active" data-value="video:images/storm_render.mp4" data-i18n-title="bg.stormTitle" title="Orage (Vidéo)">
+                    <div class="preset-item active" data-value="video:images/storm_render.mp4"
+                        data-i18n-title="bg.stormTitle" title="Orage (Vidéo)">
                         <video src="images/storm_render.mp4" muted loop playsinline autoplay></video>
                         <span data-i18n="bg.storm">Orage</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_5.png" data-i18n-title="bg.marbleTitle" title="Marbre Gris">
+                    <div class="preset-item" data-value="image:images/default_texture_5.png"
+                        data-i18n-title="bg.marbleTitle" title="Marbre Gris">
                         <img src="images/default_texture_5.png">
                         <span data-i18n="bg.marble">Marbre</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_6.png" data-i18n-title="bg.metalTitle" title="Métal Sombre">
+                    <div class="preset-item" data-value="image:images/default_texture_6.png"
+                        data-i18n-title="bg.metalTitle" title="Métal Sombre">
                         <img src="images/default_texture_6.png">
                         <span data-i18n="bg.metal">Métal</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_7.png" data-i18n-title="bg.woodTitle" title="Bois Clair">
+                    <div class="preset-item" data-value="image:images/default_texture_7.png"
+                        data-i18n-title="bg.woodTitle" title="Bois Clair">
                         <img src="images/default_texture_7.png">
                         <span data-i18n="bg.wood">Bois</span>
                     </div>
@@ -101,7 +110,8 @@
                         <img src="images/default_texture_9.png">
                         <span data-i18n="bg.carbon">Carbone</span>
                     </div>
-                    <div class="preset-item" data-value="image:images/default_texture_1.png" data-i18n-title="bg.spaceTitle" title="Nébuleuse">
+                    <div class="preset-item" data-value="image:images/default_texture_1.png"
+                        data-i18n-title="bg.spaceTitle" title="Nébuleuse">
                         <img src="images/default_texture_1.png">
                         <span data-i18n="bg.space">Espace</span>
                     </div>
@@ -125,19 +135,24 @@
                         <span class="upload-icon">📁</span>
                         <span class="upload-text" data-i18n="menu.uploadBtn">Ou importer un fichier...</span>
                     </label>
-                    <span id="video-filename" class="video-filename" data-i18n="menu.uploadPlaceholder">Utilise le préréglage ci-dessus</span>
+                    <span id="video-filename" class="video-filename" data-i18n="menu.uploadPlaceholder">Utilise le
+                        préréglage ci-dessus</span>
                 </div>
 
                 <div class="video-webcam">
-                    <label class="webcam-label"><input type="checkbox" id="use-webcam"> <span data-i18n="menu.webcam">Utiliser la webcam</span></label>
-                    <small class="hint" data-i18n="menu.webcamHint">Si la webcam est refusée ou absente, on revient à la vidéo par défaut.</small>
+                    <label class="webcam-label"><input type="checkbox" id="use-webcam"> <span
+                            data-i18n="menu.webcam">Utiliser la webcam</span></label>
+                    <small class="hint" data-i18n="menu.webcamHint">Si la webcam est refusée ou absente, on revient à la
+                        vidéo par défaut.</small>
                 </div>
                 <div class="input-row" style="margin-top: 15px;">
                     <div class="input-group">
-                        <label class="checkbox-label"><input type="checkbox" id="hover-helper" checked> <span data-i18n="menu.hoverHelper">Aide au survol</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="hover-helper" checked> <span
+                                data-i18n="menu.hoverHelper">Aide au survol</span></label>
                     </div>
                     <div class="input-group">
-                        <label class="checkbox-label"><input type="checkbox" id="no-guess-mode" checked> <span data-i18n="menu.noGuess">Sans hasard (No Guess)</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="no-guess-mode" checked> <span
+                                data-i18n="menu.noGuess">Sans hasard (No Guess)</span></label>
                     </div>
                 </div>
             </div>
@@ -159,20 +174,25 @@
                 </div>
                 <div id="mp-config-panel" class="hidden"
                     style="margin-bottom: 15px; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
-                    <label style="font-size: 0.8em; display: block; margin-bottom: 8px; color: #ccc;" data-i18n="mp.configLabel">URL du serveur (Tunnel Cloudflare / IP):</label>
-                    <input type="text" id="custom-server-url" data-i18n-placeholder="mp.configPlaceholder" placeholder="https://votre-id.trycloudflare.com"
+                    <label style="font-size: 0.8em; display: block; margin-bottom: 8px; color: #ccc;"
+                        data-i18n="mp.configLabel">URL du serveur (Tunnel Cloudflare / IP):</label>
+                    <input type="text" id="custom-server-url" data-i18n-placeholder="mp.configPlaceholder"
+                        placeholder="https://votre-id.trycloudflare.com"
                         style="width: calc(100% - 20px); font-size: 0.9em; margin-bottom: 10px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: white; padding: 8px 10px; border-radius: 4px;">
                     <div style="display: flex; gap: 8px;">
                         <button id="btn-save-config" class="primary"
-                            style="font-size: 0.8em; padding: 6px 12px; flex: 1;" data-i18n="mp.configSave">Enregistrer</button>
+                            style="font-size: 0.8em; padding: 6px 12px; flex: 1;"
+                            data-i18n="mp.configSave">Enregistrer</button>
                         <button id="btn-reset-config"
-                            style="font-size: 0.8em; padding: 6px 12px; flex: 1; background: #444;" data-i18n="mp.configReset">Défaut</button>
+                            style="font-size: 0.8em; padding: 6px 12px; flex: 1; background: #444;"
+                            data-i18n="mp.configReset">Défaut</button>
                     </div>
                 </div>
 
                 <!-- Connect to Server -->
                 <div id="mp-connect">
-                    <input type="text" id="server-name" data-i18n-placeholder="mp.playerPlaceholder" placeholder="Votre pseudo" data-i18n-value="mp.playerDefault" value="Joueur">
+                    <input type="text" id="server-name" data-i18n-placeholder="mp.playerPlaceholder"
+                        placeholder="Votre pseudo" data-i18n-value="mp.playerDefault" value="Joueur">
                     <button id="btn-connect-server" class="primary" data-i18n="mp.connect">Connexion</button>
                 </div>
 
@@ -185,7 +205,8 @@
                             <input type="number" id="mp-max-players" value="2" min="2" max="8">
                         </div>
                         <div id="host-actions">
-                            <button id="btn-create-game" class="primary" data-i18n="mp.createBtn">Créer la partie</button>
+                            <button id="btn-create-game" class="primary" data-i18n="mp.createBtn">Créer la
+                                partie</button>
                             <button id="btn-leave-host" data-i18n="mp.leave">Quitter</button>
                         </div>
                     </div>
@@ -194,7 +215,8 @@
                         <div class="player-list-container">
                             <ul id="host-player-list" class="lobby-player-list"></ul>
                         </div>
-                        <button id="btn-start-multiplayer" class="primary hidden" data-i18n="mp.startBtn">Démarrer la partie</button>
+                        <button id="btn-start-multiplayer" class="primary hidden" data-i18n="mp.startBtn">Démarrer la
+                            partie</button>
                         <button id="btn-cancel-host" data-i18n="mp.cancelBtn">Annuler</button>
                     </div>
                 </div>

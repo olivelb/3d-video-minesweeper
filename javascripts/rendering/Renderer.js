@@ -238,6 +238,21 @@ export class MinesweeperRenderer {
         });
     }
 
+    /**
+     * Highlight constraint cells for hint explanation.
+     * @param {Array<{x: number, y: number}>} cells
+     */
+    highlightConstraints(cells) {
+        this.gridManager.highlightConstraints(cells);
+    }
+
+    /**
+     * Clear constraint cell highlights.
+     */
+    clearConstraintHighlights() {
+        this.gridManager.clearConstraintHighlights();
+    }
+
     updateCellVisual(x, y, value) {
         this.gridManager.updateCellVisual(x, y, value);
         this.flagManager.updateFlag(x, y, false, this.game.width, this.game.height);

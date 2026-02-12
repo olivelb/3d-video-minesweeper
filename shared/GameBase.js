@@ -51,6 +51,7 @@ export class MinesweeperGameBase {
         this.gameStartTime = null;
         this.finalScore = 0;
         this.hintCount = 0;
+        this.hintMode = false;
         this.lastMove = null;
         this.retryCount = 0;
         this.cancelGeneration = false;
@@ -75,6 +76,7 @@ export class MinesweeperGameBase {
         this.elapsedTime = 0;
         this.finalScore = 0;
         this.hintCount = 0;
+        this.hintMode = false;
         this.lastMove = null;
         this.retryCount = 0;
         this.cancelGeneration = false;
@@ -406,6 +408,20 @@ export class MinesweeperGameBase {
         if (this.gameOver || this.victory) return null;
 
         const hint = SolverBridge.getHint(this);
+        if (hint) {
+            this.hintCount++;
+        }
+        return hint;
+    }
+
+    /**
+     * Get a solver hint with explanation of WHY the move is safe.
+     * Only meaningful in No Guess mode with a solvable grid.
+     */
+    getHintWithExplanation() {
+        if (this.gameOver || this.victory) return null;
+
+        const hint = SolverBridge.getHintWithExplanation(this);
         if (hint) {
             this.hintCount++;
         }

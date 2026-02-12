@@ -650,7 +650,7 @@ body::before {
     pointer-events: none;
 }
 
-#hud-bar > * {
+#hud-bar>* {
     pointer-events: auto;
 }
 
@@ -1154,6 +1154,86 @@ body::before {
 
 #hint-btn {
     display: none;
+}
+
+#hint-explain-btn {
+    display: none;
+    margin-left: 8px;
+    background: rgba(68, 136, 255, 0.35);
+    border: 1px solid rgba(68, 136, 255, 0.5);
+}
+
+#hint-explain-btn:hover {
+    background: rgba(68, 136, 255, 0.55);
+    box-shadow: 0 0 15px rgba(68, 136, 255, 0.4);
+}
+
+/* ── Hint Explanation Overlay ─────────────────────────────────── */
+
+#hint-explain-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#hint-explain-overlay.visible {
+    opacity: 1;
+}
+
+.hint-explain-panel {
+    pointer-events: auto;
+    position: absolute;
+    top: 200px;
+    left: 20px;
+    background: rgba(20, 20, 40, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 28px 36px;
+    max-width: 480px;
+    width: 90vw;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    text-align: center;
+}
+
+.hint-explain-text {
+    color: #e0e0e0;
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0 0 24px 0;
+    white-space: pre-line;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.hint-explain-ok {
+    background: linear-gradient(135deg, rgba(0, 200, 100, 0.5), rgba(0, 150, 80, 0.6));
+    color: #fff;
+    border: 1px solid rgba(0, 200, 100, 0.4);
+    border-radius: 8px;
+    padding: 10px 40px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s ease;
+}
+
+.hint-explain-ok:hover {
+    background: linear-gradient(135deg, rgba(0, 220, 110, 0.6), rgba(0, 180, 90, 0.7));
+    box-shadow: 0 0 20px rgba(0, 200, 100, 0.4);
+    transform: translateY(-1px);
+}
+
+.hint-explain-ok:active {
+    transform: translateY(0);
 }
 
 #mute-btn {

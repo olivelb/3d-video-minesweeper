@@ -38,8 +38,8 @@ export const GRID_CONFIG = {
 export function gridToWorld(x, y, gridWidth, gridHeight) {
     const half = GRID_CONFIG.CUBE_SPACING / 2;     // 11
     return {
-        wx: -(gridWidth * half)  + x * GRID_CONFIG.CUBE_SPACING,
-        wz:  (gridHeight * half) - y * GRID_CONFIG.CUBE_SPACING
+        wx: -(gridWidth * half) + x * GRID_CONFIG.CUBE_SPACING,
+        wz: (gridHeight * half) - y * GRID_CONFIG.CUBE_SPACING
     };
 }
 
@@ -74,34 +74,34 @@ export class GridManager {
     constructor(scene, game, mediaTexture, textures) {
         /** @type {THREE.Scene} */
         this.scene = scene;
-        
+
         /** @type {Object} Game state reference */
         this.game = game;
-        
+
         /** @type {THREE.Texture} Media texture for cube faces */
         this.mediaTexture = mediaTexture;
-        
+
         /** @type {Object} Number textures */
         this.textures = textures;
-        
+
         /** @type {THREE.InstancedMesh} The main grid mesh */
         this.gridMesh = null;
-        
+
         /** @type {THREE.Object3D} Dummy object for matrix calculations */
         this.dummy = new THREE.Object3D();
-        
+
         /** @type {Array<THREE.Mesh>} Number meshes for revealed cells */
         this.numberMeshes = [];
-        
+
         /** @type {Array<Object>} Explosion velocity vectors per instance */
         this.explosionVectors = [];
-        
+
         /** @type {number} Last hovered instance ID */
         this.lastHoveredId = -1;
-        
+
         /** @type {boolean} Whether explosion is active */
         this.isExploding = false;
-        
+
         /** @type {number} Explosion animation time */
         this.explosionTime = 0;
 
@@ -121,21 +121,21 @@ export class GridManager {
             GRID_CONFIG.CUBE_SIZE,
             GRID_CONFIG.CUBE_SIZE
         );
-        
+
         const materials = this._createMaterials();
         const instanceCount = this.game.width * this.game.height;
-        
+
         this.gridMesh = new THREE.InstancedMesh(geometry, materials, instanceCount);
-        
+
         const aGridPos = new Float32Array(instanceCount * 2);
-        
+
         this._initializeInstances(aGridPos);
-        
+
         this.gridMesh.geometry.setAttribute(
             'aGridPos',
             new THREE.InstancedBufferAttribute(aGridPos, 2)
         );
-        
+
         this.scene.add(this.gridMesh);
     }
 
@@ -146,13 +146,13 @@ export class GridManager {
      */
     _createMaterials() {
         // Video material for front face with custom shader
-        const videoMaterial = new THREE.MeshBasicMaterial({ 
-            map: this.mediaTexture 
+        const videoMaterial = new THREE.MeshBasicMaterial({
+            map: this.mediaTexture
         });
 
         videoMaterial.onBeforeCompile = (shader) => {
-            shader.uniforms.uGridSize = { 
-                value: new THREE.Vector2(this.game.width, this.game.height) 
+            shader.uniforms.uGridSize = {
+                value: new THREE.Vector2(this.game.width, this.game.height)
             };
             shader.vertexShader = `
                 attribute vec2 aGridPos;
@@ -200,7 +200,7 @@ export class GridManager {
      */
     _initializeInstances(aGridPos) {
         let i = 0;
-        
+
         for (let x = 0; x < this.game.width; x++) {
             for (let y = 0; y < this.game.height; y++) {
                 // Set position
@@ -209,7 +209,7 @@ export class GridManager {
                 this.dummy.rotation.x = -Math.PI / 2;
                 this.dummy.updateMatrix();
                 this.gridMesh.setMatrixAt(i, this.dummy.matrix);
-                
+
                 // Set initial color (black = no addition to white material)
                 this.gridMesh.setColorAt(i, new THREE.Color(0x000000));
 
@@ -222,7 +222,7 @@ export class GridManager {
                     dx: 0.05 * (0.5 - Math.random()),
                     dy: 0.05 * (0.5 - Math.random())
                 };
-                
+
                 i++;
             }
         }
@@ -236,12 +236,12 @@ export class GridManager {
      */
     updateCellVisual(x, y, value) {
         const index = x * this.game.height + y;
-        
+
         // Hide the cube
         this.gridMesh.getMatrixAt(index, this.dummy.matrix);
         this.dummy.matrix.decompose(
-            this.dummy.position, 
-            this.dummy.quaternion, 
+            this.dummy.position,
+            this.dummy.quaternion,
             this.dummy.scale
         );
         this.dummy.scale.set(0, 0, 0);
@@ -335,7 +335,7 @@ export class GridManager {
             GRID_CONFIG.NUMBER_PLANE_SIZE,
             GRID_CONFIG.NUMBER_PLANE_SIZE
         );
-        
+
         const material = new THREE.MeshBasicMaterial({
             map: this.textures[value],
             transparent: true,
@@ -345,13 +345,13 @@ export class GridManager {
             side: THREE.DoubleSide,
             alphaTest: 0.1
         });
-        
+
         const mesh = new THREE.Mesh(planeGeo, material);
         const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
         mesh.position.set(wx, GRID_CONFIG.NUMBER_HEIGHT, wz);
         mesh.rotation.x = -Math.PI / 2;
         mesh.renderOrder = 1;
-        
+
         this.scene.add(mesh);
         this.numberMeshes.push(mesh);
     }
@@ -370,8 +370,8 @@ export class GridManager {
         if (useHoverHelper && instanceId !== -1 && !this.isExploding && !this.game.victory) {
             this.gridMesh.getMatrixAt(instanceId, this.dummy.matrix);
             this.dummy.matrix.decompose(
-                this.dummy.position, 
-                this.dummy.quaternion, 
+                this.dummy.position,
+                this.dummy.quaternion,
                 this.dummy.scale
             );
 
@@ -385,7 +385,7 @@ export class GridManager {
                 // Add highlight color
                 const colorVal = (pulse + 1.0) * 0.2;
                 this.gridMesh.setColorAt(
-                    instanceId, 
+                    instanceId,
                     this._hoverColor.setRGB(colorVal, colorVal, colorVal)
                 );
 
@@ -422,7 +422,7 @@ export class GridManager {
         this.dummy.rotation.y = 0;
         this.dummy.rotation.z = 0;
         this.dummy.updateMatrix();
-        
+
         this.gridMesh.setMatrixAt(instanceId, this.dummy.matrix);
         this.gridMesh.setColorAt(instanceId, new THREE.Color(0x000000));
         this.gridMesh.instanceMatrix.needsUpdate = true;
@@ -446,23 +446,52 @@ export class GridManager {
      */
     showHint(x, y, type) {
         const index = x * this.game.height + y;
-        const color = type === 'safe' 
-            ? new THREE.Color(0x00ff00) 
+        const color = type === 'safe'
+            ? new THREE.Color(0x00ff00)
             : new THREE.Color(0xff0000);
 
         const originalColor = new THREE.Color(0x000000);
         this.gridMesh.setColorAt(index, color);
         this.gridMesh.instanceColor.needsUpdate = true;
 
-        // Restore color after delay if not revealed
+        // Restore color after delay if not revealed AND not in hint mode
         setTimeout(() => {
-            if (this.game.visibleGrid[x][y] === -1 && 
-                !this.game.gameOver && 
-                !this.game.victory) {
+            if (this.game.visibleGrid[x][y] === -1 &&
+                !this.game.gameOver &&
+                !this.game.victory &&
+                !this.game.hintMode) {
                 this.gridMesh.setColorAt(index, originalColor);
                 this.gridMesh.instanceColor.needsUpdate = true;
             }
         }, 1500);
+    }
+
+    /**
+     * Highlight constraint cells (blue) for hint explanation.
+     * @param {Array<{x: number, y: number}>} cells - Constraint cells
+     */
+    highlightConstraints(cells) {
+        this._constraintHighlights = [];
+        const blue = new THREE.Color(0x4488ff);
+        for (const { x, y } of cells) {
+            const index = x * this.game.height + y;
+            this._constraintHighlights.push(index);
+            this.gridMesh.setColorAt(index, blue);
+        }
+        this.gridMesh.instanceColor.needsUpdate = true;
+    }
+
+    /**
+     * Clear constraint highlights, restoring original colors.
+     */
+    clearConstraintHighlights() {
+        if (!this._constraintHighlights) return;
+        const black = new THREE.Color(0x000000);
+        for (const index of this._constraintHighlights) {
+            this.gridMesh.setColorAt(index, black);
+        }
+        this.gridMesh.instanceColor.needsUpdate = true;
+        this._constraintHighlights = null;
     }
 
     /**

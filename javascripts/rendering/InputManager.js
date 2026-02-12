@@ -63,7 +63,7 @@ export class InputManager {
     }
 
     onMouseMove(event) {
-        if (this.game.gameOver || this.game.victory || this.game.isSpectating) return;
+        if (this.game.gameOver || this.game.victory || this.game.isSpectating || this.game.hintMode) return;
 
         const rect = this.renderer.domElement.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -103,7 +103,7 @@ export class InputManager {
     }
 
     async onMouseClick(event) {
-        if (this.game.gameOver || this.game.victory || this.game.isSpectating) return;
+        if (this.game.gameOver || this.game.victory || this.game.isSpectating || this.game.hintMode) return;
 
         const cell = this._getGridCellFromEvent(event);
         if (!cell) return;
@@ -123,7 +123,7 @@ export class InputManager {
      * Double-click on a revealed numbered cell triggers chord.
      */
     onDblClick(event) {
-        if (this.game.gameOver || this.game.victory || this.game.isSpectating) return;
+        if (this.game.gameOver || this.game.victory || this.game.isSpectating || this.game.hintMode) return;
 
         const cell = this._getGridCellFromEvent(event);
         if (!cell) return;
