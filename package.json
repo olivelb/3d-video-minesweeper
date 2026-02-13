@@ -1,0 +1,14 @@
+{
+  "name": "3d-video-minesweeper",
+  "version": "3.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/**/*.test.js",
+    "test:gamebase": "node --test tests/GameBase.test.js",
+    "test:solver": "node --test tests/MinesweeperSolver.test.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
