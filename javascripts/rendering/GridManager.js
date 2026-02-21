@@ -108,6 +108,9 @@ export class GridManager {
         /** Reusable color for hover highlight (avoids per-frame allocation) */
         this._hoverColor = new THREE.Color();
 
+        /** Active animated hints */
+        this.activeHints = [];
+
         this._createGrid();
     }
 
@@ -454,16 +457,58 @@ export class GridManager {
         this.gridMesh.setColorAt(index, color);
         this.gridMesh.instanceColor.needsUpdate = true;
 
-        // Restore color after delay if not revealed AND not in hint mode
-        setTimeout(() => {
-            if (this.game.visibleGrid[x][y] === -1 &&
-                !this.game.gameOver &&
-                !this.game.victory &&
-                !this.game.hintMode) {
-                this.gridMesh.setColorAt(index, originalColor);
-                this.gridMesh.instanceColor.needsUpdate = true;
+        // Add to active hints for animation
+        this.activeHints.push({
+            index: index,
+            x: x,
+            y: y,
+            age: 0,
+            lifeTime: 2.5, // Extended duration (long fade out)
+            startColor: color.clone(),
+            endColor: originalColor.clone()
+        });
+    }
+
+    /**
+     * Update animations for active hints and other instance effects
+     * @param {number} dt 
+     */
+    updateAnimations(dt) {
+        if (this.activeHints.length === 0) return;
+
+        let needsUpdate = false;
+        const colorLerp = new THREE.Color();
+
+        for (let i = this.activeHints.length - 1; i >= 0; i--) {
+            const hint = this.activeHints[i];
+
+            // If the UI is waiting for the player to read the hint explanation, we freeze the color at the start
+            if (this.game.hintMode) {
+                hint.age = 0;
+            } else {
+                hint.age += dt;
             }
-        }, 1500);
+
+            const progress = Math.min(hint.age / hint.lifeTime, 1.0);
+
+            // Lerp color
+            colorLerp.copy(hint.startColor).lerp(hint.endColor, progress);
+            this.gridMesh.setColorAt(hint.index, colorLerp);
+            needsUpdate = true;
+
+            // Remove if finished
+            if (progress >= 1.0) {
+                // To be completely safe, ensure it stays black if not revealed
+                if (this.game.visibleGrid[hint.x][hint.y] !== -1 || this.game.gameOver || this.game.victory || this.game.hintMode) {
+                    // It shouldn't be black if the game state changed it, but we enforce endColor just in case it is still untouched
+                }
+                this.activeHints.splice(i, 1);
+            }
+        }
+
+        if (needsUpdate) {
+            this.gridMesh.instanceColor.needsUpdate = true;
+        }
     }
 
     /**

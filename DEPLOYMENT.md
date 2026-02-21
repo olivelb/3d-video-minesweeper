@@ -139,11 +139,30 @@ This guide covers deploying the 3D Minesweeper project for both local developmen
 For external access from GitHub Pages, use Cloudflare Quick Tunnel:
 
 1. **Start the tunnel**
+   
+   **Method A: Persistent (Recommended)**
+   This keeps the tunnel running even if your SSH connection (and the "client_loop" error) drops.
    ```bash
-   cloudflared tunnel --url http://localhost:3001 > ~/3d-video-minesweeper/tunnel.log 2>&1 &
+   # Run cloudflared using PM2 (just like the server)
+   pm2 start cloudflared --name tunnel --interpreter none -- tunnel --url http://localhost:3001
+   pm2 save
+   ```
+
+   **Method B: Temporary**
+   ```bash
+   # Use nohup to prevent it from closing on disconnect
+   nohup cloudflared tunnel --url http://localhost:3001 > ~/3d-video-minesweeper/tunnel.log 2>&1 &
    ```
 
 2. **Get the tunnel URL**
+   
+   If using PM2:
+   ```bash
+   pm2 logs tunnel --lines 20 --nostream
+   # Look for the line containing https://[...].trycloudflare.com
+   ```
+   
+   If using log file:
    ```bash
    grep -o 'https://[^"]*\.trycloudflare\.com' ~/3d-video-minesweeper/tunnel.log | head -1
    ```
@@ -204,9 +223,13 @@ This script:
 ### Restart Cloudflare Tunnel
 
 ```bash
-# On Pi
+# If using PM2 (Recommended)
+pm2 restart tunnel
+pm2 logs tunnel --lines 20 --nostream
+
+# If using background job
 pkill cloudflared
-cloudflared tunnel --url http://localhost:3001 > ~/3d-video-minesweeper/tunnel.log 2>&1 &
+nohup cloudflared tunnel --url http://localhost:3001 > ~/3d-video-minesweeper/tunnel.log 2>&1 &
 sleep 5
 grep -o 'https://[^"]*\.trycloudflare\.com' ~/3d-video-minesweeper/tunnel.log | head -1
 ```

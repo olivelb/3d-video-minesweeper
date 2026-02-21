@@ -1,12 +1,89 @@
 import * as THREE from 'three';
 
+const VERTEX_SHADER = `
+uniform float uTime;
+uniform float uLifeTime;
+uniform float uSizeStart;
+uniform float uStopTime;
+uniform float uScale;
+uniform vec3 uColorStart;
+uniform vec3 uColorEnd;
+
+attribute vec3 aVelocity;
+attribute float aDelay;
+
+varying vec3 vColor;
+varying float vLifeRatio;
+
+void main() {
+    float elapsed = uTime / uLifeTime;
+    
+    // Not yet spawned
+    if (elapsed + aDelay < 1.0) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        gl_PointSize = 0.0;
+        vLifeRatio = 1.0;
+        return;
+    }
+    
+    float ageFract = fract(elapsed + aDelay);
+    float cycleStartTime = uTime - (ageFract * uLifeTime);
+    
+    // Check if it should be stopped (cycle started after stop time)
+    if (uStopTime >= 0.0 && cycleStartTime > uStopTime + 0.0001) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        gl_PointSize = 0.0;
+        vLifeRatio = 1.0;
+        return;
+    }
+    
+    vLifeRatio = ageFract;
+    
+    float age = ageFract * uLifeTime;
+    vec3 currentPos = position + aVelocity * age;
+    
+    vColor = mix(uColorStart, uColorEnd, ageFract);
+    
+    vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+    
+    gl_PointSize = uSizeStart * (uScale / -mvPosition.z);
+}
+`;
+
+const FRAGMENT_SHADER = `
+uniform sampler2D uTexture;
+varying vec3 vColor;
+varying float vLifeRatio;
+
+void main() {
+    if (vLifeRatio >= 1.0) discard;
+    vec4 texColor = texture2D(uTexture, gl_PointCoord);
+    gl_FragColor = vec4(vColor * texColor.rgb, texColor.a);
+}
+`;
+
 export class ParticleSystem {
     constructor(scene, textures) {
         this.scene = scene;
         this.textures = textures;
         this.systems = []; // Active particle systems
-        // Reusable color object to avoid GC pressure in update loop
-        this._tempColor = new THREE.Color();
+
+        this._computeScale();
+        this._resizeHandler = () => {
+            this._computeScale();
+            this.systems.forEach(sys => {
+                if (sys.mesh && sys.mesh.material && sys.mesh.material.uniforms.uScale) {
+                    sys.mesh.material.uniforms.uScale.value = this.scale;
+                }
+            });
+        };
+        window.addEventListener('resize', this._resizeHandler);
+    }
+
+    _computeScale() {
+        // THREE.PointsMaterial default sizeAttenuation scale
+        this.scale = window.innerHeight * 0.5;
     }
 
     createEmitter(position, type, options = {}) {
@@ -17,9 +94,9 @@ export class ParticleSystem {
             colorEnd: new THREE.Color('red'),
             sizeStart: 10,
             sizeEnd: 0,
-            lifeTime: 0.3,
-            rate: 10,
-            speed: 50,
+            lifeTime: 0.30,
+            rate: 15,
+            speed: 40,
             spread: 0
         } : { // Fireworks
             count: 3000,
@@ -36,127 +113,104 @@ export class ParticleSystem {
 
         if (options) Object.assign(config, options);
 
+        const isBurst = config.rate === 0;
+
+        // Ensure 1:1 identical visual matching for old count/rate behavior
+        let actualCount = config.count;
+        if (!isBurst) {
+            actualCount = Math.min(config.count, Math.floor(config.rate * 60 * config.lifeTime));
+            if (actualCount === 0) actualCount = 1; // Failsafe
+        }
+
         const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(config.count * 3);
-        const colors = new Float32Array(config.count * 3);
+        const positions = new Float32Array(actualCount * 3);
+        const velocities = new Float32Array(actualCount * 3);
+        const delays = new Float32Array(actualCount);
 
-        // Simulation data
-        const velocities = new Float32Array(config.count * 3);
-        const ages = new Float32Array(config.count);
-        const lives = new Float32Array(config.count); // 1 = alive, 0 = dead
-
-        // Init off-screen
-        for (let i = 0; i < config.count; i++) {
+        for (let i = 0; i < actualCount; i++) {
             positions[i * 3] = 0;
-            positions[i * 3 + 1] = -10000;
+            positions[i * 3 + 1] = 0;
             positions[i * 3 + 2] = 0;
-            lives[i] = 0;
+
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const speed = config.speed * (0.5 + Math.random() * 0.5);
+
+            velocities[i * 3] = speed * Math.sin(phi) * Math.cos(theta);
+            velocities[i * 3 + 1] = speed * Math.sin(phi) * Math.sin(theta);
+            velocities[i * 3 + 2] = speed * Math.cos(phi);
+
+            if (isBurst) {
+                delays[i] = 1.0;
+            } else {
+                delays[i] = Math.random();
+            }
         }
 
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
+        geometry.setAttribute('aDelay', new THREE.BufferAttribute(delays, 1));
 
-        const material = new THREE.PointsMaterial({
-            map: config.texture,
-            vertexColors: true,
+        const material = new THREE.ShaderMaterial({
+            vertexShader: VERTEX_SHADER,
+            fragmentShader: FRAGMENT_SHADER,
+            uniforms: {
+                uTime: { value: 0.0 },
+                uLifeTime: { value: config.lifeTime },
+                uSizeStart: { value: config.sizeStart },
+                uStopTime: { value: isBurst ? 0.0 : -1.0 },
+                uScale: { value: this.scale },
+                uColorStart: { value: config.colorStart },
+                uColorEnd: { value: config.colorEnd },
+                uTexture: { value: config.texture }
+            },
             transparent: true,
             depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            size: config.sizeStart
+            blending: THREE.AdditiveBlending
         });
 
         const points = new THREE.Points(geometry, material);
+        points.position.copy(position);
+        points.frustumCulled = false; // Expanding geometries must bypass simple culling
         this.scene.add(points);
 
         const system = {
             mesh: points,
             config: config,
-            velocities: velocities,
-            ages: ages,
-            lives: lives,
             alive: true,
-            origin: position.clone()
+            isBurst: isBurst,
+            time: 0.0
         };
-
-        // Burst immediately if rate is 0
-        if (config.rate === 0) {
-            for (let i = 0; i < config.count; i++) {
-                this.spawnParticle(system, i, position);
-            }
-        }
 
         this.systems.push(system);
         return system;
     }
 
-    spawnParticle(system, index, origin) {
-        const positions = system.mesh.geometry.attributes.position.array;
-        const velocities = system.velocities;
-
-        system.lives[index] = 1;
-        system.ages[index] = 0;
-
-        positions[index * 3] = origin.x;
-        positions[index * 3 + 1] = origin.y;
-        positions[index * 3 + 2] = origin.z;
-
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
-        const speed = system.config.speed * (0.5 + Math.random() * 0.5);
-
-        velocities[index * 3] = speed * Math.sin(phi) * Math.cos(theta);
-        velocities[index * 3 + 1] = speed * Math.sin(phi) * Math.sin(theta);
-        velocities[index * 3 + 2] = speed * Math.cos(phi);
-    }
-
     update(dt) {
         for (let i = this.systems.length - 1; i >= 0; i--) {
             const sys = this.systems[i];
-            const positions = sys.mesh.geometry.attributes.position.array;
-            const colors = sys.mesh.geometry.attributes.color.array;
-            let activeParticles = 0;
 
-            // Emission
-            if (sys.alive && sys.config.rate > 0) {
-                let spawned = 0;
-                for (let k = 0; k < sys.lives.length && spawned < sys.config.rate; k++) {
-                    if (sys.lives[k] === 0) {
-                        this.spawnParticle(sys, k, sys.origin);
-                        spawned++;
-                    }
+            sys.time += dt;
+            sys.mesh.material.uniforms.uTime.value = sys.time;
+
+            if (!sys.alive && sys.mesh.material.uniforms.uStopTime.value === -1.0) {
+                sys.mesh.material.uniforms.uStopTime.value = sys.time;
+            }
+
+            let shouldDispose = false;
+
+            if (sys.isBurst) {
+                if (sys.time > sys.config.lifeTime) {
+                    shouldDispose = true;
+                }
+            } else {
+                const stopTime = sys.mesh.material.uniforms.uStopTime.value;
+                if (!sys.alive && stopTime >= 0 && sys.time > stopTime + sys.config.lifeTime) {
+                    shouldDispose = true;
                 }
             }
 
-            // Update particles
-            for (let j = 0; j < sys.config.count; j++) {
-                if (sys.lives[j] > 0) {
-                    activeParticles++;
-                    sys.ages[j] += dt;
-
-                    if (sys.ages[j] > sys.config.lifeTime) {
-                        sys.lives[j] = 0;
-                        positions[j * 3] = 0; positions[j * 3 + 1] = -10000; positions[j * 3 + 2] = 0;
-                        continue;
-                    }
-
-                    // Physics
-                    positions[j * 3] += sys.velocities[j * 3] * dt;
-                    positions[j * 3 + 1] += sys.velocities[j * 3 + 1] * dt;
-                    positions[j * 3 + 2] += sys.velocities[j * 3 + 2] * dt;
-
-                    // Color Lerp (reuse temp object to avoid GC pressure)
-                    const lifeRatio = sys.ages[j] / sys.config.lifeTime;
-                    this._tempColor.copy(sys.config.colorStart).lerp(sys.config.colorEnd, lifeRatio);
-                    colors[j * 3] = this._tempColor.r;
-                    colors[j * 3 + 1] = this._tempColor.g;
-                    colors[j * 3 + 2] = this._tempColor.b;
-                }
-            }
-
-            sys.mesh.geometry.attributes.position.needsUpdate = true;
-            sys.mesh.geometry.attributes.color.needsUpdate = true;
-
-            if (!sys.alive && activeParticles === 0) {
+            if (shouldDispose) {
                 this.scene.remove(sys.mesh);
                 sys.mesh.geometry.dispose();
                 sys.mesh.material.dispose();
@@ -178,5 +232,6 @@ export class ParticleSystem {
             sys.mesh.material.dispose();
         });
         this.systems = [];
+        window.removeEventListener('resize', this._resizeHandler);
     }
 }

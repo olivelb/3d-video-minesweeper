@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SoundManager } from '../audio/SoundManager.js';
 import { ParticleSystem } from './ParticleSystem.js';
+import { BlackHoleEffect } from './BlackHoleEffect.js';
 import { MediaTextureManager } from './MediaTextureManager.js';
 import { InputManager } from './InputManager.js';
 import { GridManager, gridToWorld } from './GridManager.js';
@@ -9,6 +10,11 @@ import { CameraController } from './CameraController.js';
 import { EndGameEffects } from './EndGameEffects.js';
 import { Events } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
+
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /**
  * Configuration for renderer behaviour & timing
@@ -69,6 +75,7 @@ export class MinesweeperRenderer {
         this.scene = null;
         this.soundManager = null;
         this.particleSystem = null;
+        this.blackHoleEffect = null;
 
         // Managers (initialized in init())
         this.mediaManager = new MediaTextureManager();
@@ -134,6 +141,7 @@ export class MinesweeperRenderer {
         this.font = this.mediaManager.font;
 
         this.particleSystem = new ParticleSystem(this.scene, this.textures);
+        this.blackHoleEffect = new BlackHoleEffect(this.scene, this.camera);
 
         // Grid (via GridManager)
         this.gridManager = new GridManager(this.scene, this.game, this.mediaManager.getBackgroundTexture(), this.textures);
@@ -151,6 +159,29 @@ export class MinesweeperRenderer {
         // Input
         this.inputManager = new InputManager(this.renderer, this.camera, this.gridManager.gridMesh, this.game, this.events);
         this.renderer.handleGameUpdate = (result) => this.handleGameUpdate(result);
+
+        // Setup EffectComposer for shockwave distortion with Anti-Aliasing
+        const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+            samples: 2,
+            type: THREE.HalfFloatType // Better precision for HDR/color space
+        });
+        this.composer = new EffectComposer(this.renderer, renderTarget);
+        this.renderPass = new RenderPass(this.scene, this.camera);
+        this.composer.addPass(this.renderPass);
+
+        // Add the BlackHole (Shockwave) Custom Shader Pass
+        this.distortionPass = new ShaderPass(this.blackHoleEffect.getShader());
+        this.distortionPass.enabled = false; // Off by default to save performance
+        // Needs swap true to pass the buffer down the chain
+        this.distortionPass.needsSwap = true;
+        this.composer.addPass(this.distortionPass);
+        // Link the actual instantiated material back to the effect controller
+        this.blackHoleEffect.setPass(this.distortionPass);
+
+        // Core fix: OutputPass applies sRGB encoding and toneMapping to the Composer buffer
+        // Without it, Three.js outputs Linear color space (very dark/grey)
+        this.outputPass = new OutputPass();
+        this.composer.addPass(this.outputPass);
 
         window.addEventListener('resize', this._boundOnWindowResize, false);
         this.renderer.setAnimationLoop(() => this.animate());
@@ -227,15 +258,12 @@ export class MinesweeperRenderer {
     showHint(x, y, type) {
         this.gridManager.showHint(x, y, type);
 
-        // Particle effect on hint cell
+        // BlackHole / Shockwave effect on hint cell
         const color = type === 'safe' ? new THREE.Color(0x00ff00) : new THREE.Color(0xff0000);
         const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
         const pos = new THREE.Vector3(wx, RENDERER_CONFIG.HINT_PARTICLE_HEIGHT, wz);
-        this.particleSystem.createEmitter(pos, 'hint', {
-            colorStart: color,
-            colorEnd: new THREE.Color(0xffffff),
-            lifeTime: 1.0
-        });
+
+        this.blackHoleEffect.trigger(pos, color);
     }
 
     /**
@@ -463,8 +491,10 @@ export class MinesweeperRenderer {
         // Camera (intro animation or orbit controls)
         this.cameraController.update(dt);
 
-        // Particles
+        // Particles & Effects
         this.particleSystem.update(dt);
+        this.blackHoleEffect.update(dt);
+        this.gridManager.updateAnimations(dt);
 
         // Flag animation (hover pulse on 2D flags)
         const hoveredInstanceId = this.inputManager ? this.inputManager.getHoveredInstanceId() : -1;
@@ -475,7 +505,6 @@ export class MinesweeperRenderer {
         } else {
             this.flagManager.animate(-1, -1);
         }
-
         // Hover selection effect
         this.updateSelectionBox(hoveredInstanceId);
 
@@ -508,7 +537,15 @@ export class MinesweeperRenderer {
             this._animateReassembly(dt);
         }
 
-        this.renderer.render(this.scene, this.camera);
+        // --- FINAL RENDER STAGE ---
+        // If shockwave is active, use EffectComposer for post-processing; otherwise standard render
+        if (this.blackHoleEffect && this.blackHoleEffect.isActive()) {
+            this.distortionPass.enabled = true;
+            this.composer.render();
+        } else {
+            if (this.distortionPass) this.distortionPass.enabled = false;
+            this.renderer.render(this.scene, this.camera);
+        }
     }
 
     /**
@@ -570,13 +607,21 @@ export class MinesweeperRenderer {
     onWindowResize() {
         this.cameraController.onWindowResize();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        if (this.composer) this.composer.setSize(window.innerWidth, window.innerHeight);
     }
 
     dispose() {
         this.onGameEnd = null;
         this.renderer.setAnimationLoop(null);
 
+        if (this.composer) {
+            this.composer.renderer.dispose();
+            this.renderPass.dispose();
+            if (this.distortionPass) this.distortionPass.dispose();
+            if (this.outputPass) this.outputPass.dispose();
+        }
         if (this.particleSystem) this.particleSystem.dispose();
+        if (this.blackHoleEffect) this.blackHoleEffect.dispose();
         if (this.mediaManager) this.mediaManager.dispose();
         if (this.inputManager) this.inputManager.detachListeners();
         if (this.gridManager) this.gridManager.dispose();

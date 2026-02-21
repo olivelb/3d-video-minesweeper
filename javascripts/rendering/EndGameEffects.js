@@ -27,7 +27,7 @@ const EFFECT_CONFIG = {
     /** Frames before auto-returning to menu */
     AUTO_RETURN_FRAMES: 300,
     /** Number of fireworks on win */
-    FIREWORK_COUNT: 20
+    FIREWORK_COUNT: 100
 };
 
 /**
