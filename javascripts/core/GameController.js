@@ -5,6 +5,7 @@ import { UIManager } from '../ui/UIManager.js';
 import { Scoreboard } from '../ui/Scoreboard.js';
 import { MultiplayerLeaderboard } from '../ui/MultiplayerLeaderboard.js';
 import { networkManager } from '../network/NetworkManager.js';
+import { MultiplayerController } from '../network/MultiplayerController.js';
 import { EventBus, Events } from './EventBus.js';
 
 import { Logger } from '../utils/Logger.js';
@@ -24,6 +25,7 @@ export class GameController {
         this.game = null;
         this.scoreboard = null;
         this.mpLeaderboard = null;
+        this.mpController = new MultiplayerController(this);
 
         // Analytics
         this.clickTimestamps = [];
@@ -57,7 +59,7 @@ export class GameController {
         }
 
         // Initialize Network Manager with EventBus
-        networkManager.setEventBus(this.events);
+        this.mpController.init();
 
         // Bind Global Events
         this.bindEvents();
@@ -267,157 +269,7 @@ export class GameController {
             }
         });
 
-        // =================================================================
-        // Network Events Binding
-        // =================================================================
-
-        this.events.on(Events.MP_CONNECTED, (data) => {
-            Logger.log('Network', 'Connected');
-            if (this.scoreboard && data.playerId) {
-                this.scoreboard.setLocalPlayer(data.playerId);
-            }
-        });
-
-        this.events.on(Events.NET_PLAYER_JOINED, (data) => Logger.log('Network', 'Player joined:', data));
-        this.events.on(Events.NET_PLAYER_LEFT, (data) => Logger.log('Network', 'Player left:', data));
-        this.events.on(Events.NET_GAME_READY, (config) => Logger.log('Network', 'Game ready:', config));
-
-        this.events.on(Events.MP_STATE_SYNC, async (state) => {
-            if (!this.game) {
-                // Join running game
-                this.startGame({
-                    width: state.width,
-                    height: state.height,
-                    bombs: state.bombCount,
-                    useHoverHelper: true,
-                    noGuessMode: false,
-                    bgName: 'Multiplayer',
-                    replayMines: state.minePositions,
-                    initialState: state,
-                    isMultiplayer: true
-                });
-            } else {
-                this.applyStateSync(state);
-            }
-
-            if (state.scores && this.scoreboard) {
-                this.scoreboard.updateScores(state.scores);
-                this.scoreboard.show();
-            }
-        });
-
-
-
-        this.events.on(Events.NET_GAME_UPDATE, (update) => {
-            if (!this.game || !this.renderer) return;
-
-            const result = update.result;
-            if (result.type === 'reveal' || result.type === 'win') {
-                result.changes.forEach(c => {
-                    this.game.visibleGrid[c.x][c.y] = c.value;
-                    this.renderer.updateCellVisual(c.x, c.y, c.value);
-                });
-                if (result.type === 'win' && !this.game.victory) {
-                    this.game.victory = true;
-                    this.renderer.triggerWin();
-                }
-            } else if (result.type === 'revealedBomb') {
-                // Apply any pre-explosion reveals (e.g., chord revealed safe cells before hitting a mine)
-                if (result.changes && result.changes.length > 0) {
-                    result.changes.forEach(c => {
-                        this.game.visibleGrid[c.x][c.y] = c.value;
-                        this.renderer.updateCellVisual(c.x, c.y, c.value);
-                    });
-                }
-                this.game.visibleGrid[result.x][result.y] = 10;
-                // Set flag so chord-clicking counts this revealed bomb
-                if (!this.game.flags[result.x][result.y]) {
-                    this.game.flags[result.x][result.y] = true;
-                    this.game.flagCount++;
-                }
-                this.renderer.showDeathFlag(result.x, result.y);
-            } else if (result.type === 'explode' && !this.game.gameOver) {
-                this.game.gameOver = true;
-                this.game.visibleGrid[update.action.x][update.action.y] = 9;
-                this.renderer.triggerExplosion();
-            } else if (result.type === 'flag') {
-                this.game.flags[result.x][result.y] = result.active;
-                this.renderer.updateFlagVisual(result.x, result.y, result.active);
-            }
-
-            if (update.scores && this.scoreboard) {
-                this.scoreboard.updateScores(update.scores);
-            }
-        });
-
-        this.events.on(Events.NET_PLAYER_ELIMINATED, (data) => {
-            if (data.playerId === networkManager.playerId) {
-                if (data.remainingPlayers > 0) {
-                    Logger.log('GameController', 'Local player eliminated. Playing sequence before Spectator Mode.');
-
-                    // 1. Play immediate elimination effect (visuals only)
-                    if (this.renderer) {
-                        this.renderer.playEliminationSequence(data.bombX, data.bombY);
-                    }
-
-                    // 2. Wait 3 seconds, THEN enter Spectator Mode
-                    setTimeout(() => {
-                        this.isSpectating = true;
-                        if (this.game) this.game.isSpectating = true;
-
-                        // Spectator mode visuals (fog, dim lights)
-                        if (this.renderer) {
-                            this.renderer.enableGhostMode();
-                            // We don't call triggerExplosion(true) anymore because we handled the "death" visually already
-                        }
-
-                        this.events.emit(Events.SPECTATOR_MODE_START);
-                    }, 3000);
-
-                } else {
-                    Logger.log('GameController', 'Local player was the last one eliminated. Normal Game Over.');
-                    // If last player, standard game over flow handles it
-                }
-            } else {
-                if (this.uiManager.multiplayerUI) {
-                    this.uiManager.multiplayerUI.showEliminationNotification(data.playerName);
-                }
-
-                // Show the bomb that killed them (if we can see it)
-                if (this.renderer) {
-                    // data.bombX/Y are passed from server
-                    this.renderer.showDeathFlag(data.bombX, data.bombY);
-                }
-            }
-        });
-
-        this.events.on(Events.NET_GAME_OVER, (data) => {
-            if (!this.game) return;
-
-            if (data.victory) {
-                if (!this.game.victory) {
-                    this.game.victory = true;
-                    this.renderer.triggerWin();
-                }
-            } else if (!data.victory && !this.game.gameOver) {
-                this.game.gameOver = true;
-                this.renderer.triggerExplosion();
-            }
-
-            setTimeout(() => {
-                if (this.scoreboard && data.finalScores) {
-                    this.scoreboard.hide();
-                    this.scoreboard.showResults(data, () => {
-                        this.events.emit(Events.GAME_ENDED);
-                        if (this.scoreboard) this.scoreboard.hideResults();
-                    });
-                }
-            }, 3000);
-        });
-
-        this.events.on(Events.NET_MINES_PLACED, (minePositions) => {
-            if (this.game) this.game.setMinesFromPositions(minePositions);
-        });
+        // Network Events Binding (now handled via MultiplayerController)
     }
 
     /**
@@ -480,7 +332,7 @@ export class GameController {
 
         // Apply initial state if provided (Multiplayer Join)
         if (config.initialState) {
-            this.applyStateSync(config.initialState);
+            this.mpController.applyStateSync(config.initialState);
             if (this.scoreboard && config.initialState.scores) {
                 this.scoreboard.updateScores(config.initialState.scores);
                 this.scoreboard.show();
@@ -548,43 +400,7 @@ export class GameController {
         });
     }
 
-    /**
-     * Apply full state sync (Multiplayer)
-     */
-    applyStateSync(state) {
-        if (!this.game || !state.grid) return;
-        Logger.log('GameController', 'Syncing state...');
 
-        // Restore grid
-        for (let x = 0; x < this.game.width; x++) {
-            for (let y = 0; y < this.game.height; y++) {
-                const cellValue = state.grid[x][y];
-                // Only update if revealed
-                if (cellValue !== -1 && cellValue !== 9) {
-                    this.game.visibleGrid[x][y] = cellValue;
-                    if (cellValue === 10) {
-                        // Revealed bomb — show death flag and set flag state for chord
-                        if (!this.game.flags[x][y]) {
-                            this.game.flags[x][y] = true;
-                            this.game.flagCount++;
-                        }
-                        if (this.renderer) this.renderer.showDeathFlag(x, y);
-                    } else {
-                        if (this.renderer) this.renderer.updateCellVisual(x, y, cellValue);
-                    }
-                }
-                // Flags
-                if (state.flags && state.flags[x][y]) {
-                    this.game.flags[x][y] = true;
-                    if (this.renderer) this.renderer.updateFlagVisual(x, y, true);
-                }
-            }
-        }
-        // Bombs/Mines if provided
-        if (state.minePositions) {
-            this.game.setMinesFromPositions(state.minePositions);
-        }
-    }
 
     /**
      * Setup UI Timer updates
