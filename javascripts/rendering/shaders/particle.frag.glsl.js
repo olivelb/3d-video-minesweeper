@@ -1,4 +1,4 @@
-export default `
+export default /* glsl */ `
 uniform sampler2D uTexture;
 varying vec3 vColor;
 varying float vLifeRatio;

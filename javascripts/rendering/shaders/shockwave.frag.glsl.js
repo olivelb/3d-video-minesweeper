@@ -1,4 +1,4 @@
-export default `
+export default /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform vec2 uCenter;
 uniform float uAspect;

@@ -1,4 +1,4 @@
-export default `
+export default /* glsl */ `
 uniform float uTime;
 uniform float uLifeTime;
 uniform float uSizeStart;
