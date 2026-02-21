@@ -3,11 +3,13 @@
 A modern, immersive, and social take on the classic Minesweeper. Built with **Three.js** for stunning 3D visuals, and **Socket.io** for intense competitive multiplayer.
 
 ![Project Status](https://img.shields.io/badge/status-active-brightgreen)
-![Tech Stack](https://img.shields.io/badge/tech-Three.js%20%7C%20Node.js%20%7C%20Socket.io-blue)
+![Tech Stack](https://img.shields.io/badge/tech-Three.js%20%7C%20GLSL%20%7C%20Node.js%20%7C%20Socket.io-blue)
 
 ## ✨ Features
 
 - **Immersive 3D Grid**: Navigate a floating minefield in a 3D space with smooth camera, animations and lighting.
+- **GPU-Accelerated Particles**: Custom 100% GLSL `ShaderMaterial` handling over 300,000 simultaneous particles (fireworks, stars) with zero CPU overhead at continuous 60FPS.
+- **Refractive Post-Processing**: Dynamic screen-space concentric ripples (BlackHole ShaderPass) using Three.js `EffectComposer` for beautiful, water-like distortion hints.
 - **Custom Media Backgrounds**: Play with uploaded images or videos as dynamic backgrounds.
 - **No-Guess Mode**: Gaussian elimination + multi-strategy solver guarantees every board is solvable without guessing. Enabled by default.
 - **Explain Hint**: In No-Guess mode, an "Explain" button shows *why* a hinted move is safe, with strategy-specific reasoning (basic counting, subset logic, Gaussian elimination, contradiction, exhaustive analysis) and constraint cell highlighting.
