@@ -62,15 +62,18 @@ export class CameraController {
 
         /** @type {THREE.Vector3} Target position for intro animation */
         this.targetPosition = new THREE.Vector3();
-        
+
         /** @type {OrbitControls} Orbit controls for user interaction */
         this.controls = null;
-        
+
         /** @type {boolean} Whether intro animation is active */
         this.isIntroAnimating = true;
-        
+
         /** @type {number} Time elapsed during intro animation */
         this.introTime = 0;
+
+        /** Reusable lookAt target (avoids per-frame allocation) */
+        this._lookAtTarget = new THREE.Vector3(0, 0, 0);
 
         this._initializePosition(gridWidth, gridHeight);
         this._initializeControls(renderer);
@@ -86,7 +89,7 @@ export class CameraController {
         // Calculate optimal viewing distance based on grid size
         const targetDescend = gridHeight * CAMERA_CONFIG.TARGET_HEIGHT_FACTOR;
         this.targetPosition.set(0, targetDescend, gridHeight * CAMERA_CONFIG.TARGET_DEPTH_FACTOR);
-        
+
         // Start camera far away for dramatic intro
         const sp = CAMERA_CONFIG.START_POSITION;
         this.camera.position.set(sp.x, sp.y, sp.z);
@@ -123,10 +126,10 @@ export class CameraController {
      */
     _updateIntroAnimation(deltaTime) {
         this.introTime += deltaTime;
-        
+
         // Smooth lerp towards target position
         this.camera.position.lerp(this.targetPosition, CAMERA_CONFIG.INTRO_LERP);
-        this.camera.lookAt(new THREE.Vector3(0, 0, 0));
+        this.camera.lookAt(this._lookAtTarget);
 
         // End intro when camera is close enough and minimum time has passed
         const distanceToTarget = this.camera.position.distanceTo(this.targetPosition);

@@ -406,7 +406,10 @@ export class GameController {
      * Setup UI Timer updates
      */
     setupTimerAndScoreUpdates() {
-        setInterval(() => {
+        // Clear any existing interval to prevent stacking
+        if (this._timerInterval) clearInterval(this._timerInterval);
+
+        this._timerInterval = setInterval(() => {
             if (this.game && !this.game.gameOver && !this.game.victory && this.game.gameStartTime) {
                 const elapsed = Math.floor((Date.now() - this.game.gameStartTime) / 1000);
 

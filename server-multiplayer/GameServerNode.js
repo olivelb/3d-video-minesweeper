@@ -132,9 +132,9 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
             }
 
             // Server-side validation to prevent crashes
-            const MAX_WIDTH = 150;
-            const MAX_HEIGHT = 100;
-            const MAX_BOMBS = 2000;
+            const MAX_WIDTH = 240;
+            const MAX_HEIGHT = 120;
+            const MAX_BOMBS = 4000;
 
             if (width > MAX_WIDTH || height > MAX_HEIGHT || bombCount > MAX_BOMBS) {
                 socket.emit('error', {

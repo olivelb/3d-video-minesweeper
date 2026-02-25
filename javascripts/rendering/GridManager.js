@@ -108,6 +108,12 @@ export class GridManager {
         /** Reusable color for hover highlight (avoids per-frame allocation) */
         this._hoverColor = new THREE.Color();
 
+        /** Cached black color for resets (avoids per-call allocation) */
+        this._blackColor = new THREE.Color(0x000000);
+
+        /** Reusable color for hint lerp (avoids per-frame allocation) */
+        this._colorLerp = new THREE.Color();
+
         /** Active animated hints */
         this.activeHints = [];
 
@@ -239,51 +245,14 @@ export class GridManager {
      */
     updateCellVisual(x, y, value) {
         const index = x * this.game.height + y;
-
-        // Hide the cube
-        this.gridMesh.getMatrixAt(index, this.dummy.matrix);
-        this.dummy.matrix.decompose(
-            this.dummy.position,
-            this.dummy.quaternion,
-            this.dummy.scale
-        );
-        this.dummy.scale.set(0, 0, 0);
-        this.dummy.updateMatrix();
-        this.gridMesh.setMatrixAt(index, this.dummy.matrix);
-        this.gridMesh.instanceMatrix.needsUpdate = true;
+        this._hideInstance(index);
 
         // Bomb display
         if (value === 10) {
-            this._createBombMesh(x, y);
+            this._createOverlayMesh(x, y, this.textures['bomb'], 18, 2);
         } else if (value > 0 && value <= 8) {
-            this._createNumberMesh(x, y, value);
+            this._createOverlayMesh(x, y, this.textures[value], GRID_CONFIG.NUMBER_PLANE_SIZE, 1);
         }
-    }
-
-    /**
-     * Create a bomb mesh for a revealed mine cell
-     * @private
-     * @param {number} x - Grid X coordinate
-     * @param {number} y - Grid Y coordinate
-     */
-    _createBombMesh(x, y) {
-        const planeGeo = new THREE.PlaneGeometry(18, 18);
-        const material = new THREE.MeshBasicMaterial({
-            map: this.textures['bomb'],
-            transparent: true,
-            opacity: 1.0,
-            depthWrite: true,
-            depthTest: true,
-            side: THREE.DoubleSide,
-            alphaTest: 0.1
-        });
-        const mesh = new THREE.Mesh(planeGeo, material);
-        const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
-        mesh.position.set(wx, GRID_CONFIG.NUMBER_HEIGHT, wz);
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.renderOrder = 2;
-        this.scene.add(mesh);
-        this.numberMeshes.push(mesh);
     }
 
     /**
@@ -294,8 +263,16 @@ export class GridManager {
      */
     createDeathFlagMesh(x, y) {
         const index = x * this.game.height + y;
+        this._hideInstance(index);
+        this._createOverlayMesh(x, y, this.textures['deathFlag'], 18, 2);
+    }
 
-        // Hide the cube (same as updateCellVisual)
+    /**
+     * Hide an instance by scaling it to zero.
+     * @private
+     * @param {number} index - Instance index
+     */
+    _hideInstance(index) {
         this.gridMesh.getMatrixAt(index, this.dummy.matrix);
         this.dummy.matrix.decompose(
             this.dummy.position,
@@ -306,41 +283,21 @@ export class GridManager {
         this.dummy.updateMatrix();
         this.gridMesh.setMatrixAt(index, this.dummy.matrix);
         this.gridMesh.instanceMatrix.needsUpdate = true;
-
-        const planeGeo = new THREE.PlaneGeometry(18, 18);
-        const material = new THREE.MeshBasicMaterial({
-            map: this.textures['deathFlag'],
-            transparent: true,
-            opacity: 1.0,
-            depthWrite: true,
-            depthTest: true,
-            side: THREE.DoubleSide,
-            alphaTest: 0.1
-        });
-        const dfMesh = new THREE.Mesh(planeGeo, material);
-        const df = gridToWorld(x, y, this.game.width, this.game.height);
-        dfMesh.position.set(df.wx, GRID_CONFIG.NUMBER_HEIGHT, df.wz);
-        dfMesh.rotation.x = -Math.PI / 2;
-        dfMesh.renderOrder = 2;
-        this.scene.add(dfMesh);
-        this.numberMeshes.push(dfMesh);
     }
 
     /**
-     * Create a number mesh for a revealed cell
+     * Create an overlay mesh (number, bomb, or death flag) at a grid position.
      * @private
      * @param {number} x - Grid X coordinate
      * @param {number} y - Grid Y coordinate
-     * @param {number} value - Cell value (1-8)
+     * @param {THREE.Texture} texture - Texture to display
+     * @param {number} size - Plane geometry size
+     * @param {number} renderOrder - Render order for the mesh
      */
-    _createNumberMesh(x, y, value) {
-        const planeGeo = new THREE.PlaneGeometry(
-            GRID_CONFIG.NUMBER_PLANE_SIZE,
-            GRID_CONFIG.NUMBER_PLANE_SIZE
-        );
-
+    _createOverlayMesh(x, y, texture, size, renderOrder) {
+        const planeGeo = new THREE.PlaneGeometry(size, size);
         const material = new THREE.MeshBasicMaterial({
-            map: this.textures[value],
+            map: texture,
             transparent: true,
             opacity: 1.0,
             depthWrite: true,
@@ -348,13 +305,11 @@ export class GridManager {
             side: THREE.DoubleSide,
             alphaTest: 0.1
         });
-
         const mesh = new THREE.Mesh(planeGeo, material);
         const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
         mesh.position.set(wx, GRID_CONFIG.NUMBER_HEIGHT, wz);
         mesh.rotation.x = -Math.PI / 2;
-        mesh.renderOrder = 1;
-
+        mesh.renderOrder = renderOrder;
         this.scene.add(mesh);
         this.numberMeshes.push(mesh);
     }
@@ -427,7 +382,7 @@ export class GridManager {
         this.dummy.updateMatrix();
 
         this.gridMesh.setMatrixAt(instanceId, this.dummy.matrix);
-        this.gridMesh.setColorAt(instanceId, new THREE.Color(0x000000));
+        this.gridMesh.setColorAt(instanceId, this._blackColor);
         this.gridMesh.instanceMatrix.needsUpdate = true;
         this.gridMesh.instanceColor.needsUpdate = true;
     }
@@ -477,7 +432,7 @@ export class GridManager {
         if (this.activeHints.length === 0) return;
 
         let needsUpdate = false;
-        const colorLerp = new THREE.Color();
+        const colorLerp = this._colorLerp;
 
         for (let i = this.activeHints.length - 1; i >= 0; i--) {
             const hint = this.activeHints[i];

@@ -32,7 +32,6 @@ export class ParticleSystem {
             colorStart: new THREE.Color('yellow'),
             colorEnd: new THREE.Color('red'),
             sizeStart: 10,
-            sizeEnd: 0,
             lifeTime: 0.30,
             rate: 15,
             speed: 40,
@@ -43,7 +42,6 @@ export class ParticleSystem {
             colorStart: new THREE.Color('blue'),
             colorEnd: new THREE.Color('red'),
             sizeStart: 5,
-            sizeEnd: 50,
             lifeTime: 2.0,
             rate: 0, // Burst
             speed: 200,

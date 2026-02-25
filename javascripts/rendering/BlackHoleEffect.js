@@ -30,7 +30,6 @@ const SHOCKWAVE_SHADER = {
         'uAspect': { value: 1.0 },
         'uTime': { value: 0.0 },
         'uLifeTime': { value: SHOCKWAVE_CONFIG.LIFETIME },
-        'uActive': { value: 0.0 },
         'uSpeed': { value: SHOCKWAVE_CONFIG.SPEED },
         'uFrequency': { value: SHOCKWAVE_CONFIG.FREQUENCY },
         'uStrength': { value: SHOCKWAVE_CONFIG.STRENGTH }
@@ -78,7 +77,6 @@ export class BlackHoleEffect {
 
         // Activate shader on the exact material instance used by Composer
         if (this.passMaterial) {
-            this.passMaterial.uniforms.uActive.value = 1.0;
             this.passMaterial.uniforms.uCenter.value.set(uvX, uvY);
             this.passMaterial.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
             this.passMaterial.uniforms.uLifeTime.value = lifeTime;
@@ -89,7 +87,6 @@ export class BlackHoleEffect {
         if (!this.passMaterial) return;
 
         if (this.effects.length === 0) {
-            this.passMaterial.uniforms.uActive.value = 0.0;
             return;
         }
 
@@ -101,9 +98,6 @@ export class BlackHoleEffect {
 
         if (effect.age >= effect.lifeTime) {
             this.effects.shift();
-            if (this.effects.length === 0) {
-                this.passMaterial.uniforms.uActive.value = 0.0;
-            }
         }
     }
 
@@ -113,6 +107,5 @@ export class BlackHoleEffect {
 
     dispose() {
         this.effects = [];
-        if (this.passMaterial) this.passMaterial.uniforms.uActive.value = 0.0;
     }
 }

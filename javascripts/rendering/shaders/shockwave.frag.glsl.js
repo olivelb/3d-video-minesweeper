@@ -4,18 +4,12 @@ uniform vec2 uCenter;
 uniform float uAspect;
 uniform float uTime;
 uniform float uLifeTime;
-uniform float uActive;
 uniform float uSpeed;
 uniform float uFrequency;
 uniform float uStrength;
 varying vec2 vUv;
 
 void main() {
-    if (uActive < 0.5) {
-        gl_FragColor = texture2D(tDiffuse, vUv);
-        return;
-    }
-
     float progress = uTime / uLifeTime;
     
     // Correct for aspect ratio to keep the ripple perfectly circular

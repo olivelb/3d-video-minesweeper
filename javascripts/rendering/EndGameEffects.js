@@ -26,8 +26,8 @@ const EFFECT_CONFIG = {
     TEXT_DISTANCE: 400,
     /** Frames before auto-returning to menu */
     AUTO_RETURN_FRAMES: 300,
-    /** Number of fireworks on win */
-    FIREWORK_COUNT: 100
+    /** Number of firework emitters on win (batched for fewer draw calls) */
+    FIREWORK_COUNT: 10
 };
 
 /**
@@ -45,24 +45,27 @@ export class EndGameEffects {
     constructor(scene, camera, particleSystem, font) {
         /** @type {THREE.Scene} */
         this.scene = scene;
-        
+
         /** @type {THREE.Camera} */
         this.camera = camera;
-        
+
         /** @type {Object} Particle system reference */
         this.particleSystem = particleSystem;
-        
+
         /** @type {Object} Loaded font for text geometry */
         this.font = font;
-        
+
         /** @type {THREE.Mesh|null} Current end text mesh */
         this.textMesh = null;
-        
+
         /** @type {number} Frames since game ended */
         this.endGameTime = 0;
-        
+
         /** @type {Function|null} Callback when auto-return triggers */
         this.onAutoReturn = null;
+
+        /** Reusable direction vector (avoids per-frame allocation) */
+        this._direction = new THREE.Vector3();
     }
 
     /**
@@ -132,19 +135,21 @@ export class EndGameEffects {
                 (Math.random() - 0.5) * 100,
                 (Math.random() - 0.5) * 200
             );
-            
+
             const colorStart = new THREE.Color(
-                Math.random(), 
-                Math.random(), 
+                Math.random(),
+                Math.random(),
                 Math.random()
             );
             const colorEnd = new THREE.Color(
-                Math.random(), 
-                Math.random(), 
+                Math.random(),
+                Math.random(),
                 Math.random()
             );
 
             this.particleSystem.createEmitter(pos, 'firework', {
+                count: 15000,
+                sizeStart: 12,
                 colorStart,
                 colorEnd,
                 lifeTime: 2.0 + Math.random() * 3.0
@@ -159,7 +164,7 @@ export class EndGameEffects {
     update(gameEnded) {
         // Billboard text to face camera
         if (this.textMesh) {
-            const direction = new THREE.Vector3();
+            const direction = this._direction;
             this.camera.getWorldDirection(direction);
             this.textMesh.position.copy(this.camera.position)
                 .add(direction.multiplyScalar(EFFECT_CONFIG.TEXT_DISTANCE));
@@ -180,7 +185,7 @@ export class EndGameEffects {
      */
     reset() {
         this.endGameTime = 0;
-        
+
         if (this.textMesh) {
             this.scene.remove(this.textMesh);
             if (this.textMesh.geometry) this.textMesh.geometry.dispose();

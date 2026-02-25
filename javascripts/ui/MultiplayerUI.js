@@ -168,9 +168,9 @@ export class MultiplayerUI {
         const bombInput = document.getElementById('bomb-count');
         const maxPlayersInput = document.getElementById('mp-max-players');
 
-        const MAX_WIDTH = 150;
-        const MAX_HEIGHT = 100;
-        const MAX_BOMBS = 2000;
+        const MAX_WIDTH = 220;
+        const MAX_HEIGHT = 120;
+        const MAX_BOMBS = 4000;
 
         let w = parseInt(widthInput?.value) || 30;
         let h = parseInt(heightInput?.value) || 20;

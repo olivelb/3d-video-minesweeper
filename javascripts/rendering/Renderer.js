@@ -107,6 +107,15 @@ export class MinesweeperRenderer {
         this._defaultRot = new THREE.Euler(-Math.PI / 2, 0, 0);
         this._defaultScale = new THREE.Vector3(1, 1, 1);
 
+        // Reusable quaternion for matrix composition during animations
+        this._quatHelper = new THREE.Quaternion();
+        this._eulerHelper = new THREE.Euler();
+
+        // Cached hint colors and position (avoid per-hint allocation)
+        this._hintColorSafe = new THREE.Color(0x00ff00);
+        this._hintColorMine = new THREE.Color(0xff0000);
+        this._hintPos = new THREE.Vector3();
+
         this.onGameEnd = null;
 
         this._boundOnWindowResize = () => this.onWindowResize();
@@ -121,7 +130,7 @@ export class MinesweeperRenderer {
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.container.appendChild(this.renderer.domElement);
 
         // Camera (via CameraController)
@@ -161,7 +170,10 @@ export class MinesweeperRenderer {
         this.renderer.handleGameUpdate = (result) => this.handleGameUpdate(result);
 
         // Setup EffectComposer for shockwave distortion with Anti-Aliasing
-        const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+        const pixelRatio = this.renderer.getPixelRatio();
+        const renderTarget = new THREE.WebGLRenderTarget(
+            window.innerWidth * pixelRatio,
+            window.innerHeight * pixelRatio, {
             samples: 2,
             type: THREE.HalfFloatType // Better precision for HDR/color space
         });
@@ -259,11 +271,11 @@ export class MinesweeperRenderer {
         this.gridManager.showHint(x, y, type);
 
         // BlackHole / Shockwave effect on hint cell
-        const color = type === 'safe' ? new THREE.Color(0x00ff00) : new THREE.Color(0xff0000);
+        const color = type === 'safe' ? this._hintColorSafe : this._hintColorMine;
         const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
-        const pos = new THREE.Vector3(wx, RENDERER_CONFIG.HINT_PARTICLE_HEIGHT, wz);
+        this._hintPos.set(wx, RENDERER_CONFIG.HINT_PARTICLE_HEIGHT, wz);
 
-        this.blackHoleEffect.trigger(pos, color);
+        this.blackHoleEffect.trigger(this._hintPos, color);
     }
 
     /**
@@ -320,9 +332,30 @@ export class MinesweeperRenderer {
         if (!isSpectating) {
             this.endGameEffects.triggerLoss();
             this.isExploding = true;
+            this.explosionTime = 0;
             this.particleSystem.stopAll();
             this.flagManager.clearAll();
             this.gridManager.triggerExplosion();
+
+            // Initialize flat arrays for the explosion animation loop
+            const cellCount = this.game.width * this.game.height;
+            this._explPos = new Float32Array(cellCount * 3);
+            this._explRot = new Float32Array(cellCount * 3);
+            this._explScaleVisible = new Uint8Array(cellCount);
+
+            const gridMesh = this.gridManager.gridMesh;
+            for (let i = 0; i < cellCount; i++) {
+                gridMesh.getMatrixAt(i, this.dummy.matrix);
+                this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
+                const i3 = i * 3;
+                this._explPos[i3] = this.dummy.position.x;
+                this._explPos[i3 + 1] = this.dummy.position.y;
+                this._explPos[i3 + 2] = this.dummy.position.z;
+                this._explRot[i3] = this.dummy.rotation.x;
+                this._explRot[i3 + 1] = this.dummy.rotation.y;
+                this._explRot[i3 + 2] = this.dummy.rotation.z;
+                this._explScaleVisible[i] = this.dummy.scale.x > 0.1 ? 1 : 0;
+            }
         } else {
             Logger.log('Renderer', 'Soft explosion for Spectator Mode');
         }
@@ -376,17 +409,39 @@ export class MinesweeperRenderer {
         this.gridManager.numberMeshes.forEach(mesh => mesh.visible = false);
         this.flagManager.clearAll();
 
-        // Save pre-explosion state so reassembly can lerp back to exact positions
-        this.preExplosionState = [];
+        // Save pre-explosion state in flat arrays (avoids per-cell clone allocations)
+        const cellCount = this.game.width * this.game.height;
+        // Pre-explosion target state (what we lerp BACK to during reassembly)
+        this._preExpPos = new Float32Array(cellCount * 3);
+        this._preExpRot = new Float32Array(cellCount * 3);
+        this._preExpScale = new Float32Array(cellCount * 3);
+        // Current explosion state tracked as flat arrays (avoids decompose per frame)
+        this._explPos = new Float32Array(cellCount * 3);
+        this._explRot = new Float32Array(cellCount * 3);
+        this._explScaleVisible = new Uint8Array(cellCount); // 1 = visible, 0 = hidden (scale was < 0.1)
+
         const gridMeshPre = this.gridManager.gridMesh;
-        for (let i = 0; i < this.game.width * this.game.height; i++) {
+        for (let i = 0; i < cellCount; i++) {
             gridMeshPre.getMatrixAt(i, this.dummy.matrix);
             this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-            this.preExplosionState[i] = {
-                position: this.dummy.position.clone(),
-                rotation: this.dummy.rotation.clone(),
-                scale: this.dummy.scale.clone()
-            };
+            const i3 = i * 3;
+            this._preExpPos[i3] = this.dummy.position.x;
+            this._preExpPos[i3 + 1] = this.dummy.position.y;
+            this._preExpPos[i3 + 2] = this.dummy.position.z;
+            this._preExpRot[i3] = this.dummy.rotation.x;
+            this._preExpRot[i3 + 1] = this.dummy.rotation.y;
+            this._preExpRot[i3 + 2] = this.dummy.rotation.z;
+            this._preExpScale[i3] = this.dummy.scale.x;
+            this._preExpScale[i3 + 1] = this.dummy.scale.y;
+            this._preExpScale[i3 + 2] = this.dummy.scale.z;
+            // Copy to explosion tracking arrays
+            this._explPos[i3] = this.dummy.position.x;
+            this._explPos[i3 + 1] = this.dummy.position.y;
+            this._explPos[i3 + 2] = this.dummy.position.z;
+            this._explRot[i3] = this.dummy.rotation.x;
+            this._explRot[i3 + 1] = this.dummy.rotation.y;
+            this._explRot[i3 + 2] = this.dummy.rotation.z;
+            this._explScaleVisible[i] = this.dummy.scale.x > 0.1 ? 1 : 0;
         }
 
         this.isExploding = true;
@@ -400,18 +455,10 @@ export class MinesweeperRenderer {
             this.reassemblyProgress = 0.0;
             this.reassemblyDuration = RENDERER_CONFIG.REASSEMBLY_DURATION;
 
-            this.reassemblyStartPositions = [];
-            this.reassemblyStartRotations = [];
-            this.reassemblyStartScales = [];
-
-            const gridMesh = this.gridManager.gridMesh;
-            for (let i = 0; i < this.game.width * this.game.height; i++) {
-                gridMesh.getMatrixAt(i, this.dummy.matrix);
-                this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-                this.reassemblyStartPositions[i] = this.dummy.position.clone();
-                this.reassemblyStartRotations[i] = this.dummy.rotation.clone();
-                this.reassemblyStartScales[i] = this.dummy.scale.clone();
-            }
+            // Snapshot current explosion positions as reassembly start (flat arrays, no clones)
+            this._reassemblyStartPos = new Float32Array(this._explPos);
+            this._reassemblyStartRot = new Float32Array(this._explRot);
+            this._reassemblyStartScale = new Float32Array(this._preExpScale); // scale target is pre-explosion
 
             this.scene.traverse(obj => {
                 if (obj.isLight && obj.userData.originalIntensity === undefined) {
@@ -445,8 +492,10 @@ export class MinesweeperRenderer {
         this.scene.fog = new THREE.FogExp2(RENDERER_CONFIG.GHOST_FOG_COLOR, RENDERER_CONFIG.GHOST_FOG_DENSITY);
         this.scene.traverse(obj => {
             if (obj.isLight) {
-                obj.userData.originalIntensity = obj.intensity;
-                obj.intensity *= RENDERER_CONFIG.GHOST_LIGHT_FACTOR;
+                if (obj.userData.originalIntensity === undefined) {
+                    obj.userData.originalIntensity = obj.intensity;
+                }
+                obj.intensity = obj.userData.originalIntensity * RENDERER_CONFIG.GHOST_LIGHT_FACTOR;
             }
         });
     }
@@ -511,23 +560,32 @@ export class MinesweeperRenderer {
         // End-game text billboard + auto-return timer
         this.endGameEffects.update(this.game.gameOver || this.game.victory);
 
-        // Explosion animation (outward)
+        // Explosion animation (outward) — uses flat arrays to avoid decompose per frame
         if (this.isExploding) {
             this.explosionTime++;
             const gridMesh = this.gridManager.gridMesh;
             const explosionVectors = this.gridManager.explosionVectors;
-            for (let i = 0; i < this.game.width * this.game.height; i++) {
-                gridMesh.getMatrixAt(i, this.dummy.matrix);
-                this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
-                if (this.dummy.scale.x > 0.1) {
-                    const vec = explosionVectors[i];
-                    this.dummy.rotation.x += RENDERER_CONFIG.EXPLOSION_ROTATION_SPEED * vec.dx;
-                    this.dummy.rotation.y += RENDERER_CONFIG.EXPLOSION_ROTATION_SPEED * vec.dy;
-                    this.dummy.position.x += RENDERER_CONFIG.EXPLOSION_TRANSLATION_SPEED * vec.dx;
-                    this.dummy.position.y += RENDERER_CONFIG.EXPLOSION_TRANSLATION_SPEED * vec.dy;
-                    this.dummy.updateMatrix();
-                    gridMesh.setMatrixAt(i, this.dummy.matrix);
-                }
+            const cellCount = this.game.width * this.game.height;
+            const pos = this._explPos;
+            const rot = this._explRot;
+            const vis = this._explScaleVisible;
+
+            for (let i = 0; i < cellCount; i++) {
+                if (!vis[i]) continue; // Skip hidden cells
+                const i3 = i * 3;
+                const vec = explosionVectors[i];
+                rot[i3] += RENDERER_CONFIG.EXPLOSION_ROTATION_SPEED * vec.dx;
+                rot[i3 + 1] += RENDERER_CONFIG.EXPLOSION_ROTATION_SPEED * vec.dy;
+                pos[i3] += RENDERER_CONFIG.EXPLOSION_TRANSLATION_SPEED * vec.dx;
+                pos[i3 + 1] += RENDERER_CONFIG.EXPLOSION_TRANSLATION_SPEED * vec.dy;
+
+                this._eulerHelper.set(rot[i3], rot[i3 + 1], rot[i3 + 2]);
+                this._quatHelper.setFromEuler(this._eulerHelper);
+                this.dummy.position.set(pos[i3], pos[i3 + 1], pos[i3 + 2]);
+                this.dummy.quaternion.copy(this._quatHelper);
+                this.dummy.scale.set(1, 1, 1);
+                this.dummy.updateMatrix();
+                gridMesh.setMatrixAt(i, this.dummy.matrix);
             }
             gridMesh.instanceMatrix.needsUpdate = true;
         }
@@ -574,25 +632,36 @@ export class MinesweeperRenderer {
         }
 
         const gridMesh = this.gridManager.gridMesh;
+        const cellCount = this.game.width * this.game.height;
+        const startPos = this._reassemblyStartPos;
+        const startRot = this._reassemblyStartRot;
+        const targetPos = this._preExpPos;
+        const targetRot = this._preExpRot;
+        const targetScale = this._preExpScale;
 
-        for (let i = 0; i < this.game.width * this.game.height; i++) {
-            // Use saved pre-explosion state as target (exact original positions)
-            const target = this.preExplosionState?.[i];
-            const targetPos = target?.position ?? this._defaultPos;
-            const targetRot = target?.rotation ?? this._defaultRot;
-            const targetScale = target?.scale ?? this._defaultScale;
+        for (let i = 0; i < cellCount; i++) {
+            const i3 = i * 3;
 
-            const startPos = this.reassemblyStartPositions?.[i] ?? targetPos;
-            const startRot = this.reassemblyStartRotations?.[i] ?? targetRot;
-            const startScale = this.reassemblyStartScales?.[i] ?? targetScale;
-
-            this.dummy.position.lerpVectors(startPos, targetPos, easeFactor);
-            this.dummy.rotation.set(
-                startRot.x + (targetRot.x - startRot.x) * easeFactor,
-                startRot.y + (targetRot.y - startRot.y) * easeFactor,
-                startRot.z + (targetRot.z - startRot.z) * easeFactor
+            // Lerp position
+            this.dummy.position.set(
+                startPos[i3] + (targetPos[i3] - startPos[i3]) * easeFactor,
+                startPos[i3 + 1] + (targetPos[i3 + 1] - startPos[i3 + 1]) * easeFactor,
+                startPos[i3 + 2] + (targetPos[i3 + 2] - startPos[i3 + 2]) * easeFactor
             );
-            this.dummy.scale.lerpVectors(startScale, targetScale, easeFactor);
+
+            // Lerp rotation
+            this.dummy.rotation.set(
+                startRot[i3] + (targetRot[i3] - startRot[i3]) * easeFactor,
+                startRot[i3 + 1] + (targetRot[i3 + 1] - startRot[i3 + 1]) * easeFactor,
+                startRot[i3 + 2] + (targetRot[i3 + 2] - startRot[i3 + 2]) * easeFactor
+            );
+
+            // Lerp scale
+            this.dummy.scale.set(
+                targetScale[i3] * easeFactor + (1.0 - easeFactor),
+                targetScale[i3 + 1] * easeFactor + (1.0 - easeFactor),
+                targetScale[i3 + 2] * easeFactor + (1.0 - easeFactor)
+            );
 
             this.dummy.updateMatrix();
             gridMesh.setMatrixAt(i, this.dummy.matrix);
@@ -615,7 +684,6 @@ export class MinesweeperRenderer {
         this.renderer.setAnimationLoop(null);
 
         if (this.composer) {
-            this.composer.renderer.dispose();
             this.renderPass.dispose();
             if (this.distortionPass) this.distortionPass.dispose();
             if (this.outputPass) this.outputPass.dispose();

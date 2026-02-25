@@ -18,7 +18,7 @@ void main() {
     
     // Not yet spawned
     if (elapsed + aDelay < 1.0) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
         gl_PointSize = 0.0;
         vLifeRatio = 1.0;
         return;
@@ -29,7 +29,7 @@ void main() {
     
     // Check if it should be stopped (cycle started after stop time)
     if (uStopTime >= 0.0 && cycleStartTime > uStopTime + 0.0001) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
         gl_PointSize = 0.0;
         vLifeRatio = 1.0;
         return;

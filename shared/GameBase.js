@@ -68,6 +68,7 @@ export class MinesweeperGameBase {
         this.visibleGrid = Array(this.width).fill().map(() => Array(this.height).fill(-1));
         this.flags = Array(this.width).fill().map(() => Array(this.height).fill(false));
         this.flagCount = 0;
+        this.revealedCount = 0;
         this.revealedBombs = [];
 
         this.gameOver = false;
@@ -284,23 +285,30 @@ export class MinesweeperGameBase {
      * Reveals cells and cascades through empty (0-value) cells.
      */
     floodFill(startX, startY, changes) {
-        const stack = [[startX, startY]];
+        const stack = [startX * this.height + startY];
 
         while (stack.length > 0) {
-            const [x, y] = stack.pop();
+            const encoded = stack.pop();
+            const x = (encoded / this.height) | 0;
+            const y = encoded % this.height;
 
             if (x < 0 || x >= this.width || y < 0 || y >= this.height) continue;
             if (this.visibleGrid[x][y] !== -1 || this.flags[x][y]) continue;
 
             const val = this.grid[x][y];
             this.visibleGrid[x][y] = val;
+            this.revealedCount++;
             changes.push({ x, y, value: val });
 
             if (val === 0) {
                 for (let dx = -1; dx <= 1; dx++) {
                     for (let dy = -1; dy <= 1; dy++) {
                         if (dx !== 0 || dy !== 0) {
-                            stack.push([x + dx, y + dy]);
+                            const nx = x + dx;
+                            const ny = y + dy;
+                            if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+                                stack.push(nx * this.height + ny);
+                            }
                         }
                     }
                 }
@@ -382,17 +390,7 @@ export class MinesweeperGameBase {
     // ─── Win Detection ──────────────────────────────────────────────────
 
     checkWin() {
-        let revealedCount = 0;
-        for (let x = 0; x < this.width; x++) {
-            for (let y = 0; y < this.height; y++) {
-                const v = this.visibleGrid[x][y];
-                // Count revealed non-mine cells (exclude hidden=-1, explosion=9, revealed bomb=10)
-                if (v !== -1 && v !== 9 && v !== 10) {
-                    revealedCount++;
-                }
-            }
-        }
-        const isWin = revealedCount === (this.width * this.height - this.bombCount);
+        const isWin = this.revealedCount === (this.width * this.height - this.bombCount);
         if (isWin) {
             storage.removeItem('minesweeper3d_last_grid');
         }
