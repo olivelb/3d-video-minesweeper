@@ -238,12 +238,16 @@ export class MenuController {
     }
 
     async setupBackground() {
+        const img = document.getElementById('custom-image-source');
+
         // Webcam
         if (this.useWebcamCheckbox?.checked) {
             try {
+                if (img) img.removeAttribute('src');
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 this.webcamStream = stream;
                 this.videoElement.srcObject = stream;
+                this.videoElement.removeAttribute('src'); // clear src since using srcObject
                 await this.videoElement.play();
                 this.mediaType = 'webcam';
                 return 'Webcam';
@@ -254,25 +258,45 @@ export class MenuController {
 
         // Custom uploaded file
         if (this.customVideoUrl) {
+            if (img) img.removeAttribute('src');
+            this.videoElement.srcObject = null;
             this.videoElement.src = this.customVideoUrl;
             this.videoElement.muted = this.isMuted;
             await this.videoElement.play().catch(() => { });
             return 'Custom Upload';
         }
 
+        // Custom uploaded image
+        if (this.mediaType === 'image' && !this.selectedPresetValue && img && img.src !== '' && img.src !== window.location.href) {
+            if (this.videoElement) {
+                this.videoElement.pause();
+                this.videoElement.removeAttribute('src');
+                this.videoElement.srcObject = null;
+                this.videoElement.load(); // flush old source
+            }
+            return 'Custom Image';
+        }
+
         // Preset
         if (this.selectedPresetValue) {
             const [type, path] = this.selectedPresetValue.split(':');
             if (type === 'video') {
+                if (img) img.removeAttribute('src');
+                this.videoElement.srcObject = null;
                 this.videoElement.src = path;
                 this.videoElement.muted = this.isMuted;
                 await this.videoElement.play().catch(() => { });
                 this.mediaType = 'video';
             } else if (type === 'image') {
-                const img = document.getElementById('custom-image-source');
                 if (img) {
                     img.src = path;
                     this.mediaType = 'image';
+                }
+                if (this.videoElement) {
+                    this.videoElement.pause();
+                    this.videoElement.removeAttribute('src');
+                    this.videoElement.srcObject = null;
+                    this.videoElement.load(); // flush old source
                 }
             }
             return path.split('/').pop();
@@ -295,6 +319,7 @@ export class MenuController {
             this.handleImageUpload(file, url);
         }
 
+        this.selectedPresetValue = null;
         document.querySelectorAll('#background-presets-container .preset-item').forEach(i => i.classList.remove('active'));
     }
 
