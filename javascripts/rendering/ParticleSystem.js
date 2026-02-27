@@ -99,7 +99,9 @@ export class ParticleSystem {
                 uScale: { value: this.scale },
                 uColorStart: { value: config.colorStart },
                 uColorEnd: { value: config.colorEnd },
-                uTexture: { value: config.texture }
+                uTexture: { value: config.texture },
+                uGravity: { value: type === 'flag' ? 0.0 : 60.0 },
+                uDrag: { value: type === 'flag' ? 0.0 : 1.5 }
             },
             transparent: true,
             depthWrite: false,

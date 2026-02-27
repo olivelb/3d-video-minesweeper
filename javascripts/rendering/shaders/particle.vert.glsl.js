@@ -7,6 +7,9 @@ uniform float uScale;
 uniform vec3 uColorStart;
 uniform vec3 uColorEnd;
 
+uniform float uGravity;
+uniform float uDrag;
+
 attribute vec3 aVelocity;
 attribute float aDelay;
 
@@ -38,7 +41,13 @@ void main() {
     vLifeRatio = ageFract;
     
     float age = ageFract * uLifeTime;
-    vec3 currentPos = position + aVelocity * age;
+    
+    // Apply drag to velocity if uDrag > 0 (realistic explosion burst)
+    float dragAge = uDrag > 0.0 ? (age / (1.0 + age * uDrag)) : age;
+    vec3 currentPos = position + aVelocity * dragAge;
+    
+    // Apply gravity
+    currentPos.y -= uGravity * age * age;
     
     vColor = mix(uColorStart, uColorEnd, ageFract);
     
