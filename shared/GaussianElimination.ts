@@ -6,12 +6,15 @@
  * - Implements strict component windowing to split large systems.
  * - Reduces matrix size by only considering relevant variables.
  */
+
+import type { Cell, GaussianResult, GaussianEquation, SolverLike, Grid } from './types.js';
+
 export class GaussianElimination {
 
     /**
      * Solve the local board state using Gaussian Elimination (High Performance).
      */
-    static solve(solver, visibleGrid, flags, frontier) {
+    static solve(solver: SolverLike, visibleGrid: Grid<number>, flags: Grid<boolean>, frontier: Cell[]): GaussianResult {
         // Fast exit
         if (frontier.length === 0) return { progress: false, safe: [], mines: [] };
 
@@ -22,8 +25,8 @@ export class GaussianElimination {
         const components = this.getConnectedComponentsOptimized(solver, visibleGrid, frontier, width, height);
 
         let progress = false;
-        let allSafe = [];
-        let allMines = [];
+        let allSafe: Cell[] = [];
+        let allMines: Cell[] = [];
 
         // 2. Solve each component independently
         for (const component of components) {
@@ -65,23 +68,14 @@ export class GaussianElimination {
      * Optimized Component Search using a flat visited array.
      * Avoids Map/Set allocations. O(N) where N is affected area size.
      */
-    static getConnectedComponentsOptimized(solver, visibleGrid, frontier, width, height) {
-        const components = [];
-        // Flattened visited array: 0 = unvisited, 1 = visited
-        // Index = x * height + y (column-major to match visibleGrid[x][y]?) 
-        // Wait, cellKey(x,y) uses bit packing usually, but here we need array index.
-        // Let's use y * width + x for standard row-major, or x * height + y.
-        // visibleGrid is [x][y], so let's stick to that structure if easy.
-        // Actually, just use a 1D array of size width*height.
-        const visited = new Uint8Array(width * height);
-
-        // Mark all non-frontier cells as "visited" or just check frontier membership?
-        // Better: iterate frontier. If not visited, start BFS.
-
-        // To check quickly if a neighbor is in frontier, we need a lookup.
-        // Re-use the visited array? No, visited tracks BFS progress.
-        // We need a "isFrontier" lookup. 
-        // 0 = not frontier, 1 = in frontier, 2 = visited in BFS
+    static getConnectedComponentsOptimized(
+        solver: SolverLike,
+        visibleGrid: Grid<number>,
+        frontier: Cell[],
+        width: number,
+        height: number
+    ): Cell[][] {
+        const components: Cell[][] = [];
         const frontierMap = new Int32Array(width * height).fill(0);
 
         for (const f of frontier) {
@@ -92,8 +86,8 @@ export class GaussianElimination {
             const idx = cell.x * height + cell.y;
             if (frontierMap[idx] === 2) continue; // Already visited
 
-            const component = [];
-            const queue = [cell];
+            const component: Cell[] = [];
+            const queue: Cell[] = [cell];
             frontierMap[idx] = 2; // Mark visited
             component.push(cell);
 
@@ -127,13 +121,21 @@ export class GaussianElimination {
         return components;
     }
 
-    static solveLargeComponent(solver, visibleGrid, flags, bigComponent, windowSize, width, height) {
+    static solveLargeComponent(
+        solver: SolverLike,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        bigComponent: Cell[],
+        windowSize: number,
+        width: number,
+        height: number
+    ): GaussianResult {
         // Sort for spatial locality (row-major)
         bigComponent.sort((a, b) => (a.y - b.y) || (a.x - b.x));
 
         let progress = false;
-        let safe = [];
-        let mines = [];
+        let safe: Cell[] = [];
+        let mines: Cell[] = [];
 
         // Sliding window with overlap
         const step = Math.floor(windowSize / 2);
@@ -162,12 +164,17 @@ export class GaussianElimination {
      * Solves a single connected component.
      * Uses flat index mapping for O(1) variable lookup.
      */
-    static solveComponent(solver, visibleGrid, flags, component, width, height) {
+    static solveComponent(
+        solver: SolverLike,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        component: Cell[],
+        width: number,
+        height: number
+    ): GaussianResult {
         // 1. Identify Variables using Index Map
-        // Map (x,y) -> column index 0..N-1
-        // Use Int16Array for index map (allows up to 32k variables, plenty, and -1)
         const varIndexMap = new Int16Array(width * height).fill(-1);
-        const variables = component; // Access via component[i]
+        const variables = component;
 
         for (let i = 0; i < component.length; i++) {
             const cell = component[i];
@@ -178,17 +185,12 @@ export class GaussianElimination {
         if (numVars === 0) return { progress: false, safe: [], mines: [] };
 
         // 2. Identify Equations (Rows)
-        // Check only clues adjacent to at least one variable
-        // To avoid duplicates, track processed clues.
-        const equations = [];
-        // Bitset or array for processed clues?
-        // Clues are at (x,y). Use same flat index.
-        const processedClues = new Uint8Array(width * height); // 0 or 1
+        const equations: GaussianEquation[] = [];
+        const processedClues = new Uint8Array(width * height);
 
         for (const cell of component) {
             const neighbors = solver.getCachedNeighbors(cell.x, cell.y);
             for (const n of neighbors) {
-                // n is a potential clue
                 const val = visibleGrid[n.x][n.y];
                 if (val > 0) {
                     const clueIdx = n.x * height + n.y;
@@ -196,7 +198,7 @@ export class GaussianElimination {
                     processedClues[clueIdx] = 1;
 
                     // Build equation
-                    const eqNeighbors = []; // indices of variables
+                    const eqNeighbors: number[] = [];
                     let flaggedCount = 0;
                     let validEquation = true;
 
@@ -205,13 +207,10 @@ export class GaussianElimination {
                         if (flags[cn.x][cn.y]) {
                             flaggedCount++;
                         } else if (visibleGrid[cn.x][cn.y] === -1) {
-                            // Is this hidden neighbor a variable in our system?
                             const vIdx = varIndexMap[cn.x * height + cn.y];
                             if (vIdx !== -1) {
                                 eqNeighbors.push(vIdx);
                             } else {
-                                // Neighbor is hidden but NOT in our component/window.
-                                // We cannot use this clue accurately.
                                 validEquation = false;
                                 break;
                             }
@@ -234,12 +233,9 @@ export class GaussianElimination {
         const M = equations.length;
         const N = numVars;
 
-        // Flattened matrix M * (N+1)
-        // Or array of TypedArrays? Array of Float32Array is good.
-        // Or single Float32Array. Let's use Array of Float32Array for row swapping convenience.
-        const matrix = new Array(M);
+        const matrix: Float32Array[] = new Array(M);
         for (let i = 0; i < M; i++) {
-            const row = new Float32Array(N + 1); // init 0
+            const row = new Float32Array(N + 1);
             const eq = equations[i];
             for (let k = 0; k < eq.neighbors.length; k++) {
                 row[eq.neighbors[k]] = 1;
@@ -252,28 +248,19 @@ export class GaussianElimination {
         this.computeRREF(matrix, M, N);
 
         // 5. Reasoning
-        const safe = [];
-        const mines = [];
+        const safe: Cell[] = [];
+        const mines: Cell[] = [];
         let progress = false;
 
         for (let i = 0; i < M; i++) {
             const row = matrix[i];
 
-            // Optimization: check if row is empty/zero quickly?
-            // Just scan.
             let minVal = 0;
             let maxVal = 0;
-            // Collect vars with non-zero coeff
-            // We can reuse a pre-allocated array if we want, but local is fine for now.
-
-            // Actually, we need to scan the row to find coeffs
-            // For N=50, this loop is tiny.
             let hasNonZero = false;
             let target = row[N];
 
-            // Variables in this row
-            // We can store them as {index, coeff} objects or just iterate indices
-            const varsInRow = []; // indices
+            const varsInRow: number[] = [];
 
             for (let j = 0; j < N; j++) {
                 const coeff = row[j];
@@ -292,9 +279,9 @@ export class GaussianElimination {
                 for (const idx of varsInRow) {
                     const coeff = row[idx];
                     const cell = variables[idx];
-                    if (coeff < 0) { // Mine
+                    if (coeff < 0) {
                         if (!this.isMineInList(mines, cell)) mines.push(cell);
-                    } else { // Safe
+                    } else {
                         if (!this.isSafeInList(safe, cell)) safe.push(cell);
                     }
                 }
@@ -303,9 +290,9 @@ export class GaussianElimination {
                 for (const idx of varsInRow) {
                     const coeff = row[idx];
                     const cell = variables[idx];
-                    if (coeff > 0) { // Mine
+                    if (coeff > 0) {
                         if (!this.isMineInList(mines, cell)) mines.push(cell);
-                    } else { // Safe
+                    } else {
                         if (!this.isSafeInList(safe, cell)) safe.push(cell);
                     }
                 }
@@ -316,16 +303,14 @@ export class GaussianElimination {
         return { progress, safe, mines };
     }
 
-    static isMineInList(list, cell) {
-        // With small lists, linear scan is fast.
-        // Can optimize using Set/Map but overhead might not be worth it for < 10 items.
+    static isMineInList(list: Cell[], cell: Cell): boolean {
         for (let i = 0; i < list.length; i++) {
             if (list[i].x === cell.x && list[i].y === cell.y) return true;
         }
         return false;
     }
 
-    static isSafeInList(list, cell) {
+    static isSafeInList(list: Cell[], cell: Cell): boolean {
         for (let i = 0; i < list.length; i++) {
             if (list[i].x === cell.x && list[i].y === cell.y) return true;
         }
@@ -333,7 +318,7 @@ export class GaussianElimination {
     }
 
     // Standard RREF (unchanged logic)
-    static computeRREF(matrix, M, N) {
+    static computeRREF(matrix: Float32Array[], M: number, N: number): void {
         let lead = 0;
         for (let r = 0; r < M; r++) {
             if (N <= lead) return;

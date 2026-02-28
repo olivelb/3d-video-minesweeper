@@ -3,42 +3,48 @@
  * 
  * Lazy-loads the WASM solver module. If WASM is unavailable (e.g. older browser,
  * Node.js without WASM support), falls back to the original JS MinesweeperSolver.
- * 
- * ## API
- * 
- * ```javascript
- * import { SolverBridge } from './SolverBridge.js';
- * 
- * // Initialize (call once at startup)
- * await SolverBridge.init();
- * 
- * // Same API as MinesweeperSolver
- * const solvable = SolverBridge.isSolvable(game, startX, startY);
- * const hint = SolverBridge.getHint(game);
- * ```
  */
 
 import { MinesweeperSolver } from './MinesweeperSolver.js';
+import type { GameState, Grid, HintResult, HintWithExplanation } from './types.js';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface WasmModule {
+    default(options: { module_or_path: URL | ArrayBufferLike }): Promise<void>;
+    ping(): string;
+    isSolvable(width: number, height: number, grid: Int8Array, mines: Uint8Array, startX: number, startY: number): boolean;
+    getHint(width: number, height: number, grid: Int8Array, visible: Int8Array, flags: Uint8Array, mines: Uint8Array): HintResult | null;
+    calculateNumbers(width: number, height: number, mines: Uint8Array): Int8Array;
+    generateSolvableBoard(
+        width: number, height: number, bombCount: number,
+        safeX: number, safeY: number, safeRadius: number, maxAttempts: number
+    ): { success: boolean; attempts: number; grid: Int8Array; mines: Uint8Array };
+}
+
+interface GenerateSolvableBoardResult {
+    success: boolean;
+    attempts: number;
+    grid: Grid<number>;
+    mines: Grid<boolean>;
+}
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
-let wasmModule = null;
+let wasmModule: WasmModule | null = null;
 let wasmReady = false;
-let initPromise = null;
+let initPromise: Promise<{ backend: string }> | null = null;
 
 // ─── 2D ↔ Flat Conversion Helpers ──────────────────────────────────────────
 
-/**
- * Flatten a 2D column-major array to a typed array.
- * JS `arr[x][y]` → flat `out[x * height + y]`.
- * 
- * @param {Array<Array<*>>} arr2d - 2D array [width][height]
- * @param {number} width
- * @param {number} height
- * @param {Function} TypedArrayCtor - Int8Array or Uint8Array
- * @returns {Int8Array|Uint8Array}
- */
-function flatten2D(arr2d, width, height, TypedArrayCtor) {
+type TypedArrayConstructor = typeof Int8Array | typeof Uint8Array;
+
+function flatten2D<T extends Int8Array | Uint8Array>(
+    arr2d: Grid<number>,
+    width: number,
+    height: number,
+    TypedArrayCtor: { new(length: number): T }
+): T {
     const flat = new TypedArrayCtor(width * height);
     for (let x = 0; x < width; x++) {
         const col = arr2d[x];
@@ -50,10 +56,7 @@ function flatten2D(arr2d, width, height, TypedArrayCtor) {
     return flat;
 }
 
-/**
- * Flatten a boolean 2D array to Uint8Array (true→1, false→0).
- */
-function flattenBool2D(arr2d, width, height) {
+function flattenBool2D(arr2d: Grid<boolean>, width: number, height: number): Uint8Array {
     const flat = new Uint8Array(width * height);
     for (let x = 0; x < width; x++) {
         const col = arr2d[x];
@@ -65,12 +68,8 @@ function flattenBool2D(arr2d, width, height) {
     return flat;
 }
 
-/**
- * Unflatten a typed array back to 2D column-major.
- * flat `arr[x * height + y]` → JS `out[x][y]`.
- */
-function unflatten2D(flat, width, height) {
-    const arr2d = new Array(width);
+function unflatten2D(flat: Int8Array | Uint8Array | number[], width: number, height: number): Grid<number> {
+    const arr2d: Grid<number> = new Array(width);
     for (let x = 0; x < width; x++) {
         arr2d[x] = new Array(height);
         const offset = x * height;
@@ -81,11 +80,8 @@ function unflatten2D(flat, width, height) {
     return arr2d;
 }
 
-/**
- * Unflatten Uint8Array to boolean 2D array.
- */
-function unflattenBool2D(flat, width, height) {
-    const arr2d = new Array(width);
+function unflattenBool2D(flat: Uint8Array | number[], width: number, height: number): Grid<boolean> {
+    const arr2d: Grid<boolean> = new Array(width);
     for (let x = 0; x < width; x++) {
         arr2d[x] = new Array(height);
         const offset = x * height;
@@ -98,44 +94,34 @@ function unflattenBool2D(flat, width, height) {
 
 // ─── WASM Loader ────────────────────────────────────────────────────────────
 
-/**
- * Attempt to load the WASM module.
- * Works in both browser (ES module import) and Node.js environments.
- * 
- * @returns {Promise<boolean>} true if WASM loaded successfully
- */
-async function loadWasm() {
+async function loadWasm(): Promise<boolean> {
     try {
-        // Detect environment
         const isBrowser = typeof window !== 'undefined';
         const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
 
         if (isBrowser) {
-            // Browser: dynamic import of the generated ES module
             const wasmUrl = new URL('./solver-wasm/pkg/solver_wasm.js', import.meta.url);
             const mod = await import(wasmUrl.href);
 
-            // Initialize the WASM module
             const wasmBinaryUrl = new URL('./solver-wasm/pkg/solver_wasm_bg.wasm', import.meta.url);
             await mod.default({ module_or_path: wasmBinaryUrl });
             wasmModule = mod;
         } else if (isNode) {
-            // Node.js: use file system path
-            const { fileURLToPath } = await import('url');
-            const { dirname, join } = await import('path');
-            const { readFile } = await import('fs/promises');
+            // Dynamic imports for Node.js-only modules (avoids compile-time errors in browser)
+            const urlMod = await import(/* @vite-ignore */ 'url');
+            const pathMod = await import(/* @vite-ignore */ 'path');
+            const fsMod = await import(/* @vite-ignore */ 'fs/promises');
 
-            const __dirname = dirname(fileURLToPath(import.meta.url));
-            const wasmJsPath = join(__dirname, 'solver-wasm', 'pkg', 'solver_wasm.js');
-            const wasmBinPath = join(__dirname, 'solver-wasm', 'pkg', 'solver_wasm_bg.wasm');
+            const __dirname = pathMod.dirname(urlMod.fileURLToPath(import.meta.url));
+            const wasmJsPath = pathMod.join(__dirname, 'solver-wasm', 'pkg', 'solver_wasm.js');
+            const wasmBinPath = pathMod.join(__dirname, 'solver-wasm', 'pkg', 'solver_wasm_bg.wasm');
 
-            const mod = await import(wasmJsPath);
-            const wasmBytes = await readFile(wasmBinPath);
+            const mod = await import(/* @vite-ignore */ wasmJsPath);
+            const wasmBytes = await fsMod.readFile(wasmBinPath);
             await mod.default({ module_or_path: wasmBytes });
             wasmModule = mod;
         }
 
-        // Quick smoke test
         if (wasmModule && wasmModule.ping) {
             const pong = wasmModule.ping();
             if (pong === 'WASM solver ready') {
@@ -143,8 +129,9 @@ async function loadWasm() {
             }
         }
         return false;
-    } catch (err) {
-        console.warn('[SolverBridge] WASM loading failed, using JS fallback:', err.message);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('[SolverBridge] WASM loading failed, using JS fallback:', msg);
         return false;
     }
 }
@@ -153,13 +140,7 @@ async function loadWasm() {
 
 export class SolverBridge {
 
-    /**
-     * Initialize the solver bridge. Attempts to load WASM, falls back to JS.
-     * Safe to call multiple times (subsequent calls return the same promise).
-     * 
-     * @returns {Promise<{backend: string}>} Which backend is active: 'wasm' or 'js'
-     */
-    static async init() {
+    static async init(): Promise<{ backend: string }> {
         if (initPromise) return initPromise;
 
         initPromise = (async () => {
@@ -172,53 +153,32 @@ export class SolverBridge {
         return initPromise;
     }
 
-    /**
-     * Check if the WASM backend is active.
-     * @returns {boolean}
-     */
-    static get isWasm() {
+    static get isWasm(): boolean {
         return wasmReady;
     }
 
-    /**
-     * Check if a board is solvable without guessing.
-     * Drop-in replacement for `MinesweeperSolver.isSolvable(game, startX, startY)`.
-     * 
-     * @param {Object} game - Game state object
-     * @param {number} startX
-     * @param {number} startY
-     * @returns {boolean}
-     */
-    static isSolvable(game, startX, startY) {
+    static isSolvable(game: GameState, startX: number, startY: number): boolean {
         if (wasmReady) {
             const { width, height, grid, mines } = game;
             const gridFlat = flatten2D(grid, width, height, Int8Array);
             const minesFlat = flattenBool2D(mines, width, height);
-            return wasmModule.isSolvable(width, height, gridFlat, minesFlat, startX, startY);
+            return wasmModule!.isSolvable(width, height, gridFlat, minesFlat, startX, startY);
         }
         return MinesweeperSolver.isSolvable(game, startX, startY);
     }
 
-    /**
-     * Generate a solvable board entirely inside WASM.
-     * This replaces the entire `do { placeMines(); } while (!isSolvable())` loop.
-     * 
-     * Only available when WASM is active. Returns null if WASM is not ready
-     * (caller should use the traditional JS loop as fallback).
-     * 
-     * @param {number} width
-     * @param {number} height
-     * @param {number} bombCount
-     * @param {number} safeX
-     * @param {number} safeY
-     * @param {number} safeRadius - typically 1
-     * @param {number} maxAttempts
-     * @returns {{ success: boolean, attempts: number, grid: Array<Array<number>>, mines: Array<Array<boolean>> } | null}
-     */
-    static generateSolvableBoard(width, height, bombCount, safeX, safeY, safeRadius, maxAttempts) {
+    static generateSolvableBoard(
+        width: number,
+        height: number,
+        bombCount: number,
+        safeX: number,
+        safeY: number,
+        safeRadius: number,
+        maxAttempts: number
+    ): GenerateSolvableBoardResult | null {
         if (!wasmReady) return null;
 
-        const result = wasmModule.generateSolvableBoard(
+        const result = wasmModule!.generateSolvableBoard(
             width, height, bombCount, safeX, safeY, safeRadius, maxAttempts
         );
 
@@ -230,41 +190,26 @@ export class SolverBridge {
         };
     }
 
-    /**
-     * Get a hint for the current game state.
-     * Drop-in replacement for `MinesweeperSolver.getHint(game)`.
-     * 
-     * @param {Object} game - Game state object
-     * @returns {{ x: number, y: number, score: number } | null}
-     */
-    static getHint(game) {
+    static getHint(game: GameState): HintResult | null {
         if (wasmReady) {
             const { width, height, grid, visibleGrid, flags, mines } = game;
             const gridFlat = flatten2D(grid, width, height, Int8Array);
             const visibleFlat = flatten2D(visibleGrid, width, height, Int8Array);
             const flagsFlat = flattenBool2D(flags, width, height);
             const minesFlat = flattenBool2D(mines, width, height);
-            return wasmModule.getHint(width, height, gridFlat, visibleFlat, flagsFlat, minesFlat);
+            return wasmModule!.getHint(width, height, gridFlat, visibleFlat, flagsFlat, minesFlat);
         }
         return MinesweeperSolver.getHint(game);
     }
 
-    /**
-     * Calculate neighbor mine counts (useful after mine placement).
-     * 
-     * @param {number} width
-     * @param {number} height
-     * @param {Array<Array<boolean>>} mines - 2D mine positions
-     * @returns {Array<Array<number>>} 2D grid with counts 0-8
-     */
-    static calculateNumbers(width, height, mines) {
+    static calculateNumbers(width: number, height: number, mines: Grid<boolean>): Grid<number> {
         if (wasmReady) {
             const minesFlat = flattenBool2D(mines, width, height);
-            const resultFlat = wasmModule.calculateNumbers(width, height, minesFlat);
+            const resultFlat = wasmModule!.calculateNumbers(width, height, minesFlat);
             return unflatten2D(resultFlat, width, height);
         }
-        // JS fallback: inline calculation (same as Game.calculateNumbers)
-        const grid = Array(width).fill().map(() => Array(height).fill(0));
+        // JS fallback
+        const grid: Grid<number> = Array(width).fill(null).map(() => Array(height).fill(0));
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
                 if (mines[x][y]) continue;
@@ -283,14 +228,7 @@ export class SolverBridge {
         return grid;
     }
 
-    /**
-     * Get a hint with explanation of WHY the move is safe.
-     * Always uses JS path (explanation data is JS-only).
-     * 
-     * @param {Object} game - Game state object
-     * @returns {{x, y, score, type, strategy, constraintCells, explanationData}|null}
-     */
-    static getHintWithExplanation(game) {
+    static getHintWithExplanation(game: GameState): HintWithExplanation | null {
         return MinesweeperSolver.getHintWithExplanation(game);
     }
 }

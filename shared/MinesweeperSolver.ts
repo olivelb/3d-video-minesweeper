@@ -1,4 +1,59 @@
 import { GaussianElimination } from './GaussianElimination.js';
+import type { Cell, Grid, GameState, HintResult, HintWithExplanation } from './types.js';
+
+// ─── Internal types ─────────────────────────────────────────────────────────
+
+interface BasicRulesResult {
+    progress: boolean;
+    flagCount: number;
+    dirtyCells: Set<number>;
+}
+
+interface ContradictionResult {
+    progress: boolean;
+    flagCount: number;
+    changedCell: Cell | null;
+}
+
+interface GaussianSolveResult {
+    progress: boolean;
+    flagCount: number;
+    changedCells: Cell[];
+}
+
+interface TankSolveResult {
+    progress: boolean;
+    flagCount: number;
+    changedCells: Cell[];
+}
+
+interface GlobalMineCountResult {
+    progress: boolean;
+    flagCount: number;
+}
+
+interface RegionConstraint {
+    x: number;
+    y: number;
+    value: number;
+    remaining: number;
+    cellsInRegion: Cell[];
+    cellsInRegionIndices: number[];
+    cellsOutside: Cell[];
+}
+
+interface ConstraintData {
+    x: number;
+    y: number;
+    hiddenSet: Set<number>;
+    hiddenList: Cell[];
+    remaining: number;
+}
+
+interface ConfigAnalysis {
+    definiteMines: Cell[];
+    definiteSafes: Cell[];
+}
 
 /**
  * MinesweeperSolver - Deterministic solving algorithms for Minesweeper
@@ -17,77 +72,17 @@ import { GaussianElimination } from './GaussianElimination.js';
  * 4. **Tank Solver** - Complete enumeration of valid mine configurations
  * 5. **Global Mine Count** - End-game deduction using total mine count
  * 
- * ## Performance Optimizations
- * 
- * - **Neighbor Cache**: Pre-computed neighbor lists avoid allocation on every query
- * - **Dirty Cell Tracking**: Only re-evaluate cells that may have changed
- * - **Bit-packed Keys**: Cell coordinates packed into single integers for Set operations
- * - **Region Limiting**: Tank solver limited to small regions to avoid exponential blowup
- * 
- * ## Usage Examples
- * 
- * ```javascript
- * // Check if a board is solvable from a starting position
- * const solvable = MinesweeperSolver.isSolvable(game, startX, startY);
- * 
- * // Get a hint for the best next move
- * const hint = MinesweeperSolver.getHint(game);
- * ```
- * 
  * @module MinesweeperSolver
  * @author 3D Minesweeper Team
  */
 export class MinesweeperSolver {
-    /**
-     * Maximum configurations to enumerate before giving up (performance limit).
-     * Prevents exponential blowup on large frontier regions.
-     * @type {number}
-     * @constant
-     */
     static MAX_CONFIGURATIONS = 50000;
-
-    /**
-     * Maximum frontier region size for tank solver.
-     * Regions larger than this are skipped to maintain performance.
-     * @type {number}
-     * @constant
-     */
     static MAX_REGION_SIZE = 15;
-
-    /**
-     * Pre-computed neighbor cache for O(1) neighbor lookups.
-     * Structure: neighborCache[x][y] = [{x, y}, ...]
-     * @type {Array<Array<Array<{x: number, y: number}>>>|null}
-     * @private
-     */
-    static neighborCache = null;
-
-    /**
-     * Width of the currently cached grid.
-     * @type {number}
-     * @private
-     */
+    static neighborCache: Cell[][][] | null = null;
     static cacheWidth = 0;
-
-    /**
-     * Height of the currently cached grid.
-     * @type {number}
-     * @private
-     */
     static cacheHeight = 0;
 
-    /**
-     * Initialize or retrieve the neighbor cache for given dimensions.
-     * 
-     * This optimization avoids creating new arrays on every getNeighbors() call,
-     * significantly improving performance for repeated neighbor lookups.
-     * The cache is invalidated and rebuilt when grid dimensions change.
-     * 
-     * @param {number} width - Grid width in cells
-     * @param {number} height - Grid height in cells
-     * @returns {Array<Array<Array<{x: number, y: number}>>>} The neighbor cache array
-     */
-    static initNeighborCache(width, height) {
+    static initNeighborCache(width: number, height: number): Cell[][][] {
         if (this.neighborCache && this.cacheWidth === width && this.cacheHeight === height) {
             return this.neighborCache;
         }
@@ -96,7 +91,7 @@ export class MinesweeperSolver {
         for (let x = 0; x < width; x++) {
             this.neighborCache[x] = new Array(height);
             for (let y = 0; y < height; y++) {
-                const neighbors = [];
+                const neighbors: Cell[] = [];
                 for (let dx = -1; dx <= 1; dx++) {
                     for (let dy = -1; dy <= 1; dy++) {
                         if (dx === 0 && dy === 0) continue;
@@ -115,77 +110,31 @@ export class MinesweeperSolver {
         return this.neighborCache;
     }
 
-    /**
-     * Get cached neighbors for a cell - O(1) lookup instead of O(8) array creation.
-     * 
-     * @param {number} x - Cell X coordinate
-     * @param {number} y - Cell Y coordinate
-     * @returns {Array<{x: number, y: number}>} Array of neighboring cell coordinates
-     */
-    static getCachedNeighbors(x, y) {
-        return this.neighborCache[x][y];
+    static getCachedNeighbors(x: number, y: number): Cell[] {
+        return this.neighborCache![x][y];
     }
 
-    /**
-     * Create a cell key for Set operations using bit-packing for performance.
-     * 
-     * Combines x and y coordinates into a single 32-bit integer,
-     * enabling faster Set/Map operations compared to string keys.
-     * 
-     * @param {number} x - Cell X coordinate (must fit in 16 bits)
-     * @param {number} y - Cell Y coordinate (must fit in 16 bits)
-     * @returns {number} Bit-packed cell key
-     */
-    static cellKey(x, y) {
+    static cellKey(x: number, y: number): number {
         return (x << 16) | y;
     }
 
-    /**
-     * Decode a cell key back to x,y coordinates.
-     * 
-     * @param {number} key - Bit-packed cell key
-     * @returns {{x: number, y: number}} Cell coordinates
-     */
-    static decodeKey(key) {
+    static decodeKey(key: number): Cell {
         return { x: key >> 16, y: key & 0xFFFF };
     }
 
-    /**
-     * Checks if a board is solvable from a starting point without guessing.
-     * 
-     * This is the main entry point for the "No Guess" mode board validation.
-     * Uses multiple deduction strategies in order of computational cost:
-     * 
-     * 1. **Basic Rules**: Fast counting-based deductions
-     * 2. **Subset Logic**: Set intersection/difference analysis
-     * 3. **Proof by Contradiction**: Hypothesis testing
-     * 4. **Tank Solver**: Complete configuration enumeration
-     * 5. **Global Mine Count**: End-game deduction
-     * 
-     * The algorithm simulates revealing the starting cell and its 3x3 neighborhood,
-     * then iteratively applies strategies until no more progress can be made.
-     * 
-     * @param {Object} game - Game state object containing grid, dimensions, and bomb count
-     * @param {number} startX - X coordinate of starting cell
-     * @param {number} startY - Y coordinate of starting cell
-     * @returns {boolean} True if the board can be solved without guessing
-     */
-    static isSolvable(game, startX, startY) {
+    static isSolvable(game: GameState, startX: number, startY: number): boolean {
         const grid = game.grid;
         const width = game.width;
         const height = game.height;
         const bombCount = game.bombCount;
 
-        // Initialize neighbor cache once per grid size
         this.initNeighborCache(width, height);
 
-        const visibleGrid = Array(width).fill().map(() => Array(height).fill(-1));
-        const flags = Array(width).fill().map(() => Array(height).fill(false));
+        const visibleGrid: Grid<number> = Array(width).fill(null).map(() => Array(height).fill(-1));
+        const flags: Grid<boolean> = Array(width).fill(null).map(() => Array(height).fill(false));
 
-        // Track flag count incrementally instead of counting each time
         let flagCount = 0;
 
-        // Start by revealing the first cell and its neighbors (the 3x3 safe zone)
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
                 this.simulateReveal(grid, visibleGrid, flags, width, height, startX + dx, startY + dy);
@@ -196,8 +145,7 @@ export class MinesweeperSolver {
         let iterations = 0;
         const maxIterations = width * height * 2;
 
-        // Track dirty cells - cells that may have changed and need re-evaluation
-        let dirtyCells = new Set();
+        let dirtyCells = new Set<number>();
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
                 if (visibleGrid[x][y] !== -1) {
@@ -213,7 +161,6 @@ export class MinesweeperSolver {
             progress = false;
             iterations++;
 
-            // Strategy 1: Basic counting rules (fast, run first)
             const basicResult = this.applyBasicRules(grid, visibleGrid, flags, width, height, dirtyCells, flagCount);
             if (basicResult.progress) {
                 progress = true;
@@ -222,7 +169,6 @@ export class MinesweeperSolver {
                 continue;
             }
 
-            // Strategy 2: Subset logic (moderately expensive)
             const subsetResult = this.applySubsetLogic(grid, visibleGrid, flags, width, height, dirtyCells, flagCount);
             if (subsetResult.progress) {
                 progress = true;
@@ -231,8 +177,6 @@ export class MinesweeperSolver {
                 continue;
             }
 
-            // Strategy 3: Gaussian Elimination (Matrix Solver) - MOVED UP
-            // Solves complex coupled systems that subset logic misses. Run before expensive contradiction checks.
             const gaussianResult = this.solveByGaussianElimination(grid, visibleGrid, flags, width, height, flagCount);
             if (gaussianResult.progress) {
                 progress = true;
@@ -246,7 +190,6 @@ export class MinesweeperSolver {
                 continue;
             }
 
-            // Strategy 4: Proof by contradiction (expensive - limit frontier size)
             const contradictionResult = this.solveByContradiction(grid, visibleGrid, flags, width, height, flagCount);
             if (contradictionResult.progress) {
                 progress = true;
@@ -261,8 +204,6 @@ export class MinesweeperSolver {
                 continue;
             }
 
-
-            // Strategy 5: Tank Solver (very expensive - use sparingly)
             const tankResult = this.tankSolver(grid, visibleGrid, flags, width, height, bombCount, flagCount);
             if (tankResult.progress) {
                 progress = true;
@@ -276,7 +217,6 @@ export class MinesweeperSolver {
                 continue;
             }
 
-            // Strategy 6: Global mine counting
             const globalResult = this.applyGlobalMineCount(grid, visibleGrid, flags, width, height, bombCount, flagCount);
             if (globalResult.progress) {
                 progress = true;
@@ -285,7 +225,6 @@ export class MinesweeperSolver {
             }
         }
 
-        // Check if all non-mine cells are revealed
         let revealedCount = 0;
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
@@ -296,31 +235,18 @@ export class MinesweeperSolver {
         return revealedCount === (width * height - bombCount);
     }
 
-    /**
-     * Strategy 1: Basic counting rules - Fast deduction using mine counts.
-     * 
-     * ## Algorithm
-     * For each revealed numbered cell:
-     * - If `number == flaggedNeighbors + hiddenNeighbors`, all hidden are mines
-     * - If `number == flaggedNeighbors`, all hidden are safe
-     * 
-     * ## Optimization
-     * Only processes "dirty" cells that may have changed since last iteration,
-     * using cached neighbors for O(1) lookups.
-     * 
-     * @param {Array<Array<number>>} grid - The actual grid values (with mine positions)
-     * @param {Array<Array<number>>} visibleGrid - What the player can see (-1 = hidden)
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @param {Set<number>} dirtyCells - Set of cell keys that need re-evaluation
-     * @param {number} flagCount - Current number of flags placed
-     * @returns {{progress: boolean, flagCount: number, dirtyCells: Set<number>}} Result object
-     */
-    static applyBasicRules(grid, visibleGrid, flags, width, height, dirtyCells, flagCount) {
+    static applyBasicRules(
+        grid: Grid<number>,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number,
+        dirtyCells: Set<number>,
+        flagCount: number
+    ): BasicRulesResult {
         let progress = false;
-        const newDirtyCells = new Set();
-        const processedCells = new Set();
+        const newDirtyCells = new Set<number>();
+        const processedCells = new Set<number>();
 
         for (const key of dirtyCells) {
             const { x, y } = this.decodeKey(key);
@@ -334,7 +260,7 @@ export class MinesweeperSolver {
             const neighbors = this.getCachedNeighbors(x, y);
             let hiddenCount = 0;
             let flaggedCount = 0;
-            const hiddenCells = [];
+            const hiddenCells: Cell[] = [];
 
             for (const n of neighbors) {
                 if (flags[n.x][n.y]) {
@@ -372,38 +298,19 @@ export class MinesweeperSolver {
         return { progress, flagCount, dirtyCells: progress ? newDirtyCells : dirtyCells };
     }
 
-    /**
-     * Strategy 2: Subset logic using constraint propagation.
-     * 
-     * ## Algorithm
-     * Compares pairs of numbered cells to find subset relationships:
-     * - If cell A's hidden neighbors ⊂ cell B's hidden neighbors
-     * - Then we can deduce information about B's exclusive cells
-     * 
-     * For example:
-     * - Cell A needs 2 mines among {C1, C2}
-     * - Cell B needs 3 mines among {C1, C2, C3}
-     * - Since A ⊂ B, C3 must have exactly (3-2)=1 mine → C3 is a mine
-     * 
-     * ## Optimization
-     * Uses Set operations for O(1) membership tests and only checks
-     * cells within a 5x5 region of each constraint cell.
-     * 
-     * @param {Array<Array<number>>} grid - The actual grid values
-     * @param {Array<Array<number>>} visibleGrid - Visible state (-1 = hidden)
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @param {Set<number>} dirtyCells - Cells that need re-evaluation
-     * @param {number} flagCount - Current flag count
-     * @returns {{progress: boolean, flagCount: number, dirtyCells: Set<number>}} Result
-     */
-    static applySubsetLogic(grid, visibleGrid, flags, width, height, dirtyCells, flagCount) {
+    static applySubsetLogic(
+        grid: Grid<number>,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number,
+        dirtyCells: Set<number>,
+        flagCount: number
+    ): BasicRulesResult {
         let progress = false;
-        const newDirtyCells = new Set();
+        const newDirtyCells = new Set<number>();
 
-        // Build a list of constraint cells to check (only near dirty cells)
-        const constraintCells = new Set();
+        const constraintCells = new Set<number>();
         for (const key of dirtyCells) {
             const { x, y } = this.decodeKey(key);
             if (x < 0 || x >= width || y < 0 || y >= height) continue;
@@ -417,16 +324,15 @@ export class MinesweeperSolver {
             }
         }
 
-        // Pre-compute hidden sets for constraint cells
-        const cellData = new Map();
+        const cellData = new Map<number, ConstraintData>();
         for (const key of constraintCells) {
             const { x, y } = this.decodeKey(key);
             const val = visibleGrid[x][y];
             if (val <= 0) continue;
 
             const neighbors = this.getCachedNeighbors(x, y);
-            const hiddenSet = new Set();
-            const hiddenList = [];
+            const hiddenSet = new Set<number>();
+            const hiddenList: Cell[] = [];
             let flaggedCount = 0;
 
             for (const n of neighbors) {
@@ -446,7 +352,6 @@ export class MinesweeperSolver {
             cellData.set(key, { x, y, hiddenSet, hiddenList, remaining });
         }
 
-        // Compare pairs using Set operations
         for (const [keyA, dataA] of cellData) {
             if (dataA.hiddenList.length === 0) continue;
 
@@ -461,7 +366,6 @@ export class MinesweeperSolver {
                     const dataB = cellData.get(keyB);
                     if (!dataB || dataB.hiddenList.length === 0) continue;
 
-                    // Check if A ⊂ B using Set operations
                     if (dataA.hiddenSet.size < dataB.hiddenSet.size) {
                         let isSubset = true;
                         for (const k of dataA.hiddenSet) {
@@ -472,7 +376,7 @@ export class MinesweeperSolver {
                         }
 
                         if (isSubset) {
-                            const diff = [];
+                            const diff: Cell[] = [];
                             for (const n of dataB.hiddenList) {
                                 if (!dataA.hiddenSet.has(this.cellKey(n.x, n.y))) {
                                     diff.push(n);
@@ -514,36 +418,15 @@ export class MinesweeperSolver {
         return { progress, flagCount, dirtyCells };
     }
 
-    /**
-     * Strategy 3: Proof by contradiction - Hypothesis testing.
-     * 
-     * ## Algorithm
-     * For each frontier cell (hidden cell adjacent to revealed numbers):
-     * 1. Assume the cell IS a mine → propagate consequences
-     * 2. If contradiction found → cell must be SAFE
-     * 3. Assume the cell is NOT a mine → propagate consequences
-     * 4. If contradiction found → cell must be a MINE
-     * 
-     * A contradiction occurs when:
-     * - A numbered cell has more flagged neighbors than its value
-     * - A numbered cell cannot possibly satisfy its constraint
-     * 
-     * ## Optimization
-     * Limits frontier processing to 50 cells to avoid exponential blowup.
-     * Uses sparse representation for simulated state changes.
-     * 
-     * @param {Array<Array<number>>} grid - The actual grid values
-     * @param {Array<Array<number>>} visibleGrid - Visible state
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @param {number} flagCount - Current flag count
-     * @returns {{progress: boolean, flagCount: number, changedCell: Object|null}} Result
-     */
-    static solveByContradiction(grid, visibleGrid, flags, width, height, flagCount) {
+    static solveByContradiction(
+        grid: Grid<number>,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number,
+        flagCount: number
+    ): ContradictionResult {
         const frontier = this.getFrontier(visibleGrid, flags, width, height);
-
-        // Limit frontier processing to avoid exponential blowup at game start
         const maxFrontierToCheck = Math.min(frontier.length, 50);
 
         for (let i = 0; i < maxFrontierToCheck; i++) {
@@ -562,32 +445,24 @@ export class MinesweeperSolver {
         return { progress: false, flagCount, changedCell: null };
     }
 
-    /**
-     * Faster contradiction check with localized propagation using sparse representation.
-     * 
-     * Simulates the consequences of assuming a cell is/isn't a mine,
-     * looking for logical contradictions that would invalidate the assumption.
-     * 
-     * @param {Array<Array<number>>} visibleGrid - Visible state
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @param {{x: number, y: number}} assumptionCell - Cell to test
-     * @param {boolean} assumeMine - True to test "cell is mine", false for "cell is safe"
-     * @returns {boolean} True if the assumption leads to a contradiction
-     * @private
-     */
-    static checkContradiction(visibleGrid, flags, width, height, assumptionCell, assumeMine) {
-        const simFlags = new Map();
-        const simRevealed = new Map();
+    static checkContradiction(
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number,
+        assumptionCell: Cell,
+        assumeMine: boolean
+    ): boolean {
+        const simFlags = new Map<number, boolean>();
+        const simRevealed = new Map<number, boolean>();
 
-        const getFlag = (x, y) => {
+        const getFlag = (x: number, y: number): boolean => {
             const k = this.cellKey(x, y);
-            return simFlags.has(k) ? simFlags.get(k) : flags[x][y];
+            return simFlags.has(k) ? simFlags.get(k)! : flags[x][y];
         };
-        const setFlag = (x, y) => simFlags.set(this.cellKey(x, y), true);
-        const isAssumedSafe = (x, y) => simRevealed.has(this.cellKey(x, y));
-        const setAssumedSafe = (x, y) => simRevealed.set(this.cellKey(x, y), true);
+        const setFlag = (x: number, y: number) => simFlags.set(this.cellKey(x, y), true);
+        const isAssumedSafe = (x: number, y: number) => simRevealed.has(this.cellKey(x, y));
+        const setAssumedSafe = (x: number, y: number) => simRevealed.set(this.cellKey(x, y), true);
 
         if (assumeMine) {
             setFlag(assumptionCell.x, assumptionCell.y);
@@ -599,7 +474,7 @@ export class MinesweeperSolver {
         let iterations = 0;
         const maxIterations = 20;
 
-        const toCheck = new Set();
+        const toCheck = new Set<number>();
         for (const n of this.getCachedNeighbors(assumptionCell.x, assumptionCell.y)) {
             toCheck.add(this.cellKey(n.x, n.y));
         }
@@ -619,7 +494,7 @@ export class MinesweeperSolver {
                 const neighbors = this.getCachedNeighbors(x, y);
                 let hiddenCount = 0;
                 let flaggedCount = 0;
-                const hiddenCells = [];
+                const hiddenCells: Cell[] = [];
 
                 for (const n of neighbors) {
                     if (getFlag(n.x, n.y)) {
@@ -662,35 +537,25 @@ export class MinesweeperSolver {
         return false;
     }
 
-    /**
-     * Strategy 3.5: Gaussian Elimination - Matrix based solving.
-     * 
-     * Uses the GaussianElimination helper to solve the frontier as a system of linear equations.
-     * Ax = b, where x are hidden cells (0/1), A is connectivity, b is effective clues.
-     * 
-     * @param {Array<Array<number>>} grid - The actual grid
-     * @param {Array<Array<number>>} visibleGrid - Visible state
-     * @param {Array<Array<boolean>>} flags - Flags
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @param {number} flagCount - Current flag count
-     * @returns {{progress: boolean, flagCount: number, changedCells: Array}}
-     */
-    static solveByGaussianElimination(grid, visibleGrid, flags, width, height, flagCount) {
-        // Only run if there is a frontier
+    static solveByGaussianElimination(
+        grid: Grid<number>,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number,
+        flagCount: number
+    ): GaussianSolveResult {
         const frontier = this.getFrontier(visibleGrid, flags, width, height);
         if (frontier.length === 0) return { progress: false, flagCount, changedCells: [] };
 
-        // Use the helper class
         const result = GaussianElimination.solve(this, visibleGrid, flags, frontier);
 
         let progress = false;
-        const changedCells = [];
+        const changedCells: Cell[] = [];
 
         if (result.progress) {
             progress = true;
 
-            // Apply Mines
             for (const cell of result.mines) {
                 if (!flags[cell.x][cell.y]) {
                     flags[cell.x][cell.y] = true;
@@ -699,7 +564,6 @@ export class MinesweeperSolver {
                 }
             }
 
-            // Apply Safes
             for (const cell of result.safe) {
                 if (visibleGrid[cell.x][cell.y] === -1) {
                     this.simulateReveal(grid, visibleGrid, flags, width, height, cell.x, cell.y);
@@ -711,48 +575,22 @@ export class MinesweeperSolver {
         return { progress, flagCount, changedCells };
     }
 
-
-    /**
-     * Strategy 4: Tank Solver - Complete configuration enumeration.
-     * 
-     * ## Algorithm
-     * Named after the classic Minesweeper solving algorithm:
-     * 1. Identify the frontier (hidden cells adjacent to numbers)
-     * 2. Group frontier into connected regions
-     * 3. For each region, enumerate ALL valid mine configurations
-     * 4. Analyze configurations to find cells that are ALWAYS mine or ALWAYS safe
-     * 
-     * ## Example
-     * If a region has 3 cells and 5 valid configurations:
-     * - Config 1: [mine, safe, mine]
-     * - Config 2: [mine, safe, mine]
-     * - Config 3: [mine, safe, mine]
-     * - Config 4: [mine, safe, mine]
-     * - Config 5: [mine, safe, mine]
-     * Then cell 1 is definitely a mine, cell 2 is definitely safe.
-     * 
-     * ## Optimization
-     * - Regions larger than MAX_REGION_SIZE are skipped
-     * - Uses bit-masking for fast configuration enumeration
-     * - Pre-computes constraint indices to avoid repeated lookups
-     * 
-     * @param {Array<Array<number>>} grid - The actual grid values
-     * @param {Array<Array<number>>} visibleGrid - Visible state
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @param {number} bombCount - Total mines on the board
-     * @param {number} flagCount - Current flag count
-     * @returns {{progress: boolean, flagCount: number, changedCells: Array}} Result
-     */
-    static tankSolver(grid, visibleGrid, flags, width, height, bombCount, flagCount) {
+    static tankSolver(
+        grid: Grid<number>,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number,
+        bombCount: number,
+        flagCount: number
+    ): TankSolveResult {
         const frontier = this.getFrontier(visibleGrid, flags, width, height);
         if (frontier.length === 0) return { progress: false, flagCount, changedCells: [] };
 
         const regions = this.groupFrontierRegions(frontier, visibleGrid, width, height);
         regions.sort((a, b) => a.length - b.length);
 
-        const changedCells = [];
+        const changedCells: Cell[] = [];
 
         for (const region of regions) {
             if (region.length > this.MAX_REGION_SIZE) continue;
@@ -792,21 +630,8 @@ export class MinesweeperSolver {
         return { progress: false, flagCount, changedCells };
     }
 
-    /**
-     * Get all frontier cells (hidden cells adjacent to revealed numbers).
-     * 
-     * The frontier represents the "edge" of what's been revealed,
-     * where deductions can be made based on adjacent constraints.
-     * 
-     * @param {Array<Array<number>>} visibleGrid - Visible state
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @returns {Array<{x: number, y: number}>} Array of frontier cell coordinates
-     * @private
-     */
-    static getFrontier(visibleGrid, flags, width, height) {
-        const frontier = [];
+    static getFrontier(visibleGrid: Grid<number>, flags: Grid<boolean>, width: number, height: number): Cell[] {
+        const frontier: Cell[] = [];
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
                 if (visibleGrid[x][y] === -1 && !flags[x][y]) {
@@ -823,30 +648,13 @@ export class MinesweeperSolver {
         return frontier;
     }
 
-    /**
-     * Group frontier cells into connected regions.
-     * 
-     * Two frontier cells are in the same region if they share a constraint
-     * (i.e., they're both neighbors of the same revealed numbered cell).
-     * Solving regions independently is more efficient than solving the entire frontier.
-     * 
-     * Uses BFS to flood-fill connected components, with bit-packed keys
-     * for efficient Set operations.
-     * 
-     * @param {Array<{x: number, y: number}>} frontier - All frontier cells
-     * @param {Array<Array<number>>} visibleGrid - Visible state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @returns {Array<Array<{x: number, y: number}>>} Array of region arrays
-     * @private
-     */
-    static groupFrontierRegions(frontier, visibleGrid, width, height) {
+    static groupFrontierRegions(frontier: Cell[], visibleGrid: Grid<number>, width: number, height: number): Cell[][] {
         if (frontier.length === 0) return [];
 
-        const regions = [];
-        const visited = new Set();
+        const regions: Cell[][] = [];
+        const visited = new Set<number>();
 
-        const frontierSet = new Set();
+        const frontierSet = new Set<number>();
         for (const f of frontier) {
             frontierSet.add(this.cellKey(f.x, f.y));
         }
@@ -855,12 +663,12 @@ export class MinesweeperSolver {
             const startKey = this.cellKey(startCell.x, startCell.y);
             if (visited.has(startKey)) continue;
 
-            const region = [];
-            const queue = [startCell];
-            const queueSet = new Set([startKey]);
+            const region: Cell[] = [];
+            const queue: Cell[] = [startCell];
+            const queueSet = new Set<number>([startKey]);
 
             while (queue.length > 0) {
-                const cell = queue.shift();
+                const cell = queue.shift()!;
                 const cellKey = this.cellKey(cell.x, cell.y);
                 queueSet.delete(cellKey);
 
@@ -892,25 +700,17 @@ export class MinesweeperSolver {
         return regions;
     }
 
-    /**
-     * Get constraints for a frontier region.
-     * 
-     * A constraint is a revealed numbered cell that borders the region.
-     * Each constraint specifies how many mines must be among its hidden neighbors.
-     * 
-     * @param {Array<{x: number, y: number}>} region - Region cells
-     * @param {Array<Array<number>>} visibleGrid - Visible state
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @returns {Array<Object>} Constraint objects with cell info and mine requirements
-     * @private
-     */
-    static getRegionConstraints(region, visibleGrid, flags, width, height) {
-        const constraintSet = new Set();
-        const constraints = [];
+    static getRegionConstraints(
+        region: Cell[],
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number
+    ): RegionConstraint[] {
+        const constraintSet = new Set<number>();
+        const constraints: RegionConstraint[] = [];
 
-        const regionSet = new Set();
+        const regionSet = new Set<number>();
         for (const r of region) {
             regionSet.add(this.cellKey(r.x, r.y));
         }
@@ -924,9 +724,9 @@ export class MinesweeperSolver {
 
                     const constraintNeighbors = this.getCachedNeighbors(n.x, n.y);
                     let flaggedCount = 0;
-                    const cellsInRegion = [];
-                    const cellsInRegionIndices = [];
-                    const cellsOutside = [];
+                    const cellsInRegion: Cell[] = [];
+                    const cellsInRegionIndices: number[] = [];
+                    const cellsOutside: Cell[] = [];
 
                     for (const cn of constraintNeighbors) {
                         if (flags[cn.x][cn.y]) {
@@ -963,16 +763,7 @@ export class MinesweeperSolver {
         return constraints;
     }
 
-    /**
-     * Count total flags on the board by scanning all cells.
-     * 
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @returns {number} Total number of flags placed
-     * @private
-     */
-    static countFlags(flags, width, height) {
+    static countFlags(flags: Grid<boolean>, width: number, height: number): number {
         let count = 0;
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
@@ -982,21 +773,8 @@ export class MinesweeperSolver {
         return count;
     }
 
-    /**
-     * Enumerate all valid mine configurations for a region.
-     * 
-     * Uses bit-masking to efficiently iterate through all 2^n possible
-     * configurations, where n is the region size. Each configuration
-     * is validated against all constraints.
-     * 
-     * @param {Array<{x: number, y: number}>} region - Region cells
-     * @param {Array<Object>} constraints - Constraint objects
-     * @param {number} maxMines - Maximum mines allowed (remaining unflagged)
-     * @returns {Array<Array<boolean>>} Array of valid configurations
-     * @private
-     */
-    static enumerateConfigurations(region, constraints, maxMines) {
-        const validConfigs = [];
+    static enumerateConfigurations(region: Cell[], constraints: RegionConstraint[], maxMines: number): boolean[][] {
+        const validConfigs: boolean[][] = [];
         const totalCombinations = 1 << region.length;
 
         if (totalCombinations > this.MAX_CONFIGURATIONS) {
@@ -1027,9 +805,9 @@ export class MinesweeperSolver {
             }
 
             if (valid) {
-                const config = [];
+                const config: boolean[] = [];
                 for (let i = 0; i < region.length; i++) {
-                    config.push((mask >> i) & 1 ? true : false);
+                    config.push(((mask >> i) & 1) ? true : false);
                 }
                 validConfigs.push(config);
             }
@@ -1038,15 +816,7 @@ export class MinesweeperSolver {
         return validConfigs;
     }
 
-    /**
-     * Count the number of bits set to 1 in an integer (population count).
-     * Used for efficient mine counting in bit-masked configurations.
-     * 
-     * @param {number} n - Integer to count bits in
-     * @returns {number} Number of 1 bits
-     * @private
-     */
-    static countBits(n) {
+    static countBits(n: number): number {
         let count = 0;
         while (n) {
             count += n & 1;
@@ -1055,19 +825,7 @@ export class MinesweeperSolver {
         return count;
     }
 
-    /**
-     * Check if a configuration satisfies all constraints.
-     * 
-     * For each constraint, verifies that the mine count in the region
-     * plus potential mines outside the region equals the constraint value.
-     * 
-     * @param {Array<{x: number, y: number}>} region - Region cells
-     * @param {Array<boolean>} config - Configuration (true = mine)
-     * @param {Array<Object>} constraints - Constraint objects
-     * @returns {boolean} True if configuration is valid
-     * @private
-     */
-    static isValidConfiguration(region, config, constraints) {
+    static isValidConfiguration(region: Cell[], config: boolean[], constraints: RegionConstraint[]): boolean {
         for (const constraint of constraints) {
             let minesInRegion = 0;
             for (let i = 0; i < region.length; i++) {
@@ -1086,21 +844,9 @@ export class MinesweeperSolver {
         return true;
     }
 
-    /**
-     * Analyze configurations to find cells that are always mine or always safe.
-     * 
-     * Iterates through all valid configurations and checks each cell position:
-     * - If a cell is a mine in ALL configurations → definitely a mine
-     * - If a cell is safe in ALL configurations → definitely safe
-     * 
-     * @param {Array<{x: number, y: number}>} region - Region cells
-     * @param {Array<Array<boolean>>} validConfigs - Array of valid configurations
-     * @returns {{definiteMines: Array, definiteSafes: Array}} Cells with certain outcomes
-     * @private
-     */
-    static analyzeConfigurations(region, validConfigs) {
-        const definiteMines = [];
-        const definiteSafes = [];
+    static analyzeConfigurations(region: Cell[], validConfigs: boolean[][]): ConfigAnalysis {
+        const definiteMines: Cell[] = [];
+        const definiteSafes: Cell[] = [];
 
         for (let i = 0; i < region.length; i++) {
             let alwaysMine = true;
@@ -1118,28 +864,16 @@ export class MinesweeperSolver {
         return { definiteMines, definiteSafes };
     }
 
-    /**
-     * Strategy 5: Global mine counting - End-game deduction.
-     * 
-     * ## Algorithm
-     * Uses the total mine count to make deductions when:
-     * - If remaining mines == remaining hidden cells → all hidden are mines
-     * - If remaining mines == 0 → all hidden are safe
-     * 
-     * This strategy is powerful at the end of the game when most cells
-     * are revealed and the remaining count is known precisely.
-     * 
-     * @param {Array<Array<number>>} grid - The actual grid values
-     * @param {Array<Array<number>>} visibleGrid - Visible state
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @param {number} bombCount - Total mines on the board
-     * @param {number} flagCount - Current flag count
-     * @returns {{progress: boolean, flagCount: number}} Result
-     */
-    static applyGlobalMineCount(grid, visibleGrid, flags, width, height, bombCount, flagCount) {
-        const totalHiddenCells = [];
+    static applyGlobalMineCount(
+        grid: Grid<number>,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number,
+        bombCount: number,
+        flagCount: number
+    ): GlobalMineCountResult {
+        const totalHiddenCells: Cell[] = [];
 
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
@@ -1170,30 +904,13 @@ export class MinesweeperSolver {
         return { progress, flagCount };
     }
 
-    /**
-     * Get a hint with a detailed explanation of WHY the move is safe.
-     * 
-     * Runs solver strategies on a deep copy of the current visible state
-     * and intercepts the first safe cell found. Returns the cell along
-     * with which strategy found it and which constraint cells justify
-     * the deduction.
-     * 
-     * Only meaningful in No Guess mode with a solvable grid, since the
-     * solver strategies are designed to find cells that are logically
-     * provable from the visible state.
-     * 
-     * @param {Object} game - Game state object
-     * @returns {{x, y, score, type, strategy, constraintCells, explanationData}|null}
-     */
-    static getHintWithExplanation(game) {
+    static getHintWithExplanation(game: GameState): HintWithExplanation | null {
         const { width, height, visibleGrid, flags, grid, bombCount } = game;
         this.initNeighborCache(width, height);
 
-        // Deep-copy visible state so strategies don't mutate the real game
-        const vgCopy = Array(width).fill(null).map((_, x) => [...visibleGrid[x]]);
-        const fCopy = Array(width).fill(null).map((_, x) => [...flags[x]]);
+        const vgCopy: Grid<number> = Array(width).fill(null).map((_, x) => [...visibleGrid[x]]);
+        const fCopy: Grid<boolean> = Array(width).fill(null).map((_, x) => [...flags[x]]);
 
-        // Count current player flags
         let flagCount = 0;
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
@@ -1201,8 +918,7 @@ export class MinesweeperSolver {
             }
         }
 
-        // Build initial dirty cells from all currently visible numbered cells
-        let dirtyCells = new Set();
+        let dirtyCells = new Set<number>();
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
                 if (vgCopy[x][y] > 0) {
@@ -1215,10 +931,8 @@ export class MinesweeperSolver {
         }
 
         // ── Strategy 1: Basic counting rules ──────────────────────────
-        // Instead of calling applyBasicRules (which modifies state silently),
-        // we scan for the basic rule pattern and return the first safe cell.
         {
-            const processedCells = new Set();
+            const processedCells = new Set<number>();
             for (const key of dirtyCells) {
                 const { x, y } = this.decodeKey(key);
                 if (x < 0 || x >= width || y < 0 || y >= height) continue;
@@ -1229,7 +943,7 @@ export class MinesweeperSolver {
 
                 const neighbors = this.getCachedNeighbors(x, y);
                 let flaggedCount = 0;
-                const hiddenCells = [];
+                const hiddenCells: Cell[] = [];
 
                 for (const n of neighbors) {
                     if (fCopy[n.x][n.y]) {
@@ -1241,17 +955,12 @@ export class MinesweeperSolver {
 
                 if (hiddenCells.length === 0) continue;
 
-                // All hidden neighbors are mines → flag them (no safe cell yet,
-                // but may unlock safe cells in subsequent basic rule checks)
                 if (val === hiddenCells.length + flaggedCount) {
-                    // Don't return this — it flags mines, not safe cells.
-                    // We'll handle this after trying safe-cell patterns first.
                     continue;
                 }
 
-                // All remaining mines accounted for → hidden neighbors are SAFE
                 if (val === flaggedCount && hiddenCells.length > 0) {
-                    const target = hiddenCells[0]; // pick the first safe cell
+                    const target = hiddenCells[0];
                     return {
                         x: target.x, y: target.y,
                         score: 1, type: 'safe',
@@ -1272,7 +981,6 @@ export class MinesweeperSolver {
                 flagCount = basicResult.flagCount;
                 dirtyCells = basicResult.dirtyCells;
 
-                // Re-scan for safe cells after flags were placed
                 for (const key of dirtyCells) {
                     const { x, y } = this.decodeKey(key);
                     if (x < 0 || x >= width || y < 0 || y >= height) continue;
@@ -1281,14 +989,13 @@ export class MinesweeperSolver {
 
                     const neighbors = this.getCachedNeighbors(x, y);
                     let fc = 0;
-                    const hidden = [];
+                    const hidden: Cell[] = [];
                     for (const n of neighbors) {
                         if (fCopy[n.x][n.y]) fc++;
                         else if (vgCopy[n.x][n.y] === -1) hidden.push(n);
                     }
 
                     if (hidden.length > 0 && val === fc) {
-                        // Filter to only cells that are actually still hidden in the REAL game
                         const realTarget = hidden.find(
                             c => visibleGrid[c.x][c.y] === -1 && !flags[c.x][c.y]
                         );
@@ -1308,8 +1015,7 @@ export class MinesweeperSolver {
 
         // ── Strategy 2: Subset logic ──────────────────────────────────
         {
-            // Build constraint data for subset analysis
-            const constraintCells = new Set();
+            const constraintCells = new Set<number>();
             for (const key of dirtyCells) {
                 const { x, y } = this.decodeKey(key);
                 if (x < 0 || x >= width || y < 0 || y >= height) continue;
@@ -1319,15 +1025,15 @@ export class MinesweeperSolver {
                 }
             }
 
-            const cellData = new Map();
+            const cellData = new Map<number, ConstraintData>();
             for (const key of constraintCells) {
                 const { x, y } = this.decodeKey(key);
                 const val = vgCopy[x][y];
                 if (val <= 0) continue;
 
                 const neighbors = this.getCachedNeighbors(x, y);
-                const hiddenSet = new Set();
-                const hiddenList = [];
+                const hiddenSet = new Set<number>();
+                const hiddenList: Cell[] = [];
                 let fc = 0;
 
                 for (const n of neighbors) {
@@ -1361,14 +1067,13 @@ export class MinesweeperSolver {
                                 if (!dataB.hiddenSet.has(k)) { isSubset = false; break; }
                             }
                             if (isSubset) {
-                                const diff = [];
+                                const diff: Cell[] = [];
                                 for (const n of dataB.hiddenList) {
                                     if (!dataA.hiddenSet.has(this.cellKey(n.x, n.y))) diff.push(n);
                                 }
                                 const diffMines = dataB.remaining - dataA.remaining;
 
                                 if (diffMines === 0 && diff.length > 0) {
-                                    // diff cells are all safe
                                     const realTarget = diff.find(
                                         c => visibleGrid[c.x][c.y] === -1 && !flags[c.x][c.y]
                                     );
@@ -1407,8 +1112,7 @@ export class MinesweeperSolver {
                         c => visibleGrid[c.x][c.y] === -1 && !flags[c.x][c.y]
                     );
                     if (realTarget) {
-                        // Collect constraint cells: numbered cells adjacent to the safe cell
-                        const cCells = [];
+                        const cCells: Cell[] = [];
                         for (const n of this.getCachedNeighbors(realTarget.x, realTarget.y)) {
                             if (vgCopy[n.x][n.y] > 0) cCells.push({ x: n.x, y: n.y });
                         }
@@ -1421,7 +1125,6 @@ export class MinesweeperSolver {
                         };
                     }
                 }
-                // Apply gaussian changes to copies for subsequent strategies
                 if (result.progress) {
                     for (const cell of result.mines) {
                         if (!fCopy[cell.x][cell.y]) { fCopy[cell.x][cell.y] = true; flagCount++; }
@@ -1441,10 +1144,9 @@ export class MinesweeperSolver {
             const maxCheck = Math.min(frontier.length, 50);
             for (let i = 0; i < maxCheck; i++) {
                 const cell = frontier[i];
-                // If assuming "mine" leads to contradiction → cell is safe
                 if (this.checkContradiction(vgCopy, fCopy, width, height, cell, true)) {
                     if (visibleGrid[cell.x][cell.y] === -1 && !flags[cell.x][cell.y]) {
-                        const cCells = [];
+                        const cCells: Cell[] = [];
                         for (const n of this.getCachedNeighbors(cell.x, cell.y)) {
                             if (vgCopy[n.x][n.y] > 0) cCells.push({ x: n.x, y: n.y });
                         }
@@ -1498,7 +1200,7 @@ export class MinesweeperSolver {
 
         // ── Strategy 6: Global Mine Count ─────────────────────────────
         {
-            const totalHidden = [];
+            const totalHidden: Cell[] = [];
             for (let x = 0; x < width; x++) {
                 for (let y = 0; y < height; y++) {
                     if (vgCopy[x][y] === -1 && !fCopy[x][y]) totalHidden.push({ x, y });
@@ -1535,25 +1237,12 @@ export class MinesweeperSolver {
         return null;
     }
 
-    /**
-     * Finds a hint for the current game state (God Mode / Best Move).
-     * 
-     * Returns the "best" safe cell to reveal, prioritizing:
-     * 1. Safe cells on the frontier (adjacent to revealed cells)
-     * 2. Cells with more revealed neighbors (more useful information)
-     * 3. Zero cells (will trigger cascade reveals)
-     * 4. Any remaining safe cell as fallback
-     * 
-     * @param {Object} game - Game state object with grid, visible state, and mine positions
-     * @returns {{x: number, y: number, score: number, type: string}|null} Hint or null if none found
-     */
-    static getHint(game) {
+    static getHint(game: GameState): HintResult | null {
         const { width, height, visibleGrid, flags, mines, grid: gridNumbers } = game;
 
-        // Initialize cache for hint if not already done
         this.initNeighborCache(width, height);
 
-        let safeFrontier = [];
+        let safeFrontier: HintResult[] = [];
 
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
@@ -1574,7 +1263,7 @@ export class MinesweeperSolver {
             return safeFrontier.sort((a, b) => b.score - a.score)[0];
         }
 
-        let safeIsland = [];
+        let safeIsland: HintResult[] = [];
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
                 if (visibleGrid[x][y] === -1 && !flags[x][y] && !mines[x][y]) {
@@ -1591,28 +1280,18 @@ export class MinesweeperSolver {
         return null;
     }
 
-    /**
-     * Simulate revealing a cell and cascade for zeros.
-     * 
-     * Updates the visibleGrid to reflect what would happen if the cell
-     * at (startX, startY) was clicked. If the cell is a zero, recursively
-     * reveals all connected zeros and their neighbors (flood fill).
-     * 
-     * Uses an iterative stack-based approach to avoid recursion depth issues.
-     * 
-     * @param {Array<Array<number>>} grid - The actual grid values
-     * @param {Array<Array<number>>} visibleGrid - Visible state to update
-     * @param {Array<Array<boolean>>} flags - Flag placement state
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @param {number} startX - X coordinate to reveal
-     * @param {number} startY - Y coordinate to reveal
-     * @private
-     */
-    static simulateReveal(grid, visibleGrid, flags, width, height, startX, startY) {
-        const stack = [[startX, startY]];
+    static simulateReveal(
+        grid: Grid<number>,
+        visibleGrid: Grid<number>,
+        flags: Grid<boolean>,
+        width: number,
+        height: number,
+        startX: number,
+        startY: number
+    ): void {
+        const stack: [number, number][] = [[startX, startY]];
         while (stack.length > 0) {
-            const [x, y] = stack.pop();
+            const [x, y] = stack.pop()!;
             if (x < 0 || x >= width || y < 0 || y >= height) continue;
             if (visibleGrid[x][y] !== -1 || flags[x][y]) continue;
 
@@ -1631,21 +1310,8 @@ export class MinesweeperSolver {
         }
     }
 
-    /**
-     * Get neighboring cell coordinates for a given position.
-     * 
-     * Returns all 8 adjacent cells (including diagonals) that are
-     * within the grid boundaries. Unlike getCachedNeighbors, this
-     * creates a new array and should be used sparingly.
-     * 
-     * @param {number} x - Cell X coordinate
-     * @param {number} y - Cell Y coordinate
-     * @param {number} width - Grid width
-     * @param {number} height - Grid height
-     * @returns {Array<{x: number, y: number}>} Array of neighbor coordinates
-     */
-    static getNeighbors(x, y, width, height) {
-        const neighbors = [];
+    static getNeighbors(x: number, y: number, width: number, height: number): Cell[] {
+        const neighbors: Cell[] = [];
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
                 if (dx === 0 && dy === 0) continue;

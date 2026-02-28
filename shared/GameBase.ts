@@ -6,24 +6,22 @@
  *
  * Subclass in client (browser) or server (Node.js) to add environment-specific
  * behaviour (UI notifications, multiplayer methods, etc.).
- *
- * @example
- * // Client
- * import { MinesweeperGameBase } from '../../shared/GameBase.js';
- * export class MinesweeperGame extends MinesweeperGameBase { ... }
- *
- * // Server
- * import { MinesweeperGameBase } from '../shared/GameBase.js';
- * export class MinesweeperGame extends MinesweeperGameBase { ... }
  */
 
 import { SolverBridge } from './SolverBridge.js';
+import type { Cell, Grid, ActionResult, PlaceMinesResult, HintResult, HintWithExplanation } from './types.js';
 
 // ─── Environment Detection ──────────────────────────────────────────────────
 
 const isBrowser = typeof window !== 'undefined';
 
-const storage = isBrowser ? localStorage : {
+interface StorageLike {
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+}
+
+const storage: StorageLike = isBrowser ? localStorage : {
     getItem: () => null,
     setItem: () => { },
     removeItem: () => { }
@@ -32,6 +30,35 @@ const storage = isBrowser ? localStorage : {
 // ─── Base Class ─────────────────────────────────────────────────────────────
 
 export class MinesweeperGameBase {
+    width: number;
+    height: number;
+    bombCount: number;
+    enableChronometer: boolean;
+    noGuessMode: boolean;
+
+    grid: Grid<number>;
+    visibleGrid: Grid<number>;
+    flags: Grid<boolean>;
+    mines: Grid<boolean>;
+
+    gameOver: boolean;
+    victory: boolean;
+    firstClick: boolean;
+    elapsedTime: number;
+    gameStartTime: number | null;
+    finalScore: number;
+    hintCount: number;
+    hintMode: boolean;
+    lastMove: Cell | null;
+    retryCount: number;
+    cancelGeneration: boolean;
+    flagCount: number;
+    revealedCount: number;
+    revealedBombs: Cell[];
+
+    // Extra properties used by multiplayer / UI
+    isSpectating?: boolean;
+
     constructor(width = 30, height = 20, bombCount = 50) {
         this.width = width;
         this.height = height;
@@ -39,10 +66,10 @@ export class MinesweeperGameBase {
         this.enableChronometer = true;
         this.noGuessMode = false;
 
-        this.grid = [];           // Number grid (0-8 counts, set after calculateNumbers)
-        this.visibleGrid = [];    // -1 = hidden, 0-8 = revealed, 9 = exploded, 10 = revealed bomb
-        this.flags = [];          // Boolean flags
-        this.mines = [];          // Boolean mine positions
+        this.grid = [];
+        this.visibleGrid = [];
+        this.flags = [];
+        this.mines = [];
 
         this.gameOver = false;
         this.victory = false;
@@ -55,18 +82,18 @@ export class MinesweeperGameBase {
         this.lastMove = null;
         this.retryCount = 0;
         this.cancelGeneration = false;
+        this.flagCount = 0;
+        this.revealedCount = 0;
+        this.revealedBombs = [];
     }
 
     // ─── Initialization ─────────────────────────────────────────────────
 
-    /**
-     * Initialise or reset the game state.
-     */
-    init() {
-        this.grid = Array(this.width).fill().map(() => Array(this.height).fill(0));
-        this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
-        this.visibleGrid = Array(this.width).fill().map(() => Array(this.height).fill(-1));
-        this.flags = Array(this.width).fill().map(() => Array(this.height).fill(false));
+    init(): void {
+        this.grid = Array(this.width).fill(null).map(() => Array(this.height).fill(0));
+        this.mines = Array(this.width).fill(null).map(() => Array(this.height).fill(false));
+        this.visibleGrid = Array(this.width).fill(null).map(() => Array(this.height).fill(-1));
+        this.flags = Array(this.width).fill(null).map(() => Array(this.height).fill(false));
         this.flagCount = 0;
         this.revealedCount = 0;
         this.revealedBombs = [];
@@ -86,19 +113,13 @@ export class MinesweeperGameBase {
 
     // ─── Chronometer ────────────────────────────────────────────────────
 
-    /**
-     * Start the timer on first click.
-     */
-    startChronometer() {
+    startChronometer(): void {
         if (this.enableChronometer && !this.gameStartTime) {
             this.gameStartTime = Date.now();
         }
     }
 
-    /**
-     * Get elapsed time in seconds.
-     */
-    getElapsedTime() {
+    getElapsedTime(): number {
         if (!this.enableChronometer) return 0;
         if (!this.gameStartTime) return 0;
         return Math.floor((Date.now() - this.gameStartTime) / 1000);
@@ -106,21 +127,13 @@ export class MinesweeperGameBase {
 
     // ─── Mine Placement ─────────────────────────────────────────────────
 
-    /**
-     * Place mines randomly, respecting a safe zone and (optionally) no-guess solvability.
-     *
-     * Uses a JS loop with per-attempt WASM-accelerated isSolvable() calls, yielding
-     * every 10 attempts so both the browser UI and Node.js event loop remain responsive.
-     *
-     * @param {number} safeX - First-click X
-     * @param {number} safeY - First-click Y
-     * @param {Function} [onProgress] - Called with (attempts, maxAttempts) every 10 iterations
-     * @returns {Promise<true|{cancelled:boolean}|{warning:boolean}>}
-     */
-    async placeMines(safeX, safeY, onProgress) {
+    async placeMines(
+        safeX: number,
+        safeY: number,
+        onProgress?: (attempts: number, maxAttempts: number) => void
+    ): Promise<PlaceMinesResult> {
         let attempts = 0;
         const maxAttempts = 10000;
-        // No Guess mode uses a 5×5 safe zone (radius 2) for better openings
         const safeRadius = this.noGuessMode ? 2 : 1;
         this.cancelGeneration = false;
 
@@ -129,14 +142,13 @@ export class MinesweeperGameBase {
                 return { cancelled: true };
             }
 
-            // Yield every 10 attempts for UI/event-loop responsiveness
             if (attempts > 0 && attempts % 10 === 0) {
                 if (onProgress) onProgress(attempts, maxAttempts);
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
 
-            this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
-            this.grid = Array(this.width).fill().map(() => Array(this.height).fill(0));
+            this.mines = Array(this.width).fill(null).map(() => Array(this.height).fill(false));
+            this.grid = Array(this.width).fill(null).map(() => Array(this.height).fill(0));
 
             let minesPlaced = 0;
             let placementAttempts = 0;
@@ -167,7 +179,6 @@ export class MinesweeperGameBase {
             return { warning: true };
         }
 
-        // Save grid for potential replay on loss
         const gridData = {
             width: this.width,
             height: this.height,
@@ -180,10 +191,7 @@ export class MinesweeperGameBase {
         return true;
     }
 
-    /**
-     * Calculate neighbour mine counts (0-8) for every non-mine cell.
-     */
-    calculateNumbers() {
+    calculateNumbers(): void {
         for (let x = 0; x < this.width; x++) {
             for (let y = 0; y < this.height; y++) {
                 if (this.mines[x][y]) continue;
@@ -205,19 +213,11 @@ export class MinesweeperGameBase {
 
     // ─── Revealing ──────────────────────────────────────────────────────
 
-    /**
-     * Reveal a cell (left click).
-     *
-     * On first click: places mines, auto-reveals the 3×3 safe zone.
-     * If generation was cancelled or hit the max-attempt limit,
-     * delegates to `_onGenerationWarning()` (overridden by subclass).
-     *
-     * @param {number} x
-     * @param {number} y
-     * @param {Function} [onProgress] - Forwarded to placeMines
-     * @returns {Promise<{type: string, changes?: Array, x?: number, y?: number}>}
-     */
-    async reveal(x, y, onProgress) {
+    async reveal(
+        x: number,
+        y: number,
+        onProgress?: (attempts: number, maxAttempts: number) => void
+    ): Promise<ActionResult> {
         if (this.gameOver || this.victory || this.flags[x][y] || this.visibleGrid[x][y] !== -1) {
             return { type: 'none', changes: [] };
         }
@@ -225,15 +225,14 @@ export class MinesweeperGameBase {
         if (this.firstClick) {
             const success = await this.placeMines(x, y, onProgress);
 
-            if (success.cancelled || success.warning) {
-                this._onGenerationWarning(success);
+            if (typeof success === 'object' && ('cancelled' in success || 'warning' in success)) {
+                this._onGenerationWarning(success as { cancelled?: boolean; warning?: boolean });
             }
 
             this.firstClick = false;
             this.startChronometer();
 
-            // Auto-reveal the 3×3 safe area around the first click
-            const changes = [];
+            const changes: { x: number; y: number; value: number }[] = [];
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dy = -1; dy <= 1; dy++) {
                     const nx = x + dx;
@@ -254,11 +253,11 @@ export class MinesweeperGameBase {
         if (this.mines[x][y]) {
             this.gameOver = true;
             this.lastMove = { x, y };
-            this.visibleGrid[x][y] = 9; // 9 = Explosion
+            this.visibleGrid[x][y] = 9;
             return { type: 'explode', x, y };
         }
 
-        const changes = [];
+        const changes: { x: number; y: number; value: number }[] = [];
         this.floodFill(x, y, changes);
 
         if (this.checkWin()) {
@@ -269,26 +268,16 @@ export class MinesweeperGameBase {
         return { type: 'reveal', changes };
     }
 
-    /**
-     * Hook called when board generation was cancelled or hit the max-attempt limit.
-     * Override in subclasses to show environment-specific notifications.
-     *
-     * @param {{cancelled?: boolean, warning?: boolean}} result
-     */
-    _onGenerationWarning(result) {
+    _onGenerationWarning(result: { cancelled?: boolean; warning?: boolean }): void {
         const reason = result.cancelled ? 'cancelled' : 'max attempts reached';
         console.log(`[Game] Board generation: ${reason}`);
     }
 
-    /**
-     * Iterative flood-fill starting from (startX, startY).
-     * Reveals cells and cascades through empty (0-value) cells.
-     */
-    floodFill(startX, startY, changes) {
+    floodFill(startX: number, startY: number, changes: { x: number; y: number; value: number }[]): void {
         const stack = [startX * this.height + startY];
 
         while (stack.length > 0) {
-            const encoded = stack.pop();
+            const encoded = stack.pop()!;
             const x = (encoded / this.height) | 0;
             const y = encoded % this.height;
 
@@ -318,10 +307,7 @@ export class MinesweeperGameBase {
 
     // ─── Flagging ───────────────────────────────────────────────────────
 
-    /**
-     * Toggle a flag on/off (right click).
-     */
-    toggleFlag(x, y) {
+    toggleFlag(x: number, y: number): ActionResult {
         if (this.gameOver || this.victory || this.visibleGrid[x][y] !== -1) {
             return { type: 'none' };
         }
@@ -333,17 +319,12 @@ export class MinesweeperGameBase {
 
     // ─── Chord ──────────────────────────────────────────────────────────
 
-    /**
-     * Chord click: if a revealed numbered cell has the correct adjacent flag count,
-     * reveal all non-flagged neighbours. Misplaced flags cause an explosion.
-     */
-    chord(x, y) {
+    chord(x: number, y: number): ActionResult {
         if (this.gameOver || this.victory) return { type: 'none', changes: [] };
 
         const value = this.visibleGrid[x][y];
         if (value <= 0 || value > 8) return { type: 'none', changes: [] };
 
-        // Count adjacent flags
         let adjacentFlags = 0;
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
@@ -357,8 +338,7 @@ export class MinesweeperGameBase {
 
         if (adjacentFlags !== value) return { type: 'none', changes: [] };
 
-        // Reveal all non-flagged, non-revealed neighbours
-        const changes = [];
+        const changes: { x: number; y: number; value: number }[] = [];
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
                 if (dx === 0 && dy === 0) continue;
@@ -389,7 +369,7 @@ export class MinesweeperGameBase {
 
     // ─── Win Detection ──────────────────────────────────────────────────
 
-    checkWin() {
+    checkWin(): boolean {
         const isWin = this.revealedCount === (this.width * this.height - this.bombCount);
         if (isWin) {
             storage.removeItem('minesweeper3d_last_grid');
@@ -399,10 +379,7 @@ export class MinesweeperGameBase {
 
     // ─── Hint ───────────────────────────────────────────────────────────
 
-    /**
-     * Get a solver hint (best safe cell to reveal).
-     */
-    getHint() {
+    getHint(): HintResult | null {
         if (this.gameOver || this.victory) return null;
 
         const hint = SolverBridge.getHint(this);
@@ -412,11 +389,7 @@ export class MinesweeperGameBase {
         return hint;
     }
 
-    /**
-     * Get a solver hint with explanation of WHY the move is safe.
-     * Only meaningful in No Guess mode with a solvable grid.
-     */
-    getHintWithExplanation() {
+    getHintWithExplanation(): HintWithExplanation | null {
         if (this.gameOver || this.victory) return null;
 
         const hint = SolverBridge.getHintWithExplanation(this);
@@ -428,10 +401,7 @@ export class MinesweeperGameBase {
 
     // ─── Retry ──────────────────────────────────────────────────────────
 
-    /**
-     * Undo the last losing move so the player can continue.
-     */
-    retryLastMove() {
+    retryLastMove(): boolean {
         if (!this.gameOver || !this.lastMove) return false;
 
         const { x, y } = this.lastMove;
@@ -444,12 +414,8 @@ export class MinesweeperGameBase {
 
     // ─── Serialization ──────────────────────────────────────────────────
 
-    /**
-     * Get all mine positions (for save / replay).
-     * @returns {Array<{x: number, y: number}>}
-     */
-    getMinePositions() {
-        const positions = [];
+    getMinePositions(): Cell[] {
+        const positions: Cell[] = [];
         for (let x = 0; x < this.width; x++) {
             for (let y = 0; y < this.height; y++) {
                 if (this.mines[x][y]) {
@@ -460,11 +426,7 @@ export class MinesweeperGameBase {
         return positions;
     }
 
-    /**
-     * Restore mines from saved positions (for replay).
-     * @param {Array<{x: number, y: number}>} positions
-     */
-    setMinesFromPositions(positions) {
+    setMinesFromPositions(positions: Cell[]): void {
         positions.forEach(({ x, y }) => {
             this.mines[x][y] = true;
             this.grid[x][y] = 1;
