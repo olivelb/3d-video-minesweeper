@@ -1,39 +1,29 @@
 /**
  * Simple Event Bus for decoupled communication
  */
+
+type EventCallback = (data?: any) => void;
+
 export class EventBus {
+    listeners: Record<string, EventCallback[]>;
+
     constructor() {
         this.listeners = {};
     }
 
-    /**
-     * Subscribe to an event
-     * @param {string} event 
-     * @param {Function} callback 
-     */
-    on(event, callback) {
+    on(event: string, callback: EventCallback): void {
         if (!this.listeners[event]) {
             this.listeners[event] = [];
         }
         this.listeners[event].push(callback);
     }
 
-    /**
-     * Unsubscribe from an event
-     * @param {string} event 
-     * @param {Function} callback 
-     */
-    off(event, callback) {
+    off(event: string, callback: EventCallback): void {
         if (!this.listeners[event]) return;
         this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
     }
 
-    /**
-     * Emit an event with data
-     * @param {string} event 
-     * @param {any} data 
-     */
-    emit(event, data) {
+    emit(event: string, data?: unknown): void {
         if (!this.listeners[event]) return;
         this.listeners[event].forEach(callback => {
             try {
@@ -50,22 +40,22 @@ export class EventBus {
  */
 export const Events = {
     // Game Lifecycle
-    GAME_START: 'game:start',           // { width, height, bombs, ... }
-    GAME_OVER: 'game:over',             // { victory: boolean, reason: string }
-    GAME_READY: 'game:ready',           // Renderer is ready
-    GAME_ENDED: 'game:ended',           // Session ended (return to menu)
+    GAME_START: 'game:start',
+    GAME_OVER: 'game:over',
+    GAME_READY: 'game:ready',
+    GAME_ENDED: 'game:ended',
 
     // User Actions
-    REQUEST_HINT: 'action:hint',        // User clicked "Besoin d'aide"
-    REQUEST_HINT_EXPLAIN: 'action:hint_explain',    // User clicked "Expliquer"
-    HINT_EXPLAIN_DISMISS: 'action:hint_explain_dismiss', // User dismissed explanation
-    REQUEST_RETRY: 'action:retry',      // User clicked "Reessayer"
-    TOGGLE_MUTE: 'ui:toggle_mute',      // User toggled mute
-    FLAG_STYLE_CHANGED: 'ui:flag_style_changed', // Flag style toggled
+    REQUEST_HINT: 'action:hint',
+    REQUEST_HINT_EXPLAIN: 'action:hint_explain',
+    HINT_EXPLAIN_DISMISS: 'action:hint_explain_dismiss',
+    REQUEST_RETRY: 'action:retry',
+    TOGGLE_MUTE: 'ui:toggle_mute',
+    FLAG_STYLE_CHANGED: 'ui:flag_style_changed',
 
     // UI Events
-    UI_SHOW_MENU: 'ui:show_menu',       // Return to menu
-    UI_UPDATE_SCORE: 'ui:update_score', // New score
+    UI_SHOW_MENU: 'ui:show_menu',
+    UI_UPDATE_SCORE: 'ui:update_score',
 
     // Multiplayer Events
     MP_CONNECTED: 'mp:connected',
@@ -88,8 +78,8 @@ export const Events = {
     NET_ERROR: 'net:error',
 
     // Input Events
-    CELL_INTERACTION: 'input:cell_interaction', // { x, y, type: 'reveal'|'flag' }
+    CELL_INTERACTION: 'input:cell_interaction',
 
     // Analytics
     USER_INTERACTION: 'analytics:interaction'
-};
+} as const;

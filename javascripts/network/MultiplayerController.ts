@@ -1,4 +1,5 @@
-import { EventBus, Events } from '../core/EventBus.js';
+import { Events } from '../core/EventBus.js';
+import type { EventBus } from '../core/EventBus.js';
 import { networkManager } from './NetworkManager.js';
 import { Logger } from '../utils/Logger.js';
 
@@ -8,38 +9,36 @@ import { Logger } from '../utils/Logger.js';
  * Decouples networking logic from the main GameController.
  */
 export class MultiplayerController {
-    /**
-     * @param {import('../core/GameController.js').GameController} gameController 
-     */
-    constructor(gameController) {
+    gc: any; // GameController — typed as any to avoid circular dependency
+    events: EventBus;
+
+    constructor(gameController: any) {
         this.gc = gameController;
         this.events = gameController.events;
     }
 
-    init() {
+    init(): void {
         Logger.log('MultiplayerController', 'Initializing...');
 
-        // Ensure networkManager uses the shared EventBus
         networkManager.setEventBus(this.events);
 
         this.bindEvents();
     }
 
-    bindEvents() {
-        this.events.on(Events.MP_CONNECTED, (data) => {
+    bindEvents(): void {
+        this.events.on(Events.MP_CONNECTED, (data: any) => {
             Logger.log('Network', 'Connected');
             if (this.gc.scoreboard && data.playerId) {
                 this.gc.scoreboard.setLocalPlayer(data.playerId);
             }
         });
 
-        this.events.on(Events.NET_PLAYER_JOINED, (data) => Logger.log('Network', 'Player joined:', data));
-        this.events.on(Events.NET_PLAYER_LEFT, (data) => Logger.log('Network', 'Player left:', data));
-        this.events.on(Events.NET_GAME_READY, (config) => Logger.log('Network', 'Game ready:', config));
+        this.events.on(Events.NET_PLAYER_JOINED, (data: any) => Logger.log('Network', 'Player joined:', data));
+        this.events.on(Events.NET_PLAYER_LEFT, (data: any) => Logger.log('Network', 'Player left:', data));
+        this.events.on(Events.NET_GAME_READY, (config: any) => Logger.log('Network', 'Game ready:', config));
 
-        this.events.on(Events.MP_STATE_SYNC, async (state) => {
+        this.events.on(Events.MP_STATE_SYNC, async (state: any) => {
             if (!this.gc.game) {
-                // Join running game
                 this.gc.startGame({
                     width: state.width,
                     height: state.height,
@@ -61,12 +60,12 @@ export class MultiplayerController {
             }
         });
 
-        this.events.on(Events.NET_GAME_UPDATE, (update) => {
+        this.events.on(Events.NET_GAME_UPDATE, (update: any) => {
             if (!this.gc.game || !this.gc.renderer) return;
 
             const result = update.result;
             if (result.type === 'reveal' || result.type === 'win') {
-                result.changes.forEach(c => {
+                result.changes.forEach((c: any) => {
                     this.gc.game.visibleGrid[c.x][c.y] = c.value;
                     this.gc.renderer.updateCellVisual(c.x, c.y, c.value);
                 });
@@ -75,9 +74,8 @@ export class MultiplayerController {
                     this.gc.renderer.triggerWin();
                 }
             } else if (result.type === 'revealedBomb') {
-                // Apply any pre-explosion reveals
                 if (result.changes && result.changes.length > 0) {
-                    result.changes.forEach(c => {
+                    result.changes.forEach((c: any) => {
                         this.gc.game.visibleGrid[c.x][c.y] = c.value;
                         this.gc.renderer.updateCellVisual(c.x, c.y, c.value);
                     });
@@ -103,7 +101,7 @@ export class MultiplayerController {
             }
         });
 
-        this.events.on(Events.NET_PLAYER_ELIMINATED, (data) => {
+        this.events.on(Events.NET_PLAYER_ELIMINATED, (data: any) => {
             if (data.playerId === networkManager.playerId) {
                 if (data.remainingPlayers > 0) {
                     Logger.log('GameController', 'Local player eliminated. Playing sequence before Spectator Mode.');
@@ -133,7 +131,7 @@ export class MultiplayerController {
             }
         });
 
-        this.events.on(Events.NET_GAME_OVER, (data) => {
+        this.events.on(Events.NET_GAME_OVER, (data: any) => {
             if (!this.gc.game) return;
 
             if (data.victory) {
@@ -157,16 +155,15 @@ export class MultiplayerController {
             }, 3000);
         });
 
-        this.events.on(Events.NET_MINES_PLACED, (minePositions) => {
+        this.events.on(Events.NET_MINES_PLACED, (minePositions: any) => {
             if (this.gc.game) this.gc.game.setMinesFromPositions(minePositions);
         });
     }
 
     /**
      * Apply full state sync (Multiplayer)
-     * Pulled from GameController to centralize net-state updates
      */
-    applyStateSync(state) {
+    applyStateSync(state: any): void {
         if (!this.gc.game || !state.grid) return;
         Logger.log('MultiplayerController', 'Syncing state...');
 
