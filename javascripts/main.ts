@@ -20,12 +20,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Language switcher buttons
     document.querySelectorAll('.lang-btn').forEach(btn => {
+        const el = btn as HTMLElement;
         // Mark the current language as active
-        btn.classList.toggle('active', btn.dataset.lang === getLang());
-        btn.addEventListener('click', () => {
+        el.classList.toggle('active', el.dataset.lang === getLang());
+        el.addEventListener('click', () => {
             document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            setLang(btn.dataset.lang);
+            el.classList.add('active');
+            setLang(el.dataset.lang!);
         });
     });
 

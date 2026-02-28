@@ -9,49 +9,27 @@
 
 export class Logger {
     static enabled = false;
-    static whitelist = []; // If set, only log tags in this list
+    static whitelist: string[] = [];
 
-    /**
-     * Enable or disable logging
-     * @param {boolean} enabled 
-     */
-    static setEnabled(enabled) {
+    static setEnabled(enabled: boolean): void {
         this.enabled = enabled;
         if (enabled) {
             console.log('[Logger] Logging enabled');
         }
     }
 
-    /**
-     * Log a message if logging is enabled
-     * @param {string} tag - Component or context name
-     * @param {...any} args - Message and data
-     */
-    static log(tag, ...args) {
+    static log(tag: string, ...args: unknown[]): void {
         if (!this.enabled) return;
         if (this.whitelist.length > 0 && !this.whitelist.includes(tag)) return;
 
         console.log(`[${tag}]`, ...args);
     }
 
-    /**
-     * Log a warning (always shown by default, or debatable?)
-     * For now, we'll respect the global flag but maybe warnings should stay?
-     * Usually warnings are important. Let's keep warnings always visible
-     * unless explicitly suppressed?
-     * Actually, for a "clean console", we might want to suppress verbose warnings too.
-     * Let's stick to the flag for now, but maybe allow crucial ones.
-     */
-    static warn(tag, ...args) {
+    static warn(tag: string, ...args: unknown[]): void {
         console.warn(`[${tag}]`, ...args);
     }
 
-    /**
-     * Log an error (always shown)
-     * @param {string} tag 
-     * @param {...any} args 
-     */
-    static error(tag, ...args) {
+    static error(tag: string, ...args: unknown[]): void {
         console.error(`[${tag}]`, ...args);
     }
 }

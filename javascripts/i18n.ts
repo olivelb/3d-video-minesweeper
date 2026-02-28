@@ -9,11 +9,17 @@
  * @module i18n
  */
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+type LangCode = 'fr' | 'en';
+type TranslationDict = Record<string, string>;
+type TranslationMap = Record<LangCode, TranslationDict>;
+
 // ─────────────────────────────────────────────
 //  Translations
 // ─────────────────────────────────────────────
 
-const translations = {
+const translations: TranslationMap = {
     fr: {
         // ── Page ──
         'page.title': 'Démineur 3D - Multijoueur',
@@ -506,10 +512,10 @@ const translations = {
 // ─────────────────────────────────────────────
 
 const STORAGE_KEY = 'minesweeper_lang';
-const SUPPORTED_LANGS = ['fr', 'en'];
-const DEFAULT_LANG = 'fr';
+const SUPPORTED_LANGS: LangCode[] = ['fr', 'en'];
+const DEFAULT_LANG: LangCode = 'fr';
 
-let currentLang = DEFAULT_LANG;
+let currentLang: LangCode = DEFAULT_LANG;
 
 // ─────────────────────────────────────────────
 //  Core API
@@ -517,28 +523,18 @@ let currentLang = DEFAULT_LANG;
 
 /**
  * Translate a key, optionally interpolating parameters.
- * 
- * @param {string} key - Dot-notation key (e.g. 'menu.title')
- * @param {Object} [params] - Interpolation values (e.g. { w: 30, h: 16 })
- * @returns {string} Translated string, or the key itself if not found
- * 
- * @example
- * t('diff.tooltip', { w: 30, h: 16, b: 99 })
- * // FR → "30×16, 99 bombes"
- * // EN → "30×16, 99 bombs"
  */
-export function t(key, params) {
+export function t(key: string, params?: Record<string, string | number>): string {
     const dict = translations[currentLang] || translations[DEFAULT_LANG];
-    let str = dict[key];
+    let str: string | undefined = dict[key];
     if (str === undefined) {
-        // Fallback to default language
         str = translations[DEFAULT_LANG][key];
     }
-    if (str === undefined) return key; // Key not found at all
+    if (str === undefined) return key;
 
     if (params) {
         for (const [k, v] of Object.entries(params)) {
-            str = str.replaceAll(`{${k}}`, v);
+            str = str.replaceAll(`{${k}}`, String(v));
         }
     }
     return str;
@@ -546,56 +542,46 @@ export function t(key, params) {
 
 /**
  * Get the current language code.
- * @returns {string} 'fr' or 'en'
  */
-export function getLang() {
+export function getLang(): LangCode {
     return currentLang;
 }
 
 /**
  * Get the locale string for date/number formatting.
- * @returns {string} e.g. 'fr-FR' or 'en-US'
  */
-export function getLocale() {
+export function getLocale(): string {
     return currentLang === 'fr' ? 'fr-FR' : 'en-US';
 }
 
 /**
  * Set the active language and re-translate the DOM.
- * @param {string} lang - Language code ('fr' or 'en')
  */
-export function setLang(lang) {
-    if (!SUPPORTED_LANGS.includes(lang)) return;
-    currentLang = lang;
+export function setLang(lang: string): void {
+    if (!SUPPORTED_LANGS.includes(lang as LangCode)) return;
+    currentLang = lang as LangCode;
     try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) { /* ignore */ }
     document.documentElement.lang = lang;
     document.title = t('page.title');
     translateDOM();
-    // Notify dynamic components that need to re-render
     window.dispatchEvent(new CustomEvent('langchange', { detail: { lang } }));
 }
 
 /**
  * Scan the DOM for elements with `data-i18n` attributes and update their text.
- * 
- * Supported attributes:
- * - `data-i18n="key"` → sets textContent
- * - `data-i18n-placeholder="key"` → sets placeholder
- * - `data-i18n-title="key"` → sets title
- * - `data-i18n-value="key"` → sets value
  */
-export function translateDOM() {
+export function translateDOM(): void {
     document.querySelectorAll('[data-i18n]').forEach(el => {
-        el.textContent = t(el.dataset.i18n);
+        el.textContent = t((el as HTMLElement).dataset.i18n!);
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-        el.placeholder = t(el.dataset.i18nPlaceholder);
+        (el as HTMLInputElement).placeholder = t((el as HTMLElement).dataset.i18nPlaceholder!);
     });
     document.querySelectorAll('[data-i18n-title]').forEach(el => {
-        el.title = t(el.dataset.i18nTitle);
+        (el as HTMLElement).title = t((el as HTMLElement).dataset.i18nTitle!);
     });
     document.querySelectorAll('[data-i18n-value]').forEach(el => {
-        el.value = t(el.dataset.i18nValue);
+        (el as HTMLInputElement).value = t((el as HTMLElement).dataset.i18nValue!);
     });
 }
 
@@ -606,12 +592,11 @@ export function translateDOM() {
 /**
  * Initialize language from localStorage or browser preference.
  */
-export function initLang() {
-    // 1. Check localStorage
+export function initLang(): void {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored && SUPPORTED_LANGS.includes(stored)) {
-            currentLang = stored;
+        if (stored && SUPPORTED_LANGS.includes(stored as LangCode)) {
+            currentLang = stored as LangCode;
             document.documentElement.lang = currentLang;
             document.title = t('page.title');
             translateDOM();
@@ -619,10 +604,9 @@ export function initLang() {
         }
     } catch (e) { /* ignore */ }
 
-    // 2. Check browser language
     const browserLang = (navigator.language || '').slice(0, 2).toLowerCase();
-    if (SUPPORTED_LANGS.includes(browserLang)) {
-        currentLang = browserLang;
+    if (SUPPORTED_LANGS.includes(browserLang as LangCode)) {
+        currentLang = browserLang as LangCode;
     } else {
         currentLang = DEFAULT_LANG;
     }
