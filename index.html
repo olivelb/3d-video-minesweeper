@@ -11,15 +11,7 @@
     <!-- Support HEIC -->
     <script src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
-    <!-- Import Map pour résoudre 'three' dans les modules -->
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
+    <!-- Three.js is now resolved from node_modules by Vite -->
     <script>
         window.MINESWEEPER_SERVERS = {
             raspberryCloud: 'https://your-tunnel-id.trycloudflare.com'
