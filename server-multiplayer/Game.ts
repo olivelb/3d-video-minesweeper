@@ -8,6 +8,7 @@
  */
 
 import { MinesweeperGameBase } from '../shared/GameBase.js';
+import type { Grid } from '../shared/types.js';
 
 // ─── Server Game Class ──────────────────────────────────────────────────────
 
@@ -15,11 +16,8 @@ export class MinesweeperGame extends MinesweeperGameBase {
 
     /**
      * Simple console log when board generation is limited / cancelled.
-     *
-     * @override
-     * @param {{cancelled?: boolean, warning?: boolean}} result
      */
-    _onGenerationWarning(result) {
+    override _onGenerationWarning(result: { cancelled?: boolean; warning?: boolean }): void {
         const reason = result.cancelled ? 'interrompue' : 'limitée à 10000 essais';
         console.log(`[GameServer] Board generation: ${reason}`);
     }
@@ -28,12 +26,10 @@ export class MinesweeperGame extends MinesweeperGameBase {
 
     /**
      * Place mines with a 3×3 safe zone around the first click position.
-     * @param {number} safeX
-     * @param {number} safeY
      */
-    placeMinesWithSafeZone(safeX, safeY) {
-        this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
-        this.grid  = Array(this.width).fill().map(() => Array(this.height).fill(0));
+    placeMinesWithSafeZone(safeX: number, safeY: number): void {
+        this.mines = Array(this.width).fill(null).map(() => Array(this.height).fill(false));
+        this.grid = Array(this.width).fill(null).map(() => Array(this.height).fill(0));
 
         let minesPlaced = 0;
         let placementAttempts = 0;
@@ -61,9 +57,9 @@ export class MinesweeperGame extends MinesweeperGameBase {
      * Pre-place mines for multiplayer (no safe zone).
      * Called by server before game starts so all players share the same board.
      */
-    prePlaceMinesForMultiplayer() {
-        this.mines = Array(this.width).fill().map(() => Array(this.height).fill(false));
-        this.grid  = Array(this.width).fill().map(() => Array(this.height).fill(0));
+    prePlaceMinesForMultiplayer(): void {
+        this.mines = Array(this.width).fill(null).map(() => Array(this.height).fill(false));
+        this.grid = Array(this.width).fill(null).map(() => Array(this.height).fill(0));
 
         let minesPlaced = 0;
         let placementAttempts = 0;
@@ -88,11 +84,8 @@ export class MinesweeperGame extends MinesweeperGameBase {
     /**
      * Reveal a bomb without ending the game (for multiplayer player elimination).
      * Marks the cell as value 10 (revealed bomb) instead of 9 (player explosion).
-     * @param {number} x
-     * @param {number} y
-     * @returns {boolean} true if a bomb was actually revealed
      */
-    revealBombForElimination(x, y) {
+    revealBombForElimination(x: number, y: number): boolean {
         if (!this.mines[x][y]) return false;
         this.visibleGrid[x][y] = 10;
         this.revealedBombs.push({ x, y });

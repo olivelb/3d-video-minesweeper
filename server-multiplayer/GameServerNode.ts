@@ -3,21 +3,52 @@
  * New flow: P1 creates game with config, P2 joins
  */
 
+import type { Server, Socket } from 'socket.io';
 import { GameServer } from './GameServer.js';
+import type { StatsDatabase } from './StatsDatabase.js';
 
-export function createGameServer(io, defaultConfig = {}, statsDb = null) {
-    let gameServer = null;
-    let hostSocketId = null;
-    const socketToPlayer = new Map(); // socketId -> { id, name, number }
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface GameServerConfig {
+    width?: number;
+    height?: number;
+    bombCount?: number;
+    maxPlayers?: number;
+    noGuessMode?: boolean;
+}
+
+interface PlayerInfo {
+    id: string;
+    name: string;
+    number: number;
+    eliminated?: boolean;
+}
+
+interface RateLimitEntry {
+    actions: number;
+    lastReset: number;
+    cursorCount: number;
+}
+
+// ─── Factory ────────────────────────────────────────────────────────────────
+
+export function createGameServer(
+    io: Server,
+    defaultConfig: GameServerConfig = {},
+    statsDb: StatsDatabase | null = null
+): { getLobbyState: () => object; resetServer: () => void } {
+    let gameServer: GameServer | null = null;
+    let hostSocketId: string | null = null;
+    const socketToPlayer = new Map<string, PlayerInfo>();
     const MAX_LOBBY_SIZE = 8;
 
     // === RATE LIMITING ===
-    const rateLimits = new Map(); // socketId -> { actions: number, lastReset: number, cursorCount: number }
-    const RATE_LIMIT_ACTIONS = 10;   // Max actions per second
-    const RATE_LIMIT_CURSORS = 30;   // Max cursor updates per second
-    const RATE_LIMIT_WINDOW = 1000;  // 1 second window
+    const rateLimits = new Map<string, RateLimitEntry>();
+    const RATE_LIMIT_ACTIONS = 10;
+    const RATE_LIMIT_CURSORS = 30;
+    const RATE_LIMIT_WINDOW = 1000;
 
-    function checkRateLimit(socketId, type = 'actions') {
+    function checkRateLimit(socketId: string, type: 'actions' | 'cursor' = 'actions'): boolean {
         const now = Date.now();
         let limits = rateLimits.get(socketId);
         if (!limits || now - limits.lastReset > RATE_LIMIT_WINDOW) {
@@ -32,9 +63,8 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         return limits.actions <= RATE_LIMIT_ACTIONS;
     }
 
-    // Wire up broadcasting
-    function setupBroadcasting(gs) {
-        gs.onBroadcast = (event, data, excludePlayerId) => {
+    function setupBroadcasting(gs: GameServer): void {
+        gs.onBroadcast = (event: string, data: unknown, excludePlayerId?: string) => {
             if (excludePlayerId) {
                 for (const [socketId, player] of socketToPlayer) {
                     if (player.id !== excludePlayerId) {
@@ -47,14 +77,11 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         };
     }
 
-    /**
-     * Save game to database when it ends
-     */
-    function saveGameToDatabase() {
+    function saveGameToDatabase(): void {
         if (!gameServer || !statsDb) return;
 
         try {
-            const gameRecord = gameServer.getGameRecord();
+            const gameRecord = gameServer.getGameRecord() as any;
             if (gameRecord.players.length > 0) {
                 statsDb.saveGame(gameRecord);
             }
@@ -63,9 +90,8 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         }
     }
 
-    // Helper to get lobby state
-    function getLobbyState() {
-        const players = [];
+    function getLobbyState(): object {
+        const players: object[] = [];
         for (const [socketId, player] of socketToPlayer) {
             players.push({
                 id: player.id,
@@ -88,11 +114,10 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         };
     }
 
-    io.on('connection', (socket) => {
+    io.on('connection', (socket: Socket) => {
         console.log('[GameServer] Client connected:', socket.id);
 
-        socket.on('join', ({ playerName }) => {
-            // Determine player number based on current state
+        socket.on('join', ({ playerName }: { playerName: string }) => {
             const isFirstPlayer = socketToPlayer.size === 0;
             const playerNumber = socketToPlayer.size + 1;
 
@@ -102,7 +127,7 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
                 return;
             }
 
-            const player = {
+            const player: PlayerInfo = {
                 id: socket.id,
                 name: playerName,
                 number: playerNumber
@@ -119,19 +144,18 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
                 isHost: isFirstPlayer
             });
 
-            // Send lobby state to everyone
             io.emit('lobbyUpdate', getLobbyState());
             console.log(`[GameServer] Player ${playerNumber} joined: ${playerName}`);
         });
 
-        // Host creates the game with config
-        socket.on('createGame', ({ width, height, bombCount, maxPlayers, noGuessMode }) => {
+        socket.on('createGame', ({ width, height, bombCount, maxPlayers, noGuessMode }: {
+            width: number; height: number; bombCount: number; maxPlayers: number; noGuessMode: boolean;
+        }) => {
             if (socket.id !== hostSocketId) {
                 socket.emit('error', { message: 'Only host can create game' });
                 return;
             }
 
-            // Server-side validation to prevent crashes
             const MAX_WIDTH = 240;
             const MAX_HEIGHT = 120;
             const MAX_BOMBS = 4000;
@@ -143,7 +167,6 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
                 return;
             }
 
-            // Density check (22% max) ONLY for No Guess mode (due to solver)
             if (noGuessMode) {
                 const totalCells = width * height;
                 const maxDensityBombs = Math.floor(totalCells * 0.22);
@@ -155,31 +178,25 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
                 }
             }
 
-            const actualMaxPlayers = Math.min(MAX_LOBBY_SIZE, Math.max(2, parseInt(maxPlayers) || 2));
+            const actualMaxPlayers = Math.min(MAX_LOBBY_SIZE, Math.max(2, parseInt(String(maxPlayers)) || 2));
             console.log(`[GameServer] Host creating game: ${width}x${height}, ${bombCount} bombs, max players: ${actualMaxPlayers}, No Guess: ${noGuessMode}`);
 
-            // Create game server with host's config
             gameServer = new GameServer({ width, height, bombCount, maxPlayers: actualMaxPlayers, noGuessMode });
             setupBroadcasting(gameServer);
 
-            // Add host as player 1
-            const hostPlayer = socketToPlayer.get(hostSocketId);
+            const hostPlayer = socketToPlayer.get(hostSocketId!)!;
             gameServer.addPlayer(hostPlayer.id, hostPlayer.name);
 
-            // Initialize game but DON'T place mines yet (wait for first click)
             gameServer.initGame();
-            // Mines will be placed on first reveal action
 
             console.log('[GameServer] Game created, waiting for first click to place mines');
 
-            // Notify all clients
             io.emit('lobbyUpdate', getLobbyState());
             io.emit('gameCreated', {
                 config: { width, height, bombCount, maxPlayers: actualMaxPlayers, noGuessMode }
             });
         });
 
-        // Guest joins the game
         socket.on('joinGame', () => {
             if (!gameServer) {
                 socket.emit('error', { message: 'No game to join' });
@@ -192,7 +209,6 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
                 return;
             }
 
-            // Add player to game
             const joinResult = gameServer.addPlayer(player.id, player.name);
             if (!joinResult.success) {
                 socket.emit('error', { message: joinResult.error });
@@ -201,17 +217,14 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
 
             console.log(`[GameServer] Player ${player.number} joined the game instance: ${player.name}`);
 
-            // Notify everyone of the new player in the game instance
             io.emit('lobbyUpdate', getLobbyState());
 
-            // Auto-start if max players reached
             if (gameServer.players.size >= gameServer.maxPlayers) {
                 console.log('[GameServer] Max players reached, auto-starting game!');
                 startGame();
             }
         });
 
-        // Host starts the game manually
         socket.on('startGame', () => {
             if (socket.id !== hostSocketId) {
                 socket.emit('error', { message: 'Only host can start the game' });
@@ -232,20 +245,18 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
             startGame();
         });
 
-        function startGame() {
+        function startGame(): void {
             if (!gameServer || gameServer.gameStarted) return;
 
-            // Start the game
             gameServer.gameStarted = true;
             if (gameServer.game) {
                 gameServer.game.startChronometer();
             }
 
-            // Send game state to all players
             io.emit('gameStart', { state: gameServer.getFullState() });
         }
 
-        socket.on('action', async (action) => {
+        socket.on('action', async (action: { type: string; x: number; y: number }) => {
             if (!checkRateLimit(socket.id, 'actions')) {
                 socket.emit('error', { message: 'Rate limit exceeded' });
                 return;
@@ -257,25 +268,15 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
             }
             const player = socketToPlayer.get(socket.id);
             if (player) {
-                const result = await gameServer.processAction(player.id, action);
+                const result = await gameServer.processAction(player.id, action as any) as any;
 
-                // If this was the first click that placed mines, DO NOT send them to clients (Anti-Cheat)
-                // if (result.firstClickMines) {
-                //    io.emit('minesPlaced', { minePositions: result.firstClickMines });
-                // }
-
-                // If a player was eliminated (but game continues), disconnect just that player after delay
                 if (result.playerEliminated && !result.gameEnded) {
                     console.log('[GameServer] Player eliminated:', result.playerEliminated, '- game continues');
-                    // The eliminated player will return to menu via playerEliminated event
-                    // No server reset needed - game continues for others
                 }
 
-                // If game fully ended (winner determined or all eliminated), save stats and reset server after delay
                 if (result.gameEnded) {
                     console.log('[GameServer] Game ended, saving stats and will reset server in 5 seconds');
 
-                    // Save game to database
                     saveGameToDatabase();
 
                     setTimeout(() => {
@@ -283,7 +284,6 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
                     }, 5000);
                 }
 
-                // Track eliminated players so we don't reset when they disconnect
                 if (result.playerEliminated) {
                     const playerInfo = socketToPlayer.get(socket.id);
                     if (playerInfo) {
@@ -293,7 +293,7 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
             }
         });
 
-        socket.on('cursor', ({ x, y }) => {
+        socket.on('cursor', ({ x, y }: { x: number; y: number }) => {
             if (!checkRateLimit(socket.id, 'cursor')) return;
             if (!gameServer) return;
             const player = socketToPlayer.get(socket.id);
@@ -308,28 +308,21 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
             if (player) {
                 console.log(`[GameServer] Player ${player.number} disconnected: ${player.name} (eliminated: ${player.eliminated || false})`);
 
-                // Only remove from game server if NOT eliminated
-                // (eliminated players stay in scoreboard for final results)
                 if (gameServer && !player.eliminated) {
                     gameServer.removePlayer(player.id);
                 }
                 socketToPlayer.delete(socket.id);
 
-                // If host disconnects AND was NOT eliminated, reset everything
-                // (eliminated players disconnecting is expected and shouldn't end the game)
                 if (socket.id === hostSocketId && !player.eliminated) {
                     console.log('[GameServer] Host disconnected unexpectedly, resetting game');
                     resetServer();
-                    // Disconnect remaining players
                     for (const [sid] of socketToPlayer) {
                         io.to(sid).emit('hostLeft');
                     }
                     socketToPlayer.clear();
                 } else if (socket.id === hostSocketId && player.eliminated) {
                     console.log('[GameServer] Eliminated host disconnected, game continues for others');
-                    // Don't reset - game continues
                 } else {
-                    // Update lobby for remaining players
                     io.emit('lobbyUpdate', getLobbyState());
                 }
             }
@@ -338,9 +331,7 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
 
     let resetPending = false;
 
-    // Reset server state completely
-    // Disconnect all players to return to connection screen (Hard Reset)
-    function resetServer() {
+    function resetServer(): void {
         if (resetPending) return;
 
         resetPending = true;
@@ -349,16 +340,13 @@ export function createGameServer(io, defaultConfig = {}, statsDb = null) {
         gameServer = null;
         hostSocketId = null;
 
-        // Notify players that game ended
         io.emit('gameEnded');
 
-        // Disconnect all sockets
         for (const [socketId] of socketToPlayer) {
             io.sockets.sockets.get(socketId)?.disconnect(true);
         }
         socketToPlayer.clear();
 
-        // Release lock
         setTimeout(() => { resetPending = false; }, 1000);
     }
 

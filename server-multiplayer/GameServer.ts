@@ -4,34 +4,102 @@
  */
 
 import { MinesweeperGame } from './Game.js';
+import type { Cell } from '../shared/types.js';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface GameServerConfig {
+    width?: number;
+    height?: number;
+    bombCount?: number;
+    noGuessMode?: boolean;
+    maxPlayers?: number;
+}
+
+interface PlayerStats {
+    cellsRevealed: number;
+    emptyCells: number;
+    numberedCells: number;
+    correctFlags: number;
+    incorrectFlags: number;
+    flagsPlaced: number;
+    joinedAt: number;
+    eliminatedAt: number | null;
+    finishedAt: number | null;
+}
+
+interface Player {
+    name: string;
+    number: number;
+    connected: boolean;
+    eliminated: boolean;
+    score: number;
+    stats: PlayerStats;
+}
+
+interface PlayerAction {
+    type: 'reveal' | 'flag' | 'chord';
+    x: number;
+    y: number;
+}
+
+interface ScoreboardEntry {
+    id: string;
+    name: string;
+    number: number;
+    score: number;
+    eliminated: boolean;
+    stats: {
+        cellsRevealed: number;
+        correctFlags: number;
+        incorrectFlags: number;
+        emptyCells?: number;
+        numberedCells?: number;
+    };
+}
+
+interface EliminationResult {
+    eliminated: boolean;
+    remainingPlayers: number;
+    allEliminated?: boolean;
+}
+
+type BroadcastFn = (eventName: string, data: unknown, excludePlayerId?: string) => void;
+type SendToFn = (playerId: string, eventName: string, data: unknown) => void;
+
+// ─── Class ──────────────────────────────────────────────────────────────────
 
 export class GameServer {
-    constructor(config = {}) {
+    width: number;
+    height: number;
+    bombCount: number;
+    noGuessMode: boolean;
+    game: MinesweeperGame | null;
+    players: Map<string, Player>;
+    maxPlayers: number;
+    gameStarted: boolean;
+    onBroadcast: BroadcastFn | null;
+    onSendTo: SendToFn | null;
+    actionQueue: Promise<unknown>;
+
+    constructor(config: GameServerConfig = {}) {
         this.width = config.width || 30;
         this.height = config.height || 16;
         this.bombCount = config.bombCount || 99;
         this.noGuessMode = config.noGuessMode || false;
 
         this.game = null;
-        this.players = new Map(); // id -> { name, connected }
+        this.players = new Map();
         this.maxPlayers = config.maxPlayers || 2;
         this.gameStarted = false;
 
-        // Callbacks for network layer to implement
-        this.onBroadcast = null;  // (eventName, data) => void
-        this.onSendTo = null;     // (playerId, eventName, data) => void
+        this.onBroadcast = null;
+        this.onSendTo = null;
 
-        // Queue to handle actions sequentially
         this.actionQueue = Promise.resolve();
     }
 
-    /**
-     * Add a player to the game
-     * @param {string} playerId - Unique identifier
-     * @param {string} playerName - Display name
-     * @returns {object} { success, error?, playerNumber? }
-     */
-    addPlayer(playerId, playerName) {
+    addPlayer(playerId: string, playerName: string): { success: boolean; error?: string; playerNumber?: number } {
         if (this.players.size >= this.maxPlayers) {
             return { success: false, error: 'Game is full' };
         }
@@ -39,10 +107,9 @@ export class GameServer {
             return { success: false, error: 'Already joined' };
         }
 
-        // Sanitize player name to prevent XSS and injection
         const sanitizedName = GameServer.sanitizeName(playerName);
-
         const playerNumber = this.players.size + 1;
+
         this.players.set(playerId, {
             name: sanitizedName,
             number: playerNumber,
@@ -62,7 +129,6 @@ export class GameServer {
             }
         });
 
-        // Notify all players
         if (this.onBroadcast) {
             this.onBroadcast('playerJoined', {
                 playerId,
@@ -75,14 +141,10 @@ export class GameServer {
         return { success: true, playerNumber };
     }
 
-    /**
-     * Remove a player
-     * @param {string} playerId
-     */
-    removePlayer(playerId) {
+    removePlayer(playerId: string): void {
         if (!this.players.has(playerId)) return;
 
-        const player = this.players.get(playerId);
+        const player = this.players.get(playerId)!;
         this.players.delete(playerId);
 
         if (this.onBroadcast) {
@@ -93,15 +155,11 @@ export class GameServer {
         }
     }
 
-    /**
-     * Initialize the game board
-     * Called when host decides to start, or automatically when 2 players join
-     */
-    initGame() {
+    initGame(): void {
         this.game = new MinesweeperGame(this.width, this.height, this.bombCount);
         this.game.noGuessMode = this.noGuessMode;
         this.game.init();
-        this.gameStarted = false; // Will be true after first click
+        this.gameStarted = false;
 
         if (this.onBroadcast) {
             this.onBroadcast('gameReady', {
@@ -112,23 +170,16 @@ export class GameServer {
         }
     }
 
-    /**
-     * Process a player action
-     * @param {string} playerId - Who did it
-     * @param {object} action - { type: 'reveal'|'flag'|'chord', x, y }
-     * @returns {object} Result to broadcast
-     */
-    async processAction(playerId, action) {
-        // Queue the action to ensure atomicity
+    async processAction(playerId: string, action: PlayerAction): Promise<unknown> {
         return this.actionQueue = this.actionQueue.then(async () => {
             return await this._internalProcessAction(playerId, action);
         }).catch(err => {
             console.error('[GameServer] Error processing action:', err);
-            return { success: false, error: err.message };
+            return { success: false, error: (err as Error).message };
         });
     }
 
-    async _internalProcessAction(playerId, action) {
+    async _internalProcessAction(playerId: string, action: PlayerAction): Promise<unknown> {
         if (!this.game) {
             return { success: false, error: 'Game not initialized' };
         }
@@ -138,12 +189,11 @@ export class GameServer {
         if (!this.players.has(playerId)) {
             return { success: false, error: 'Unknown player' };
         }
-        // Check if this player is already eliminated
         if (this.isPlayerEliminated(playerId)) {
             return { success: false, error: 'Player already eliminated' };
         }
 
-        const player = this.players.get(playerId);
+        const player = this.players.get(playerId)!;
         const { type, x, y } = action;
 
         // === INPUT VALIDATION ===
@@ -157,37 +207,33 @@ export class GameServer {
             return { success: false, error: 'Coordinates out of bounds' };
         }
 
-        let result;
-        let firstClickMines = null;
+        let result: any;
+        let firstClickMines: Cell[] | null = null;
 
         // Handle first click - place mines safely
         if (type === 'reveal' && this.game.firstClick) {
             console.log(`[GameServer] First click at (${x}, ${y}), placing mines with safe zone`);
 
-            // Broadcast initial generation start
             if (this.onBroadcast) {
                 this.onBroadcast('generatingGrid', { attempt: 0, max: 10000 });
             }
 
-            let placementResult;
+            let placementResult: any;
             try {
-                placementResult = await this.game.placeMines(x, y, (attempt, max) => {
-                    // Throttle progress updates: Let Game.js control frequency (every 10 attempts)
+                placementResult = await this.game.placeMines(x, y, (attempt: number, max: number) => {
                     if (this.onBroadcast) {
                         this.onBroadcast('generatingGrid', { attempt, max });
                     }
                 });
             } catch (err) {
                 console.error('[GameServer] Mine placement failed:', err);
-                // Broadcast gameUpdate so clients hide the loading overlay
                 if (this.onBroadcast) {
                     this.onBroadcast('generatingGrid', { attempt: -1, max: 0, error: true });
                 }
-                return { success: false, error: 'Mine placement failed: ' + err.message };
+                return { success: false, error: 'Mine placement failed: ' + (err as Error).message };
             }
 
             if (placementResult && placementResult.cancelled) {
-                // Broadcast so clients hide the loading overlay
                 if (this.onBroadcast) {
                     this.onBroadcast('generatingGrid', { attempt: -1, max: 0, error: true });
                 }
@@ -200,20 +246,16 @@ export class GameServer {
 
         if (type === 'reveal') {
             result = await this.game.reveal(x, y);
-            // Update player stats for revealed cells
             if (result.type === 'reveal' && result.changes) {
                 this._updateRevealStats(playerId, result.changes);
             }
         } else if (type === 'flag') {
             result = this.game.toggleFlag(x, y);
-            // Update player stats for flags
             if (result.type === 'flag') {
                 this._updateFlagStats(playerId, x, y, result.active);
             }
         } else if (type === 'chord') {
             result = this.game.chord(x, y);
-            // Update player stats for revealed cells from chord
-            // (covers both successful chord AND explosion with pre-explosion reveals)
             if (result.changes && result.changes.length > 0) {
                 this._updateRevealStats(playerId, result.changes);
             }
@@ -227,21 +269,14 @@ export class GameServer {
 
         // Handle explosion - player elimination in multiplayer
         if (result.type === 'explode') {
-            // The mine coordinates are in result.x, result.y (may differ from
-            // action x,y when the explosion comes from a chord click)
             const mineX = result.x;
             const mineY = result.y;
 
-            // Mark the bomb as revealed (value 10) instead of explosion (value 9)
             this.game.revealBombForElimination(mineX, mineY);
-            // Reset gameOver flag since game continues for other players
             this.game.gameOver = false;
 
-            // Eliminate this player (freezes their score)
             const eliminationResult = this.eliminatePlayer(playerId);
 
-            // Broadcast the revealed bomb to all players
-            // Include any pre-explosion changes (cells revealed by chord before hitting the mine)
             const update = {
                 actor: {
                     id: playerId,
@@ -257,7 +292,6 @@ export class GameServer {
                 this.onBroadcast('gameUpdate', update);
             }
 
-            // Send playerEliminated event
             if (this.onBroadcast) {
                 this.onBroadcast('playerEliminated', {
                     playerId,
@@ -270,9 +304,7 @@ export class GameServer {
                 });
             }
 
-            // Check if all players eliminated (everyone loses)
             if (eliminationResult.allEliminated) {
-                // Calculate flag scores at game end
                 this._calculateFinalFlagScores();
 
                 if (this.onBroadcast) {
@@ -285,7 +317,6 @@ export class GameServer {
                 return { success: true, result, firstClickMines, gameEnded: true, playerEliminated: playerId };
             }
 
-            // Game continues for remaining players - they win by completing the grid
             return { success: true, result, firstClickMines, playerEliminated: playerId };
         }
 
@@ -307,10 +338,7 @@ export class GameServer {
 
         // Check for win
         if (result.type === 'win') {
-            // Calculate final flag scores for all players
             this._calculateFinalFlagScores();
-
-            // Apply winner bonus
             this._applyWinnerBonus(playerId);
 
             if (this.onBroadcast) {
@@ -330,11 +358,7 @@ export class GameServer {
         return { success: true, result, firstClickMines };
     }
 
-    /**
-     * Get the current full game state (for late joiners or reconnects)
-     * @returns {object} Complete state snapshot
-     */
-    getFullState() {
+    getFullState(): object | null {
         if (!this.game) return null;
 
         return {
@@ -346,7 +370,7 @@ export class GameServer {
             gameOver: this.game.gameOver,
             victory: this.game.victory,
             elapsedTime: this.game.getElapsedTime(),
-            minePositions: [], // Anti-Cheat: Never send mine positions
+            minePositions: [],
             revealedBombs: this.game.revealedBombs || [],
             scores: this.getScoreboard(),
             players: Array.from(this.players.entries()).map(([id, p]) => ({
@@ -360,32 +384,22 @@ export class GameServer {
         };
     }
 
-    /**
-     * Handle cursor position update (just relay, no storage)
-     * @param {string} playerId
-     * @param {object} position - { x, y }
-     */
-    updateCursor(playerId, position) {
+    updateCursor(playerId: string, position: { x: number; y: number }): void {
         if (!this.players.has(playerId)) return;
 
-        const player = this.players.get(playerId);
+        const player = this.players.get(playerId)!;
 
-        // Broadcast to OTHER players only
         if (this.onBroadcast) {
             this.onBroadcast('cursorUpdate', {
                 playerId,
                 playerNumber: player.number,
                 x: position.x,
                 y: position.y
-            }, playerId); // Exclude sender
+            }, playerId);
         }
     }
 
-    /**
-     * Get count of active (non-eliminated) players
-     * @returns {number}
-     */
-    getActivePlayerCount() {
+    getActivePlayerCount(): number {
         let count = 0;
         for (const player of this.players.values()) {
             if (!player.eliminated) count++;
@@ -393,24 +407,17 @@ export class GameServer {
         return count;
     }
 
-    /**
-     * Eliminate a player (they clicked a bomb)
-     * @param {string} playerId
-     * @returns {object} { eliminated: boolean, remainingPlayers: number, allEliminated?: boolean }
-     */
-    eliminatePlayer(playerId) {
+    eliminatePlayer(playerId: string): EliminationResult {
         if (!this.players.has(playerId)) {
             return { eliminated: false, remainingPlayers: this.getActivePlayerCount() };
         }
 
-        const player = this.players.get(playerId);
+        const player = this.players.get(playerId)!;
         player.eliminated = true;
         player.stats.eliminatedAt = Date.now();
-        // Score is frozen at current value (no bonus)
 
         const remainingPlayers = this.getActivePlayerCount();
 
-        // Check if all players eliminated - game over with no winner
         if (remainingPlayers === 0) {
             return {
                 eliminated: true,
@@ -419,17 +426,10 @@ export class GameServer {
             };
         }
 
-        // Game continues - remaining players must complete the grid to win
-        // No automatic winner just for being last standing
         return { eliminated: true, remainingPlayers };
     }
 
-    /**
-     * Check if a player is eliminated
-     * @param {string} playerId
-     * @returns {boolean}
-     */
-    isPlayerEliminated(playerId) {
+    isPlayerEliminated(playerId: string): boolean {
         const player = this.players.get(playerId);
         return player ? player.eliminated : true;
     }
@@ -438,43 +438,25 @@ export class GameServer {
     // SCORING SYSTEM
     // ============================================
 
-    /**
-     * Scoring constants
-     */
     static SCORING = {
-        EMPTY_CELL: 1,           // Points for revealing empty cell
-        NUMBERED_MULTIPLIER: 1,  // Points per number value (e.g., "3" = 3 pts)
-        CORRECT_FLAG: 10,        // Points for flag on mine
-        INCORRECT_FLAG: -5,      // Penalty for wrong flag removed
-        WIN_BONUS: 100,          // Flat bonus for winning
-        TIME_BONUS_MAX: 300,     // Max time bonus (at 0 seconds)
-        TIME_BONUS_DURATION: 300 // Seconds until time bonus reaches 0
+        EMPTY_CELL: 1,
+        NUMBERED_MULTIPLIER: 1,
+        CORRECT_FLAG: 10,
+        INCORRECT_FLAG: -5,
+        WIN_BONUS: 100,
+        TIME_BONUS_MAX: 300,
+        TIME_BONUS_DURATION: 300
     };
 
-    /**
-     * Sanitize a player name to prevent XSS and injection attacks.
-     * Strips HTML tags, limits length, and removes control characters.
-     * @param {string} name - Raw player name
-     * @returns {string} Sanitized name
-     */
-    static sanitizeName(name) {
+    static sanitizeName(name: string): string {
         if (typeof name !== 'string') return 'Joueur';
-        // Strip HTML tags
         let clean = name.replace(/<[^>]*>/g, '');
-        // Remove control characters
         clean = clean.replace(/[\x00-\x1F\x7F]/g, '');
-        // Trim and limit length
         clean = clean.trim().substring(0, 30);
-        // Fallback if empty
         return clean || 'Joueur';
     }
 
-    /**
-     * Update player stats when cells are revealed
-     * @param {string} playerId 
-     * @param {Array} changes - Array of { x, y, value } revealed cells
-     */
-    _updateRevealStats(playerId, changes) {
+    _updateRevealStats(playerId: string, changes: { x: number; y: number; value: number }[]): void {
         const player = this.players.get(playerId);
         if (!player || player.eliminated) return;
 
@@ -484,11 +466,9 @@ export class GameServer {
             player.stats.cellsRevealed++;
 
             if (cell.value === 0) {
-                // Empty cell
                 player.stats.emptyCells++;
                 pointsEarned += GameServer.SCORING.EMPTY_CELL;
             } else if (cell.value >= 1 && cell.value <= 8) {
-                // Numbered cell - points equal to number
                 player.stats.numberedCells++;
                 pointsEarned += cell.value * GameServer.SCORING.NUMBERED_MULTIPLIER;
             }
@@ -497,21 +477,10 @@ export class GameServer {
         player.score += pointsEarned;
     }
 
-    /**
-     * Update player stats when flag is placed/removed
-     * NOTE: Flag scores are NOT calculated during gameplay to prevent cheating
-     * (player could tell if flag is correct by watching score change)
-     * Flag scores are calculated at game end via _calculateFinalFlagScores()
-     * @param {string} playerId 
-     * @param {number} x 
-     * @param {number} y 
-     * @param {boolean} active - true if flag placed, false if removed
-     */
-    _updateFlagStats(playerId, x, y, active) {
+    _updateFlagStats(playerId: string, x: number, y: number, active: boolean): void {
         const player = this.players.get(playerId);
         if (!player || player.eliminated) return;
 
-        // Just track the action, don't reveal if correct (would be cheating!)
         if (active) {
             player.stats.flagsPlaced++;
         } else {
@@ -519,19 +488,13 @@ export class GameServer {
         }
     }
 
-    /**
-     * Calculate final flag scores for all players at game end
-     * Called when game ends (win or all eliminated)
-     */
-    _calculateFinalFlagScores() {
+    _calculateFinalFlagScores(): void {
         if (!this.game) return;
 
         for (const [playerId, player] of this.players) {
             let correctFlags = 0;
             let incorrectFlags = 0;
 
-            // Count correct/incorrect flags on the board
-            // TODO: Track individual flag ownership for proper per-player scoring
             for (let x = 0; x < this.width; x++) {
                 for (let y = 0; y < this.height; y++) {
                     if (this.game.flags[x][y]) {
@@ -544,9 +507,6 @@ export class GameServer {
                 }
             }
 
-            // In 2-player mode, we can't easily track who placed which flag
-            // For now, award flag points based on flagsPlaced ratio
-            // TODO: Track individual flag ownership for proper scoring
             const totalFlagsPlaced = Array.from(this.players.values())
                 .reduce((sum, p) => sum + Math.max(0, p.stats.flagsPlaced), 0);
 
@@ -567,33 +527,23 @@ export class GameServer {
         }
     }
 
-    /**
-     * Apply winner bonus (flat + time)
-     * @param {string} playerId 
-     */
-    _applyWinnerBonus(playerId) {
+    _applyWinnerBonus(playerId: string): void {
         const player = this.players.get(playerId);
         if (!player) return;
 
         player.stats.finishedAt = Date.now();
 
-        // Flat win bonus
         player.score += GameServer.SCORING.WIN_BONUS;
 
-        // Time bonus: max(0, 300 - elapsed)
-        const elapsed = this.game.getElapsedTime();
+        const elapsed = this.game!.getElapsedTime();
         const timeBonus = Math.max(0, GameServer.SCORING.TIME_BONUS_MAX - elapsed);
         player.score += timeBonus;
 
         console.log(`[GameServer] Winner ${player.name}: +${GameServer.SCORING.WIN_BONUS} win + ${timeBonus} time = ${player.score} total`);
     }
 
-    /**
-     * Get current scoreboard sorted by score descending
-     * @returns {Array} [{ id, name, number, score, eliminated, stats }]
-     */
-    getScoreboard() {
-        const scoreboard = [];
+    getScoreboard(): ScoreboardEntry[] {
+        const scoreboard: ScoreboardEntry[] = [];
 
         for (const [id, player] of this.players) {
             scoreboard.push({
@@ -610,17 +560,11 @@ export class GameServer {
             });
         }
 
-        // Sort by score descending
         scoreboard.sort((a, b) => b.score - a.score);
-
         return scoreboard;
     }
 
-    /**
-     * Get complete game record for persistence
-     * @returns {object} Full game data matching StatsDatabase schema
-     */
-    getGameRecord() {
+    getGameRecord(): object {
         const scoreboard = this.getScoreboard();
         const winner = scoreboard.find(p => !p.eliminated) || null;
         const victory = this.game?.victory || false;
