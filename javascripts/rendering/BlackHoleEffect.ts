@@ -1,31 +1,17 @@
-/**
- * Shockwave Effect Module 
- * 
- * Manages the shockwave visual effect used for hints.
- * Generates an expanding ripple wave ring that dynamically distorts the screen
- * using a Post-Processing ShaderPass.
- * 
- * @module BlackHoleEffect
- * @requires three
- */
 import * as THREE from 'three';
 import shockwaveVertexShader from './shaders/shockwave.vert.glsl.js';
 import shockwaveFragmentShader from './shaders/shockwave.frag.glsl.js';
 
 export const SHOCKWAVE_CONFIG = {
-    // How fast the ripple expands outward
     SPEED: 20.0,
-    // How many rings the ripple has rings 
     FREQUENCY: 80.0,
-    // The visual intensity/distortion amount of the refraction (very low for realistic glass)
     STRENGTH: 0.0015,
-    // Duration of the effect in seconds
     LIFETIME: 1.0
 };
 
 const SHOCKWAVE_SHADER = {
     uniforms: {
-        'tDiffuse': { value: null },
+        'tDiffuse': { value: null as THREE.Texture | null },
         'uCenter': { value: new THREE.Vector2(0.5, 0.5) },
         'uAspect': { value: 1.0 },
         'uTime': { value: 0.0 },
@@ -34,17 +20,28 @@ const SHOCKWAVE_SHADER = {
         'uFrequency': { value: SHOCKWAVE_CONFIG.FREQUENCY },
         'uStrength': { value: SHOCKWAVE_CONFIG.STRENGTH }
     },
-
     vertexShader: shockwaveVertexShader,
     fragmentShader: shockwaveFragmentShader
 };
 
+interface ShockwaveEffect {
+    center: THREE.Vector2;
+    age: number;
+    lifeTime: number;
+    alive: boolean;
+}
+
 export class BlackHoleEffect {
-    constructor(scene, camera) {
+    camera: THREE.Camera;
+    effects: ShockwaveEffect[];
+    shaderParams: Record<string, { value: any }>;
+    passMaterial: any;
+
+    constructor(scene: THREE.Scene, camera: THREE.Camera) {
         this.camera = camera;
         this.effects = [];
         this.shaderParams = THREE.UniformsUtils.clone(SHOCKWAVE_SHADER.uniforms);
-        this.passMaterial = null; // Will be set by Renderer
+        this.passMaterial = null;
     }
 
     getShader() {
@@ -55,16 +52,15 @@ export class BlackHoleEffect {
         };
     }
 
-    setPass(shaderPass) {
+    setPass(shaderPass: any): void {
         this.passMaterial = shaderPass.material;
     }
-    trigger(position, color, lifeTime = SHOCKWAVE_CONFIG.LIFETIME) {
-        // Project 3D world position to 2D Screen UV coordinates
+
+    trigger(position: THREE.Vector3, color: THREE.Color, lifeTime = SHOCKWAVE_CONFIG.LIFETIME): void {
         const screenPos = position.clone();
-        screenPos.y = 5; // Raise slightly above grid
+        screenPos.y = 5;
         screenPos.project(this.camera);
 
-        // (-1 to 1) -> (0 to 1)
         const uvX = (screenPos.x + 1) / 2;
         const uvY = (screenPos.y + 1) / 2;
 
@@ -75,7 +71,6 @@ export class BlackHoleEffect {
             alive: true
         });
 
-        // Activate shader on the exact material instance used by Composer
         if (this.passMaterial) {
             this.passMaterial.uniforms.uCenter.value.set(uvX, uvY);
             this.passMaterial.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
@@ -83,14 +78,10 @@ export class BlackHoleEffect {
         }
     }
 
-    update(dt) {
+    update(dt: number): void {
         if (!this.passMaterial) return;
+        if (this.effects.length === 0) return;
 
-        if (this.effects.length === 0) {
-            return;
-        }
-
-        // We only cleanly support one screen-space ripple at a time for simplicity
         const effect = this.effects[0];
         effect.age += dt;
 
@@ -101,11 +92,11 @@ export class BlackHoleEffect {
         }
     }
 
-    isActive() {
+    isActive(): boolean {
         return this.effects.length > 0;
     }
 
-    dispose() {
+    dispose(): void {
         this.effects = [];
     }
 }

@@ -8,7 +8,7 @@
 
 export { MinesweeperRenderer } from './Renderer.js';
 export { CameraController } from './CameraController.js';
-export { TextureManager } from './TextureManager.js';
+export { MediaTextureManager } from './MediaTextureManager.js';
 export { GridManager } from './GridManager.js';
 export { FlagManager } from './FlagManager.js';
 export { InputManager } from './InputManager.js';

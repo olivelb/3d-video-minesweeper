@@ -1,4 +1,4 @@
-export default /* glsl */ `
+const shader: string = /* glsl */ `
 uniform sampler2D uTexture;
 varying vec3 vColor;
 varying float vLifeRatio;
@@ -9,3 +9,4 @@ void main() {
     gl_FragColor = vec4(vColor * texColor.rgb, texColor.a);
 }
 `;
+export default shader;

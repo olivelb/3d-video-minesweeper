@@ -1,4 +1,4 @@
-export default /* glsl */ `
+const shader: string = /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform vec2 uCenter;
 uniform float uAspect;
@@ -67,3 +67,4 @@ void main() {
     gl_FragColor = texColor;
 }
 `;
+export default shader;

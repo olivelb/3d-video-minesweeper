@@ -2,31 +2,57 @@ import * as THREE from 'three';
 import particleVertexShader from './shaders/particle.vert.glsl.js';
 import particleFragmentShader from './shaders/particle.frag.glsl.js';
 
+interface EmitterConfig {
+    count: number;
+    texture: THREE.Texture;
+    colorStart: THREE.Color;
+    colorEnd: THREE.Color;
+    sizeStart: number;
+    lifeTime: number;
+    rate: number;
+    speed: number;
+    spread: number;
+}
+
+interface ParticleSystemEntry {
+    mesh: THREE.Points;
+    config: EmitterConfig;
+    alive: boolean;
+    isBurst: boolean;
+    time: number;
+}
+
 export class ParticleSystem {
-    constructor(scene, textures) {
+    scene: THREE.Scene;
+    textures: Record<string, THREE.Texture>;
+    systems: ParticleSystemEntry[];
+    scale: number;
+    _resizeHandler: () => void;
+
+    constructor(scene: THREE.Scene, textures: Record<string, THREE.Texture>) {
         this.scene = scene;
         this.textures = textures;
-        this.systems = []; // Active particle systems
+        this.systems = [];
 
+        this.scale = 0;
         this._computeScale();
         this._resizeHandler = () => {
             this._computeScale();
             this.systems.forEach(sys => {
-                if (sys.mesh && sys.mesh.material && sys.mesh.material.uniforms.uScale) {
-                    sys.mesh.material.uniforms.uScale.value = this.scale;
+                if (sys.mesh && (sys.mesh.material as THREE.ShaderMaterial).uniforms?.uScale) {
+                    (sys.mesh.material as THREE.ShaderMaterial).uniforms.uScale.value = this.scale;
                 }
             });
         };
         window.addEventListener('resize', this._resizeHandler);
     }
 
-    _computeScale() {
-        // THREE.PointsMaterial default sizeAttenuation scale
+    _computeScale(): void {
         this.scale = window.innerHeight * 0.5;
     }
 
-    createEmitter(position, type, options = {}) {
-        let config = type === 'flag' ? {
+    createEmitter(position: THREE.Vector3, type: string, options: Partial<EmitterConfig> = {}): ParticleSystemEntry {
+        let config: EmitterConfig = type === 'flag' ? {
             count: 1000,
             texture: this.textures['flag'],
             colorStart: new THREE.Color('yellow'),
@@ -36,14 +62,14 @@ export class ParticleSystem {
             rate: 15,
             speed: 40,
             spread: 0
-        } : { // Fireworks
+        } : {
             count: 3000,
             texture: this.textures['particle'],
             colorStart: new THREE.Color('blue'),
             colorEnd: new THREE.Color('red'),
             sizeStart: 5,
             lifeTime: 2.0,
-            rate: 0, // Burst
+            rate: 0,
             speed: 200,
             spread: 100
         };
@@ -52,11 +78,10 @@ export class ParticleSystem {
 
         const isBurst = config.rate === 0;
 
-        // Ensure 1:1 identical visual matching for old count/rate behavior
         let actualCount = config.count;
         if (!isBurst) {
             actualCount = Math.min(config.count, Math.floor(config.rate * 60 * config.lifeTime));
-            if (actualCount === 0) actualCount = 1; // Failsafe
+            if (actualCount === 0) actualCount = 1;
         }
 
         const geometry = new THREE.BufferGeometry();
@@ -110,10 +135,10 @@ export class ParticleSystem {
 
         const points = new THREE.Points(geometry, material);
         points.position.copy(position);
-        points.frustumCulled = false; // Expanding geometries must bypass simple culling
+        points.frustumCulled = false;
         this.scene.add(points);
 
-        const system = {
+        const system: ParticleSystemEntry = {
             mesh: points,
             config: config,
             alive: true,
@@ -125,15 +150,14 @@ export class ParticleSystem {
         return system;
     }
 
-    update(dt) {
+    update(dt: number): void {
         for (let i = this.systems.length - 1; i >= 0; i--) {
             const sys = this.systems[i];
-
             sys.time += dt;
-            sys.mesh.material.uniforms.uTime.value = sys.time;
+            (sys.mesh.material as THREE.ShaderMaterial).uniforms.uTime.value = sys.time;
 
-            if (!sys.alive && sys.mesh.material.uniforms.uStopTime.value === -1.0) {
-                sys.mesh.material.uniforms.uStopTime.value = sys.time;
+            if (!sys.alive && (sys.mesh.material as THREE.ShaderMaterial).uniforms.uStopTime.value === -1.0) {
+                (sys.mesh.material as THREE.ShaderMaterial).uniforms.uStopTime.value = sys.time;
             }
 
             let shouldDispose = false;
@@ -143,7 +167,7 @@ export class ParticleSystem {
                     shouldDispose = true;
                 }
             } else {
-                const stopTime = sys.mesh.material.uniforms.uStopTime.value;
+                const stopTime = (sys.mesh.material as THREE.ShaderMaterial).uniforms.uStopTime.value;
                 if (!sys.alive && stopTime >= 0 && sys.time > stopTime + sys.config.lifeTime) {
                     shouldDispose = true;
                 }
@@ -152,23 +176,22 @@ export class ParticleSystem {
             if (shouldDispose) {
                 this.scene.remove(sys.mesh);
                 sys.mesh.geometry.dispose();
-                sys.mesh.material.dispose();
+                (sys.mesh.material as THREE.Material).dispose();
                 this.systems.splice(i, 1);
             }
         }
     }
 
-    stopAll() {
+    stopAll(): void {
         this.systems.forEach(sys => sys.alive = false);
     }
 
-    dispose() {
+    dispose(): void {
         this.stopAll();
-        // Force cleanup
         this.systems.forEach(sys => {
             this.scene.remove(sys.mesh);
             sys.mesh.geometry.dispose();
-            sys.mesh.material.dispose();
+            (sys.mesh.material as THREE.Material).dispose();
         });
         this.systems = [];
         window.removeEventListener('resize', this._resizeHandler);

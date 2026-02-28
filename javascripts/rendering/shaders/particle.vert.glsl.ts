@@ -1,4 +1,4 @@
-export default /* glsl */ `
+const shader: string = /* glsl */ `
 uniform float uTime;
 uniform float uLifeTime;
 uniform float uSizeStart;
@@ -57,3 +57,4 @@ void main() {
     gl_PointSize = uSizeStart * (uScale / -mvPosition.z);
 }
 `;
+export default shader;
