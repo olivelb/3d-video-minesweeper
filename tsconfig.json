@@ -1,0 +1,41 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "baseUrl": ".",
+        "paths": {
+            "three": [
+                "node_modules/@types/three"
+            ],
+            "three/addons/*": [
+                "node_modules/three/examples/jsm/*"
+            ]
+        },
+        "outDir": "./dist",
+        "rootDir": ".",
+        "allowJs": true,
+        "types": [
+            "node"
+        ]
+    },
+    "include": [
+        "javascripts/**/*",
+        "shared/**/*",
+        "tests/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "server",
+        "server-multiplayer",
+        "shared/solver-wasm"
+    ]
+}

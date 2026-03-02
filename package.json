@@ -4,11 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/**/*.test.js",
-    "test:gamebase": "node --test tests/GameBase.test.js",
-    "test:solver": "node --test tests/MinesweeperSolver.test.js"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test:gamebase": "node --import tsx --test tests/GameBase.test.ts",
+    "test:solver": "node --import tsx --test tests/MinesweeperSolver.test.ts"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.2",
+    "@types/three": "^0.183.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
   }
 }

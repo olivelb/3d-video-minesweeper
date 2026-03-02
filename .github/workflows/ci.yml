@@ -1,0 +1,51 @@
+name: WASM Solver CI
+
+on:
+  push:
+    branches: [ "master", "main" ]
+    paths:
+      - 'shared/solver-wasm/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [ "master", "main" ]
+    paths:
+      - 'shared/solver-wasm/**'
+      - '.github/workflows/ci.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    name: Build & Test WASM Solver
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+        
+    - name: Install wasm-pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      
+    - name: Run native tests
+      working-directory: shared/solver-wasm
+      run: cargo test --verbose
+      
+    - name: Build WASM package
+      working-directory: shared/solver-wasm
+      run: wasm-pack build --target web --out-dir pkg
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Node.js dependencies
+      run: npm install
+
+    - name: Run Node.js equivalence tests
+      run: npx tsx shared/solver-wasm/test/equivalence.mjs

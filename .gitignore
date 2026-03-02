@@ -23,8 +23,8 @@ server/
 .DS_Store
 Thumbs.db
 
-# Local Development / Agent Skills
-.github/
+# Local Development / Agent Skills (keep workflows tracked)
+.github/skills/
 
 # Logs
 *.log
