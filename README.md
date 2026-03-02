@@ -3,7 +3,7 @@
 A modern, immersive, and social take on the classic Minesweeper. Built with **Three.js** for stunning 3D visuals, and **Socket.io** for intense competitive multiplayer.
 
 ![Project Status](https://img.shields.io/badge/status-active-brightgreen)
-![Tech Stack](https://img.shields.io/badge/tech-Three.js%20%7C%20GLSL%20%7C%20Node.js%20%7C%20Socket.io-blue)
+![Tech Stack](https://img.shields.io/badge/tech-Three.js%20%7C%20TypeScript%20%7C%20Node.js%20%7C%20Socket.io-blue)
 
 ## ✨ Features
 
@@ -51,13 +51,19 @@ A modern, immersive, and social take on the classic Minesweeper. Built with **Th
    npm start
    ```
 
-3. Open `index.html` in your browser (via a local server like Live Server or `npx serve .`).
+3. Install dependencies and start the frontend dev server:
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+4. Open the local URL provided by Vite in your browser (usually `http://localhost:5173/`).
 
 ## 🛠 Project Structure
 
-- `javascripts/`: Core frontend logic, Three.js rendering, and UI components.
-- `shared/`: Solver algorithms shared between client and server (GaussianElimination, MinesweeperSolver, SolverBridge, solver-wasm/).
-- `server-multiplayer/`: Node.js authoritative game server.
+- `javascripts/`: Core frontend logic, Three.js rendering, and UI components (in TypeScript).
+- `shared/`: Solver algorithms shared between client and server.
+- `server-multiplayer/`: Node.js authoritative game server (in TypeScript).
 - `css/`: Modern styling and animations.
 - `docs/`: Technical documentation and implementation plans.
 

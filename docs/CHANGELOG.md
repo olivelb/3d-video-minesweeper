@@ -1,5 +1,16 @@
 # 📝 Changelog
 
+## v3.5 — March 02, 2026
+
+### 🚀 Massive Architecture Update: TypeScript & Vite
+
+The entire frontend and backend codebase has been successfully migrated to **TypeScript**!
+
+**Key Changes:**
+- **Static Typing**: All `javascripts/`, `shared/`, and `server-multiplayer/` components are now strictly typed via TS, replacing JSDoc comments.
+- **Vite Bundler**: Migrated from plain browser ES Modules to a modern Vite build pipeline (`npm run dev` / `npm run build`), significantly improving load speeds through aggressive tree-shaking and module bundling (esbuild).
+- **Architecture**: The previous Technical Debt regarding TypeScript adoption in `ARCHITECTURE.md` has been resolved.
+
 ## v3.4 — Feb 12, 2026
 
 ### ✨ New: Explain Hint Feature

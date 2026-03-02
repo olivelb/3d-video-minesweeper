@@ -85,14 +85,13 @@ This guide covers deploying the 3D Minesweeper project for both local developmen
 
 5. **Serve the frontend**
    ```bash
-   # From project root, use any static server:
-   npx serve .
-   # or
-   python -m http.server 8080
+   # From project root, install dependencies and start the Vite dev server:
+   npm install
+   npm run dev
    ```
 
-5. **Open in browser**
-   - Navigate to `http://localhost:8080`
+6. **Open in browser**
+   - Navigate to the URL shown by Vite (usually `http://localhost:5173/`)
    - The app auto-detects local environment and tries localhost:3001 first
 
 ---
@@ -129,7 +128,7 @@ This guide covers deploying the 3D Minesweeper project for both local developmen
    ```
 
    > **Note**: The server includes a Gaussian Elimination solver for "No Guess" mode.
-   > It also supports WASM-accelerated solving via `SolverBridge.js` (falls back to JS if WASM is unavailable).
+   > It also supports WASM-accelerated solving via `SolverBridge.ts` (falls back to JS if WASM is unavailable).
    > It enforces a hard limit of **150x100** grid and **2000 bombs** to ensure stability on the Pi 3 hardware.
    > Live feedback is provided during grid generation (e.g., "Tentative 50/10000") to keep players informed on slower devices.
    > The solver code lives in `shared/` and is shared between client and server.
@@ -198,7 +197,7 @@ To connect your GitHub Pages frontend to your Raspberry Pi tunnel, follow these 
 For local development, the app tries to connect in this order:
 1. `LocalStorage` override (if set via UI)
 2. `window.MINESWEEPER_SERVERS.raspberryCloud` (defined in `index.html`)
-3. `http://your-pi-ip:3001` (hardcoded fallback in `MultiplayerUI.js`)
+3. `http://your-pi-ip:3001` (hardcoded fallback in `MultiplayerUI.ts`)
 
 You can also use a gitignored `servers-local.json` for local scripts.
 
