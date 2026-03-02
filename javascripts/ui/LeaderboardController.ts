@@ -1,94 +1,55 @@
-/**
- * LeaderboardController Module
- * 
- * Manages the display and interaction with leaderboard/high scores UI.
- * Handles fetching, displaying, and formatting score data.
- * 
- * @module LeaderboardController
- */
-
 import { t, getLocale } from '../i18n.js';
+import type { ScoreManager } from '../managers/ScoreManager.js';
 
-/**
- * Default difficulty configurations
- * @constant
- */
-const DIFFICULTY_PRESETS = {
+const DIFFICULTY_PRESETS: Record<string, { width: number; height: number; bombs: number }> = {
     easy: { width: 8, height: 8, bombs: 10 },
     medium: { width: 16, height: 16, bombs: 40 },
     hard: { width: 30, height: 16, bombs: 99 }
 };
 
-/**
- * Manages leaderboard display and interactions
- * @class
- */
 export class LeaderboardController {
-    /**
-     * Create a leaderboard manager
-     * @param {Object} scoreManager - Reference to the score manager
-     */
-    constructor(scoreManager) {
-        /** @type {Object} Score manager reference */
+    scoreManager: ScoreManager;
+    contentEl: HTMLElement | null;
+    panelEl: HTMLElement | null;
+    currentFilter: string;
+
+    constructor(scoreManager: ScoreManager) {
         this.scoreManager = scoreManager;
-
-        /** @type {HTMLElement|null} Leaderboard content container */
         this.contentEl = document.getElementById('leaderboard-list');
-
-        /** @type {HTMLElement|null} Leaderboard panel */
         this.panelEl = document.querySelector('.leaderboard-box');
-
-        /** @type {string} Currently selected difficulty filter */
         this.currentFilter = 'all';
     }
 
-    /**
-     * Initialize the leaderboard manager
-     */
-    init() {
+    init(): void {
         this._bindEvents();
     }
 
-    /**
-     * Bind UI event handlers
-     * @private
-     */
-    _bindEvents() {
-        // Clear scores button
+    _bindEvents(): void {
         const clearBtn = document.getElementById('clear-scores-btn') || document.getElementById('btn-clear-scores');
         clearBtn?.addEventListener('click', () => {
             this._confirmClearScores();
         });
 
-        // If filter buttons exist (legacy or future), bind them
         document.querySelectorAll('.leaderboard-filter').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const difficulty = e.target.dataset.difficulty;
-                this._setActiveFilter(e.target);
+                const target = e.target as HTMLElement;
+                const difficulty = target.dataset.difficulty;
+                this._setActiveFilter(target);
                 this.loadScores(difficulty);
             });
         });
     }
 
-    /**
-     * Show the leaderboard panel
-     */
-    show() {
+    show(): void {
         this.panelEl?.classList.remove('hidden');
         this.loadScores(this.currentFilter);
     }
 
-    /**
-     * Hide the leaderboard panel
-     */
-    hide() {
+    hide(): void {
         this.panelEl?.classList.add('hidden');
     }
 
-    /**
-     * Toggle leaderboard visibility
-     */
-    toggle() {
+    toggle(): void {
         if (this.panelEl?.classList.contains('hidden')) {
             this.show();
         } else {
@@ -96,11 +57,7 @@ export class LeaderboardController {
         }
     }
 
-    /**
-     * Load and display scores
-     * @param {string} difficulty - Difficulty filter ('all', 'easy', 'medium', 'hard', 'custom')
-     */
-    loadScores(difficulty = 'all') {
+    loadScores(difficulty = 'all'): void {
         this.currentFilter = difficulty;
 
         if (!this.scoreManager) {
@@ -118,20 +75,14 @@ export class LeaderboardController {
         this._renderScores(scores);
     }
 
-    /**
-     * Render scores to the content element
-     * @private
-     * @param {Array} scores - Array of score objects
-     */
-    _renderScores(scores) {
+    _renderScores(scores: any[]): void {
         if (!this.contentEl) return;
 
         const html = scores.slice(0, 10).map((score, index) => {
-            const rank = index + 1; // Simplified rank
-            const time = this._formatTime(score.time); // Keep formatting helper
-            const config = `${score.width}×${score.height}`; // Simplified config
+            const rank = index + 1;
+            const time = this._formatTime(score.time);
+            const config = `${score.width}×${score.height}`;
 
-            // Use the structure from UIManager.js to maintain styling
             return `
                 <div class="score-entry">
                     <span class="rank">#${rank}</span>
@@ -141,18 +92,11 @@ export class LeaderboardController {
             `;
         }).join('');
 
-        // No header needed for the simple list style in index.html
         this.contentEl.innerHTML = html;
     }
 
-    /**
-     * Render empty state message
-     * @private
-     * @param {string} message - Message to display
-     */
-    _renderEmpty(message) {
+    _renderEmpty(message: string): void {
         if (!this.contentEl) return;
-
         this.contentEl.innerHTML = `
             <div class="leaderboard-empty">
                 <p>${message}</p>
@@ -160,13 +104,7 @@ export class LeaderboardController {
         `;
     }
 
-    /**
-     * Format rank with medal emoji for top 3
-     * @private
-     * @param {number} rank - Rank number
-     * @returns {string} Formatted rank
-     */
-    _formatRank(rank) {
+    _formatRank(rank: number): string {
         switch (rank) {
             case 1: return '🥇';
             case 2: return '🥈';
@@ -175,13 +113,7 @@ export class LeaderboardController {
         }
     }
 
-    /**
-     * Format time in seconds to MM:SS format
-     * @private
-     * @param {number} seconds - Time in seconds
-     * @returns {string} Formatted time string
-     */
-    _formatTime(seconds) {
+    _formatTime(seconds: number): string {
         if (typeof seconds !== 'number' || isNaN(seconds)) {
             return '--:--';
         }
@@ -190,15 +122,8 @@ export class LeaderboardController {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
 
-    /**
-     * Format date to localized string
-     * @private
-     * @param {string|number} date - Date value
-     * @returns {string} Formatted date string
-     */
-    _formatDate(date) {
+    _formatDate(date: string | number): string {
         if (!date) return '-';
-
         try {
             const d = new Date(date);
             return d.toLocaleDateString(getLocale(), {
@@ -211,47 +136,24 @@ export class LeaderboardController {
         }
     }
 
-    /**
-     * Format grid configuration
-     * @private
-     * @param {Object} score - Score object with width, height, bombs
-     * @returns {string} Formatted configuration string
-     */
-    _formatConfig(score) {
+    _formatConfig(score: any): string {
         const { width, height, bombs } = score;
         if (!width || !height) return '-';
         return `${width}×${height} (${bombs || '?'}💣)`;
     }
 
-    /**
-     * Determine and format difficulty level
-     * @private
-     * @param {Object} score - Score object
-     * @returns {string} Difficulty label
-     */
-    _formatDifficulty(score) {
+    _formatDifficulty(score: any): string {
         const { width, height, bombs } = score;
-
-        // Check against presets
         for (const [name, preset] of Object.entries(DIFFICULTY_PRESETS)) {
-            if (preset.width === width &&
-                preset.height === height &&
-                preset.bombs === bombs) {
+            if (preset.width === width && preset.height === height && preset.bombs === bombs) {
                 return this._getDifficultyLabel(name);
             }
         }
-
         return 'Custom';
     }
 
-    /**
-     * Get localized difficulty label
-     * @private
-     * @param {string} difficulty - Difficulty key
-     * @returns {string} Localized label
-     */
-    _getDifficultyLabel(difficulty) {
-        const labels = {
+    _getDifficultyLabel(difficulty: string): string {
+        const labels: Record<string, string> = {
             easy: t('lb.easy'),
             medium: t('lb.medium'),
             hard: t('lb.hard'),
@@ -260,52 +162,30 @@ export class LeaderboardController {
         return labels[difficulty] || difficulty;
     }
 
-    /**
-     * Set active filter button
-     * @private
-     * @param {HTMLElement} activeBtn - The button to set as active
-     */
-    _setActiveFilter(activeBtn) {
+    _setActiveFilter(activeBtn: HTMLElement): void {
         document.querySelectorAll('.leaderboard-filter').forEach(btn => {
             btn.classList.remove('active');
         });
         activeBtn.classList.add('active');
     }
 
-    /**
-     * Confirm and clear all scores
-     * @private
-     */
-    _confirmClearScores() {
+    _confirmClearScores(): void {
         const confirmed = confirm(t('lb.clearConfirm'));
-
         if (confirmed && this.scoreManager) {
             this.scoreManager.clearAllScores();
             this.loadScores(this.currentFilter);
         }
     }
 
-    /**
-     * Escape HTML to prevent XSS
-     * @private
-     * @param {string} text - Text to escape
-     * @returns {string} Escaped text
-     */
-    _escapeHtml(text) {
+    _escapeHtml(text: string): string {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
-    /**
-     * Add a new score and refresh display
-     * @param {Object} scoreData - Score data to add
-     */
-    addScore(scoreData) {
+    addScore(scoreData: any): void {
         if (this.scoreManager) {
-            this.scoreManager.addScore(scoreData);
-
-            // Refresh if panel is visible
+            this.scoreManager.saveScore(scoreData);
             if (!this.panelEl?.classList.contains('hidden')) {
                 this.loadScores(this.currentFilter);
             }

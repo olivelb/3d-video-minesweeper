@@ -1,37 +1,59 @@
 
 import { Events } from '../core/EventBus.js';
+import type { EventBus } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
 import { t } from '../i18n.js';
 
 export class MenuController {
-    constructor(eventBus) {
+    events: EventBus;
+
+    menuOverlay: HTMLElement | null;
+    startBtn: HTMLElement | null;
+    videoUpload: HTMLInputElement | null;
+    videoFilename: HTMLElement | null;
+    widthInput: HTMLInputElement | null;
+    heightInput: HTMLInputElement | null;
+    bombInput: HTMLInputElement | null;
+    useWebcamCheckbox: HTMLInputElement | null;
+    muteBtn: HTMLElement | null;
+    videoElement: HTMLVideoElement | null;
+    hoverHelperCheckbox: HTMLInputElement | null;
+    noGuessCheckbox: HTMLInputElement | null;
+    flagStyleBtn: HTMLElement | null;
+    replayBtn: HTMLElement | null;
+
+    customVideoUrl: string | null;
+    webcamStream: MediaStream | null;
+    isMuted: boolean;
+    mediaType: string;
+    selectedPresetValue: string | null;
+    currentFlagStyle: string;
+
+    constructor(eventBus: EventBus) {
         Logger.log('MenuController', 'Initializing...');
         this.events = eventBus;
 
-        // UI Elements
         this.menuOverlay = document.getElementById('menu-overlay');
         this.startBtn = document.getElementById('start-btn');
-        this.videoUpload = document.getElementById('video-upload');
+        this.videoUpload = document.getElementById('video-upload') as HTMLInputElement | null;
         this.videoFilename = document.getElementById('video-filename');
-        this.widthInput = document.getElementById('grid-width');
-        this.heightInput = document.getElementById('grid-height');
-        this.bombInput = document.getElementById('bomb-count');
-        this.useWebcamCheckbox = document.getElementById('use-webcam');
+        this.widthInput = document.getElementById('grid-width') as HTMLInputElement | null;
+        this.heightInput = document.getElementById('grid-height') as HTMLInputElement | null;
+        this.bombInput = document.getElementById('bomb-count') as HTMLInputElement | null;
+        this.useWebcamCheckbox = document.getElementById('use-webcam') as HTMLInputElement | null;
         this.muteBtn = document.getElementById('mute-btn');
-        this.videoElement = document.getElementById('image');
-        this.hoverHelperCheckbox = document.getElementById('hover-helper');
-        this.noGuessCheckbox = document.getElementById('no-guess-mode');
+        this.videoElement = document.getElementById('image') as HTMLVideoElement | null;
+        this.hoverHelperCheckbox = document.getElementById('hover-helper') as HTMLInputElement | null;
+        this.noGuessCheckbox = document.getElementById('no-guess-mode') as HTMLInputElement | null;
         this.flagStyleBtn = document.getElementById('flag-style-btn');
         this.replayBtn = document.getElementById('replay-btn');
 
-        // State
         this.customVideoUrl = null;
         this.webcamStream = null;
         this.isMuted = false;
         this.mediaType = 'video';
         this.selectedPresetValue = 'video:images/storm_render.mp4';
 
-        // Initial Config
         this.currentFlagStyle = localStorage.getItem('flagStyle') || 'particle';
         this.createDifficultyButtons();
         this.checkReplayAvailable();
@@ -40,52 +62,34 @@ export class MenuController {
         this.bindEvents();
         this.bindDragAndDropEvents();
 
-        // Sync initial mute state
         if (this.videoElement) {
             this.videoElement.muted = this.isMuted;
             this.videoElement.volume = 0.5;
         }
     }
 
-    bindEvents() {
-        // Start game
+    bindEvents(): void {
         this.startBtn?.addEventListener('click', () => this.handleStartClick());
-
-        // Video/Image upload
         this.videoUpload?.addEventListener('change', (e) => this.handleMediaUpload(e));
-
-        // Webcam toggle
         this.useWebcamCheckbox?.addEventListener('change', () => this.handleWebcamToggle());
-
-        // Mute toggle
         this.muteBtn?.addEventListener('click', () => this.toggleMute());
-
-        // Flag style toggle
         this.flagStyleBtn?.addEventListener('click', () => this.toggleFlagStyle());
-
-        // Replay button
         this.replayBtn?.addEventListener('click', () => this.handleReplay());
 
-        // Background preset clicks
         document.querySelectorAll('#background-presets-container .preset-item').forEach(item => {
             item.addEventListener('click', () => {
                 document.querySelectorAll('#background-presets-container .preset-item').forEach(i => i.classList.remove('active'));
                 item.classList.add('active');
-                this.selectedPresetValue = item.dataset.value;
+                this.selectedPresetValue = (item as HTMLElement).dataset.value || null;
                 this.customVideoUrl = null;
-                this.videoFilename.textContent = t('menu.uploadPlaceholder');
+                if (this.videoFilename) this.videoFilename.textContent = t('menu.uploadPlaceholder');
             });
         });
-
-        // Listen for internal events if needed
-        // this.events.on(Events.GAME_OVER, () => this.show()); // Handled by GameController delay -> GAME_ENDED
     }
 
-    createDifficultyButtons() {
+    createDifficultyButtons(): void {
         const container = document.querySelector('.menu-box h2');
         if (!container) return;
-
-        // Prevent duplicate creation
         if (document.querySelector('.difficulty-presets')) return;
 
         const presetContainer = document.createElement('div');
@@ -103,14 +107,14 @@ export class MenuController {
             btn.className = 'preset-btn';
             btn.dataset.i18n = preset.key;
             btn.textContent = t(preset.key);
-            btn.dataset.presetW = preset.width;
-            btn.dataset.presetH = preset.height;
-            btn.dataset.presetB = preset.bombs;
+            btn.dataset.presetW = String(preset.width);
+            btn.dataset.presetH = String(preset.height);
+            btn.dataset.presetB = String(preset.bombs);
             btn.title = t('diff.tooltip', { w: preset.width, h: preset.height, b: preset.bombs });
             btn.onclick = () => {
-                this.widthInput.value = preset.width;
-                this.heightInput.value = preset.height;
-                this.bombInput.value = preset.bombs;
+                this.widthInput!.value = String(preset.width);
+                this.heightInput!.value = String(preset.height);
+                this.bombInput!.value = String(preset.bombs);
                 document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
             };
@@ -119,30 +123,27 @@ export class MenuController {
 
         container.after(presetContainer);
 
-        // Update preset tooltips on language change
         window.addEventListener('langchange', () => {
-            presetContainer.querySelectorAll('.preset-btn').forEach(btn => {
-                btn.title = t('diff.tooltip', {
-                    w: btn.dataset.presetW,
-                    h: btn.dataset.presetH,
-                    b: btn.dataset.presetB
-                });
+            presetContainer.querySelectorAll('.preset-btn').forEach((btn) => {
+                const el = btn as HTMLElement;
+                btn.setAttribute('title', t('diff.tooltip', {
+                    w: el.dataset.presetW,
+                    h: el.dataset.presetH,
+                    b: el.dataset.presetB
+                }));
             });
         });
     }
 
-    checkReplayAvailable() {
+    checkReplayAvailable(): void {
         const savedData = localStorage.getItem('minesweeper3d_last_grid');
-
         if (savedData && this.replayBtn) {
-            this.replayBtn.style.display = 'inline-block';
+            (this.replayBtn as HTMLElement).style.display = 'inline-block';
         }
     }
 
-    displayPlayerInfo() {
-        // Prevent duplicate creation
+    displayPlayerInfo(): void {
         if (document.getElementById('player-info-display')) return;
-
         const playerInfo = document.querySelector('#ui-container > p:first-of-type');
         if (!playerInfo) return;
 
@@ -156,7 +157,7 @@ export class MenuController {
         playerInfo.after(playerDisplay);
     }
 
-    generatePlayerName() {
+    generatePlayerName(): string {
         const adjectives = ['Swift', 'Brave', 'Clever', 'Lucky', 'Mighty', 'Shadow', 'Golden', 'Silver', 'Crystal', 'Omega'];
         const nouns = ['Wolf', 'Eagle', 'Tiger', 'Dragon', 'Phoenix', 'Knight', 'Mage', 'Hunter', 'Core', 'Star'];
         const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
@@ -165,7 +166,7 @@ export class MenuController {
         return `${adj} ${noun} #${num}`;
     }
 
-    bindDragAndDropEvents() {
+    bindDragAndDropEvents(): void {
         const dropZone = document.querySelector('.menu-box');
         if (!dropZone) return;
 
@@ -180,17 +181,17 @@ export class MenuController {
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
         dropZone.addEventListener('drop', (e) => {
             dropZone.classList.remove('drag-over');
-            const files = e.dataTransfer?.files;
-            if (files?.length > 0) {
+            const files = (e as DragEvent).dataTransfer?.files;
+            if (files && files.length > 0) {
                 this.processDroppedFile(files[0]);
             }
         });
     }
 
-    processDroppedFile(file) {
+    processDroppedFile(file: File): void {
         if (file.type.startsWith('video/') || file.type.startsWith('image/') ||
             file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
-            const input = this.videoUpload;
+            const input = this.videoUpload!;
             const dt = new DataTransfer();
             dt.items.add(file);
             input.files = dt.files;
@@ -198,38 +199,29 @@ export class MenuController {
         }
     }
 
-    async handleStartClick() {
-        // Enforce limits (safe for server solver)
+    async handleStartClick(): Promise<void> {
         const MAX_WIDTH = 150;
         const MAX_HEIGHT = 100;
         const MAX_BOMBS = 2000;
 
-        let width = parseInt(this.widthInput.value) || 30;
-        let height = parseInt(this.heightInput.value) || 20;
-        let bombs = parseInt(this.bombInput.value) || 50;
+        let width = parseInt(this.widthInput!.value) || 30;
+        let height = parseInt(this.heightInput!.value) || 20;
+        let bombs = parseInt(this.bombInput!.value) || 50;
 
-        // Clamp values
         width = Math.min(Math.max(10, width), MAX_WIDTH);
         height = Math.min(Math.max(10, height), MAX_HEIGHT);
         bombs = Math.min(Math.max(1, bombs), MAX_BOMBS);
-
-        // Ensure bombs don't exceed grid size - 9 (leave space for first click)
         bombs = Math.min(bombs, (width * height) - 9);
 
-        // Update inputs to reflect clamped values
-        this.widthInput.value = width;
-        this.heightInput.value = height;
-        this.bombInput.value = bombs;
+        this.widthInput!.value = String(width);
+        this.heightInput!.value = String(height);
+        this.bombInput!.value = String(bombs);
         const noGuessMode = this.noGuessCheckbox?.checked || false;
         const useHoverHelper = this.hoverHelperCheckbox?.checked ?? true;
 
-        // Setup background
         const bgResult = await this.setupBackground();
-
-        // Hide menu
         this.hide();
 
-        // Emit Game Start
         this.events.emit(Events.GAME_START, {
             width, height, bombs, useHoverHelper, noGuessMode,
             bgName: bgResult,
@@ -237,18 +229,17 @@ export class MenuController {
         });
     }
 
-    async setupBackground() {
-        const img = document.getElementById('custom-image-source');
+    async setupBackground(): Promise<string> {
+        const img = document.getElementById('custom-image-source') as HTMLImageElement | null;
 
-        // Webcam
         if (this.useWebcamCheckbox?.checked) {
             try {
                 if (img) img.removeAttribute('src');
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 this.webcamStream = stream;
-                this.videoElement.srcObject = stream;
-                this.videoElement.removeAttribute('src'); // clear src since using srcObject
-                await this.videoElement.play();
+                this.videoElement!.srcObject = stream;
+                this.videoElement!.removeAttribute('src');
+                await this.videoElement!.play();
                 this.mediaType = 'webcam';
                 return 'Webcam';
             } catch (e) {
@@ -256,36 +247,33 @@ export class MenuController {
             }
         }
 
-        // Custom uploaded file
         if (this.customVideoUrl) {
             if (img) img.removeAttribute('src');
-            this.videoElement.srcObject = null;
-            this.videoElement.src = this.customVideoUrl;
-            this.videoElement.muted = this.isMuted;
-            await this.videoElement.play().catch(() => { });
+            this.videoElement!.srcObject = null;
+            this.videoElement!.src = this.customVideoUrl;
+            this.videoElement!.muted = this.isMuted;
+            await this.videoElement!.play().catch(() => { });
             return 'Custom Upload';
         }
 
-        // Custom uploaded image
         if (this.mediaType === 'image' && !this.selectedPresetValue && img && img.src !== '' && img.src !== window.location.href) {
             if (this.videoElement) {
                 this.videoElement.pause();
                 this.videoElement.removeAttribute('src');
                 this.videoElement.srcObject = null;
-                this.videoElement.load(); // flush old source
+                this.videoElement.load();
             }
             return 'Custom Image';
         }
 
-        // Preset
         if (this.selectedPresetValue) {
             const [type, path] = this.selectedPresetValue.split(':');
             if (type === 'video') {
                 if (img) img.removeAttribute('src');
-                this.videoElement.srcObject = null;
-                this.videoElement.src = path;
-                this.videoElement.muted = this.isMuted;
-                await this.videoElement.play().catch(() => { });
+                this.videoElement!.srcObject = null;
+                this.videoElement!.src = path;
+                this.videoElement!.muted = this.isMuted;
+                await this.videoElement!.play().catch(() => { });
                 this.mediaType = 'video';
             } else if (type === 'image') {
                 if (img) {
@@ -296,17 +284,17 @@ export class MenuController {
                     this.videoElement.pause();
                     this.videoElement.removeAttribute('src');
                     this.videoElement.srcObject = null;
-                    this.videoElement.load(); // flush old source
+                    this.videoElement.load();
                 }
             }
-            return path.split('/').pop();
+            return path.split('/').pop()!;
         }
 
         return 'Default';
     }
 
-    handleMediaUpload(event) {
-        const file = event.target.files?.[0];
+    handleMediaUpload(event: Event): void {
+        const file = (event.target as HTMLInputElement).files?.[0];
         if (!file) return;
 
         const url = URL.createObjectURL(file);
@@ -314,7 +302,7 @@ export class MenuController {
         if (file.type.startsWith('video/')) {
             this.customVideoUrl = url;
             this.mediaType = 'video';
-            this.videoFilename.textContent = file.name;
+            if (this.videoFilename) this.videoFilename.textContent = file.name;
         } else if (file.type.startsWith('image/') || file.name.match(/\.(heic|heif)$/i)) {
             this.handleImageUpload(file, url);
         }
@@ -323,13 +311,13 @@ export class MenuController {
         document.querySelectorAll('#background-presets-container .preset-item').forEach(i => i.classList.remove('active'));
     }
 
-    async handleImageUpload(file, url) {
-        const img = document.getElementById('custom-image-source');
+    async handleImageUpload(file: File, url: string): Promise<void> {
+        const img = document.getElementById('custom-image-source') as HTMLImageElement | null;
         if (!img) return;
 
-        if (file.name.match(/\.(heic|heif)$/i) && window.heic2any) {
+        if (file.name.match(/\.(heic|heif)$/i) && (window as any).heic2any) {
             try {
-                const blob = await heic2any({ blob: file, toType: 'image/jpeg' });
+                const blob = await (window as any).heic2any({ blob: file, toType: 'image/jpeg' });
                 url = URL.createObjectURL(blob);
             } catch (e) {
                 Logger.error('MenuController', 'HEIC conversion failed:', e);
@@ -339,26 +327,25 @@ export class MenuController {
         img.src = url;
         this.mediaType = 'image';
         this.customVideoUrl = null;
-        this.videoFilename.textContent = file.name;
+        if (this.videoFilename) this.videoFilename.textContent = file.name;
     }
 
-    handleWebcamToggle() {
+    handleWebcamToggle(): void {
         if (!this.useWebcamCheckbox?.checked && this.webcamStream) {
             this.webcamStream.getTracks().forEach(track => track.stop());
             this.webcamStream = null;
-            this.videoElement.srcObject = null;
+            this.videoElement!.srcObject = null;
         }
     }
 
-    handleReplay() {
+    handleReplay(): void {
         const savedData = localStorage.getItem('minesweeper3d_last_grid');
-
         if (savedData) {
             const data = JSON.parse(savedData);
 
-            this.widthInput.value = data.width;
-            this.heightInput.value = data.height;
-            this.bombInput.value = data.bombCount;
+            this.widthInput!.value = data.width;
+            this.heightInput!.value = data.height;
+            this.bombInput!.value = data.bombCount;
 
             this.hide();
 
@@ -374,48 +361,43 @@ export class MenuController {
         }
     }
 
-    toggleMute() {
+    toggleMute(): void {
         this.isMuted = !this.isMuted;
         const key = this.isMuted ? 'hud.muteOff' : 'hud.muteOn';
-        this.muteBtn.textContent = t(key);
-        this.muteBtn.dataset.i18n = key;
+        this.muteBtn!.textContent = t(key);
+        (this.muteBtn! as HTMLElement).dataset.i18n = key;
 
         if (this.videoElement) {
             this.videoElement.muted = this.isMuted;
         }
 
-        // Emit global mute event if needed, or handling locally for now is okay
-        // But UIManager usually notified Renderer. Let's just emit an event or accessing via globals is dirty.
-        // Better: Emit an event to EventBus.
         this.events.emit(Events.TOGGLE_MUTE, this.isMuted);
     }
 
-    toggleFlagStyle() {
+    toggleFlagStyle(): void {
         this.currentFlagStyle = this.currentFlagStyle === 'particle' ? '3d' : 'particle';
         localStorage.setItem('flagStyle', this.currentFlagStyle);
         this.updateFlagStyleButton();
         this.events.emit(Events.FLAG_STYLE_CHANGED, this.currentFlagStyle);
     }
 
-    updateFlagStyleButton() {
+    updateFlagStyleButton(): void {
         if (this.flagStyleBtn) {
             const key = this.currentFlagStyle === 'particle' ? 'hud.flagStars' : 'hud.flagFlags';
             this.flagStyleBtn.textContent = t(key);
-            this.flagStyleBtn.dataset.i18n = key;
+            (this.flagStyleBtn as HTMLElement).dataset.i18n = key;
         }
     }
 
-    show() {
-        this.menuOverlay.style.display = 'flex';
+    show(): void {
+        this.menuOverlay!.style.display = 'flex';
         this.checkReplayAvailable();
-
-        // Stop video/sound when in menu
         if (this.videoElement) {
             this.videoElement.pause();
         }
     }
 
-    hide() {
-        this.menuOverlay.style.display = 'none';
+    hide(): void {
+        this.menuOverlay!.style.display = 'none';
     }
 }

@@ -1,135 +1,101 @@
-/**
- * MultiplayerUI Module
- * 
- * Handles the multiplayer user interface elements, including
- * server connection status, lobby management, and host/guest flows.
- * 
- * @module MultiplayerUI
- */
-
 import { Logger } from '../utils/Logger.js';
 import { Events } from '../core/EventBus.js';
+import type { EventBus } from '../core/EventBus.js';
 import { t } from '../i18n.js';
 
-/**
- * Default server URL for multiplayer connections
- * @constant
- */
-const DEFAULT_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://your-pi-ip:3001';
+declare const window: Window & { MINESWEEPER_SERVERS?: { raspberryCloud?: string } };
+
+const DEFAULT_SERVER_URL = (window as any).MINESWEEPER_SERVERS?.raspberryCloud || 'http://your-pi-ip:3001';
 const CUSTOM_URL_KEY = 'minesweeper_custom_server_url';
 
-/**
- * Connection status states
- * @constant
- * @enum {string}
- */
 export const ConnectionStatus = {
     CHECKING: 'checking',
     ONLINE: 'online',
     OFFLINE: 'offline'
-};
+} as const;
 
-/**
- * Manages multiplayer UI state and interactions
- * @class
- */
 export class MultiplayerUI {
-    /**
-     * Create a multiplayer UI manager
-     * @param {Object} networkManager - Reference to the network manager
-     */
-    constructor(networkManager, eventBus) {
-        /** @type {Object} Network manager reference */
+    networkManager: any;
+    events: EventBus;
+    dedicatedServerUrl: string | null;
+    connectionStatus: string;
+    _eventHandlers: { event: string; callback: (...args: any[]) => void }[];
+
+    serverIndicator: HTMLElement | null;
+    serverStatusText: HTMLElement | null;
+    connectBtn: HTMLButtonElement | null;
+    createBtn: HTMLButtonElement | null;
+    joinBtn: HTMLButtonElement | null;
+
+    onGameStart: ((state: any) => Promise<void>) | null;
+
+    configToggle: HTMLElement | null;
+    configPanel: HTMLElement | null;
+    customUrlInput: HTMLInputElement | null;
+    saveConfigBtn: HTMLElement | null;
+    resetConfigBtn: HTMLElement | null;
+
+    constructor(networkManager: any, eventBus: EventBus) {
         this.networkManager = networkManager;
         this.events = eventBus;
-
-        /** @type {string|null} Dedicated server URL if available */
         this.dedicatedServerUrl = null;
-
-        /** @type {string} Current connection status */
         this.connectionStatus = ConnectionStatus.OFFLINE;
-
-        /** @type {Array<{event: string, callback: Function}>} Tracked event listeners for cleanup */
         this._eventHandlers = [];
 
-        // DOM element references
-        /** @type {HTMLElement|null} */
         this.serverIndicator = document.getElementById('server-indicator');
-        /** @type {HTMLElement|null} */
         this.serverStatusText = document.getElementById('server-status-text');
-        /** @type {HTMLElement|null} */
-        this.connectBtn = document.getElementById('btn-connect-server');
-        /** @type {HTMLElement|null} */
-        this.createBtn = document.getElementById('btn-create-game');
-        /** @type {HTMLElement|null} */
-        this.joinBtn = document.getElementById('btn-join-game');
+        this.connectBtn = document.getElementById('btn-connect-server') as HTMLButtonElement | null;
+        this.createBtn = document.getElementById('btn-create-game') as HTMLButtonElement | null;
+        this.joinBtn = document.getElementById('btn-join-game') as HTMLButtonElement | null;
 
-        // Callbacks
-        /** @type {Function|null} Called when game should start */
         this.onGameStart = null;
 
-        // Configuration UI references
         this.configToggle = document.getElementById('mp-config-toggle');
         this.configPanel = document.getElementById('mp-config-panel');
-        this.customUrlInput = document.getElementById('custom-server-url');
+        this.customUrlInput = document.getElementById('custom-server-url') as HTMLInputElement | null;
         this.saveConfigBtn = document.getElementById('btn-save-config');
         this.resetConfigBtn = document.getElementById('btn-reset-config');
     }
 
-    /**
-     * Initialize multiplayer UI
-     */
-    init() {
+    init(): void {
         this._bindEvents();
         this.checkServerAvailability();
     }
 
-    /**
-     * Bind UI event handlers
-     * @private
-     */
-    _bindEvents() {
-        // Connect button
+    _bindEvents(): void {
         this.connectBtn?.addEventListener('click', () => {
             this.connectToServer();
         });
 
-        // Create game (host)
         this.createBtn?.addEventListener('click', () => {
-            if (this.createBtn.disabled) return;
-            this.createBtn.disabled = true;
+            if (this.createBtn!.disabled) return;
+            this.createBtn!.disabled = true;
             this._handleCreateGame();
         });
 
-        // Leave host
         document.getElementById('btn-leave-host')?.addEventListener('click', () => {
             this.leaveMultiplayer();
         });
 
-        // Join game (guest)
         this.joinBtn?.addEventListener('click', () => {
-            if (this.joinBtn.disabled) return;
-            this.joinBtn.disabled = true;
+            if (this.joinBtn!.disabled) return;
+            this.joinBtn!.disabled = true;
             this.networkManager.joinGame();
         });
 
-        // Leave guest
         document.getElementById('btn-leave-guest')?.addEventListener('click', () => {
             this.leaveMultiplayer();
         });
 
-        // Cancel host (before creation)
         document.getElementById('btn-cancel-host')?.addEventListener('click', () => {
             this._resetUI();
             this._showHostLobby();
         });
 
-        // Start game (for host)
         document.getElementById('btn-start-multiplayer')?.addEventListener('click', () => {
             this.networkManager.startGame();
         });
 
-        // Config Toggle
         this.configToggle?.addEventListener('click', () => {
             this.configPanel?.classList.toggle('hidden');
             if (!this.configPanel?.classList.contains('hidden')) {
@@ -139,7 +105,6 @@ export class MultiplayerUI {
             }
         });
 
-        // Save Config
         this.saveConfigBtn?.addEventListener('click', () => {
             const url = this.customUrlInput?.value.trim();
             if (url) {
@@ -149,7 +114,6 @@ export class MultiplayerUI {
             }
         });
 
-        // Reset Config
         this.resetConfigBtn?.addEventListener('click', () => {
             localStorage.removeItem(CUSTOM_URL_KEY);
             if (this.customUrlInput) this.customUrlInput.value = '';
@@ -158,50 +122,42 @@ export class MultiplayerUI {
         });
     }
 
-    /**
-     * Handle create game action
-     * @private
-     */
-    _handleCreateGame() {
-        const widthInput = document.getElementById('grid-width');
-        const heightInput = document.getElementById('grid-height');
-        const bombInput = document.getElementById('bomb-count');
-        const maxPlayersInput = document.getElementById('mp-max-players');
+    _handleCreateGame(): void {
+        const widthInput = document.getElementById('grid-width') as HTMLInputElement | null;
+        const heightInput = document.getElementById('grid-height') as HTMLInputElement | null;
+        const bombInput = document.getElementById('bomb-count') as HTMLInputElement | null;
+        const maxPlayersInput = document.getElementById('mp-max-players') as HTMLInputElement | null;
 
         const MAX_WIDTH = 220;
         const MAX_HEIGHT = 120;
         const MAX_BOMBS = 4000;
 
-        let w = parseInt(widthInput?.value) || 30;
-        let h = parseInt(heightInput?.value) || 20;
-        let b = parseInt(bombInput?.value) || 50;
+        let w = parseInt(widthInput?.value || '') || 30;
+        let h = parseInt(heightInput?.value || '') || 20;
+        let b = parseInt(bombInput?.value || '') || 50;
 
-        // Validation check
         if (w > MAX_WIDTH || h > MAX_HEIGHT || b > MAX_BOMBS) {
             alert(t('mp.serverLimit', { maxW: MAX_WIDTH, maxH: MAX_HEIGHT, maxB: MAX_BOMBS }));
             w = Math.min(w, MAX_WIDTH);
             h = Math.min(h, MAX_HEIGHT);
             b = Math.min(b, MAX_BOMBS);
 
-            // Update inputs
-            if (widthInput) widthInput.value = w;
-            if (heightInput) heightInput.value = h;
-            if (bombInput) bombInput.value = b;
-
-            return; // Stop to let user see corrected values
+            if (widthInput) widthInput.value = String(w);
+            if (heightInput) heightInput.value = String(h);
+            if (bombInput) bombInput.value = String(b);
+            return;
         }
 
-        const mp = parseInt(maxPlayersInput?.value) || 2;
-        const noGuess = document.getElementById('no-guess-mode')?.checked || false;
+        const mp = parseInt(maxPlayersInput?.value || '') || 2;
+        const noGuess = (document.getElementById('no-guess-mode') as HTMLInputElement)?.checked || false;
 
-        // Density check (22% max) ONLY for No Guess mode
         if (noGuess) {
             const totalCells = w * h;
             const maxDensityBombs = Math.floor(totalCells * 0.22);
             if (b > maxDensityBombs) {
                 alert(t('mp.densityLimit', { max: maxDensityBombs }));
                 b = Math.min(b, maxDensityBombs);
-                if (bombInput) bombInput.value = b;
+                if (bombInput) bombInput.value = String(b);
                 return;
             }
         }
@@ -210,11 +166,7 @@ export class MultiplayerUI {
         this._showHostWaiting();
     }
 
-    /**
-     * Check server availability
-     * @returns {Promise<boolean>} Whether server is available
-     */
-    async checkServerAvailability() {
+    async checkServerAvailability(): Promise<boolean> {
         this._updateStatus(ConnectionStatus.CHECKING, t('mp.checking'));
 
         const customUrl = localStorage.getItem(CUSTOM_URL_KEY);
@@ -244,13 +196,7 @@ export class MultiplayerUI {
         }
     }
 
-    /**
-     * Update connection status display
-     * @private
-     * @param {string} status - Connection status
-     * @param {string} text - Status text to display
-     */
-    _updateStatus(status, text) {
+    _updateStatus(status: string, text: string): void {
         this.connectionStatus = status;
         if (this.serverIndicator) {
             this.serverIndicator.className = status;
@@ -260,12 +206,8 @@ export class MultiplayerUI {
         }
     }
 
-    /**
-     * Connect to multiplayer server
-     * @returns {Promise<Object>} Connection data
-     */
-    async connectToServer() {
-        const playerName = document.getElementById('server-name')?.value || t('mp.playerDefault');
+    async connectToServer(): Promise<any> {
+        const playerName = (document.getElementById('server-name') as HTMLInputElement)?.value || t('mp.playerDefault');
 
         if (!this.dedicatedServerUrl) {
             alert(t('mp.unavailable'));
@@ -273,7 +215,6 @@ export class MultiplayerUI {
         }
 
         try {
-            // Setup handlers before connecting
             this._setupNetworkHandlers();
 
             const welcomeData = await this.networkManager.connectToServer(
@@ -289,9 +230,8 @@ export class MultiplayerUI {
                 this._showGuestLobby();
             }
 
-            // Hide hint button in multiplayer
             const hintBtn = document.getElementById('hint-btn');
-            if (hintBtn) hintBtn.style.display = 'none';
+            if (hintBtn) (hintBtn as HTMLElement).style.display = 'none';
 
             return welcomeData;
         } catch (err) {
@@ -301,56 +241,42 @@ export class MultiplayerUI {
         }
     }
 
-    /**
-     * Setup network event handlers (tracked for cleanup)
-     * @private
-     */
-    _setupNetworkHandlers() {
-        // Clean up any previous handlers first
+    _setupNetworkHandlers(): void {
         this._cleanupNetworkHandlers();
 
-        const on = (event, callback) => {
+        const on = (event: string, callback: (...args: any[]) => void) => {
             this.events.on(event, callback);
             this._eventHandlers.push({ event, callback });
         };
 
-        // Lobby updates
-        on(Events.NET_LOBBY_UPDATE, (lobbyState) => {
+        on(Events.NET_LOBBY_UPDATE, (lobbyState: any) => {
             Logger.log('MultiplayerUI', 'Lobby update:', lobbyState);
             this._handleLobbyUpdate(lobbyState);
         });
 
-        // Game created (host sees waiting message)
-        on(Events.NET_GAME_CREATED, (data) => {
+        on(Events.NET_GAME_CREATED, (data: any) => {
             Logger.log('MultiplayerUI', 'Game created:', data);
         });
 
-        // Game starts
-        on(Events.NET_GAME_START, async (state) => {
+        on(Events.NET_GAME_START, async (state: any) => {
             Logger.log('MultiplayerUI', 'Game starting:', state);
-
-            // networkManager._isMultiplayer is already true from connection
             if (this.onGameStart) {
                 await this.onGameStart(state);
             }
         });
 
-        // Host left
         on(Events.NET_HOST_LEFT, () => {
             alert(t('mp.hostLeft'));
             this.leaveMultiplayer();
         });
 
-        // Spectator Mode
         on(Events.SPECTATOR_MODE_START, () => {
             this._showSpectatorOverlay();
         });
 
-        // Grid Generation Loading State
-        on(Events.NET_GENERATING_GRID, (data) => {
+        on(Events.NET_GENERATING_GRID, (data: any) => {
             const overlay = document.getElementById('loading-overlay');
             if (data.error) {
-                // Generation failed or cancelled on server — hide overlay
                 if (overlay) overlay.style.display = 'none';
                 return;
             }
@@ -361,31 +287,22 @@ export class MultiplayerUI {
             }
         });
 
-        // Hide loading on any update
         on(Events.NET_GAME_UPDATE, () => {
-            document.getElementById('loading-overlay').style.display = 'none';
+            (document.getElementById('loading-overlay') as HTMLElement).style.display = 'none';
         });
         on(Events.NET_MINES_PLACED, () => {
-            document.getElementById('loading-overlay').style.display = 'none';
+            (document.getElementById('loading-overlay') as HTMLElement).style.display = 'none';
         });
     }
 
-    /**
-     * Remove all tracked network event handlers
-     * @private
-     */
-    _cleanupNetworkHandlers() {
+    _cleanupNetworkHandlers(): void {
         for (const { event, callback } of this._eventHandlers) {
             this.events.off(event, callback);
         }
         this._eventHandlers = [];
     }
 
-    /**
-     * Show spectator overlay when eliminated
-     * @private
-     */
-    _showSpectatorOverlay() {
+    _showSpectatorOverlay(): void {
         if (document.getElementById('spectator-overlay')) return;
 
         const overlay = document.createElement('div');
@@ -411,27 +328,19 @@ export class MultiplayerUI {
             overlay.remove();
             document.body.classList.remove('ghost-mode');
             this.leaveMultiplayer();
-            // Force return to menu via EventBus
             if (this.events) {
                 this.events.emit(Events.GAME_ENDED);
             }
         });
     }
 
-    /**
-     * Handle lobby state update
-     * @private
-     * @param {Object} lobbyState - Lobby state from server
-     */
-    _handleLobbyUpdate(lobbyState) {
+    _handleLobbyUpdate(lobbyState: any): void {
         Logger.log('MultiplayerUI', 'Rendering lobby:', lobbyState);
         const { players, gameCreated, config } = lobbyState;
 
-        // Render player list for host or guest
         const listId = this.networkManager.isHost ? 'host-player-list' : 'guest-player-list';
         this._renderPlayerList(players, listId);
 
-        // Show start button for host if >= 2 players
         if (this.networkManager.isHost) {
             const startBtn = document.getElementById('btn-start-multiplayer');
             if (startBtn) {
@@ -443,7 +352,6 @@ export class MultiplayerUI {
             }
         }
 
-        // If game is created and we're the guest, show join button
         if (gameCreated && !this.networkManager.isHost) {
             document.getElementById('guest-waiting')?.classList.add('hidden');
             document.getElementById('guest-ready')?.classList.remove('hidden');
@@ -455,13 +363,7 @@ export class MultiplayerUI {
         }
     }
 
-    /**
-     * Render the list of players in the lobby
-     * @private
-     * @param {Array} players - List of player objects
-     * @param {string} listElementId - ID of the UL element
-     */
-    _renderPlayerList(players, listElementId) {
+    _renderPlayerList(players: any[], listElementId: string): void {
         const listEl = document.getElementById(listElementId);
         if (!listEl) return;
 
@@ -480,43 +382,26 @@ export class MultiplayerUI {
         });
     }
 
-    /**
-     * Escape HTML special characters
-     * @private
-     */
-    _escapeHtml(text) {
+    _escapeHtml(text: string): string {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
-    /**
-     * Leave multiplayer session
-     */
-    leaveMultiplayer() {
+    leaveMultiplayer(): void {
         this._cleanupNetworkHandlers();
         this.networkManager.disconnect();
         this._resetUI();
     }
 
-    /**
-     * Reset UI after a game ends (keep connection but reset views)
-     */
-    /**
-     * Reset UI after a game ends (disconnect and return to start)
-     */
-    resetAfterGame() {
+    resetAfterGame(): void {
         this.leaveMultiplayer();
         const overlay = document.getElementById('spectator-overlay');
         if (overlay) overlay.remove();
         document.body.classList.remove('ghost-mode');
     }
 
-    /**
-     * Reset UI to initial state
-     * @private
-     */
-    _resetUI() {
+    _resetUI(): void {
         document.getElementById('mp-host-lobby')?.classList.add('hidden');
         document.getElementById('mp-guest-lobby')?.classList.add('hidden');
         document.getElementById('mp-connect')?.classList.remove('hidden');
@@ -529,64 +414,40 @@ export class MultiplayerUI {
         document.getElementById('guest-waiting')?.classList.remove('hidden');
         document.getElementById('guest-ready')?.classList.add('hidden');
 
-        // Clear lists
         const hostList = document.getElementById('host-player-list');
         if (hostList) hostList.innerHTML = '';
         const guestList = document.getElementById('guest-player-list');
         if (guestList) guestList.innerHTML = '';
 
-        // Restore hint button
         const hintBtn = document.getElementById('hint-btn');
-        if (hintBtn) hintBtn.style.display = '';
+        if (hintBtn) (hintBtn as HTMLElement).style.display = '';
     }
 
-    /**
-     * Hide connect panel
-     * @private
-     */
-    _hideConnectPanel() {
+    _hideConnectPanel(): void {
         document.getElementById('mp-connect')?.classList.add('hidden');
     }
 
-    /**
-     * Show host lobby
-     * @private
-     */
-    _showHostLobby() {
+    _showHostLobby(): void {
         document.getElementById('mp-host-lobby')?.classList.remove('hidden');
         document.getElementById('mp-guest-lobby')?.classList.add('hidden');
         if (this.createBtn) this.createBtn.disabled = false;
 
-        // Always show setup form initially or on reset
         document.getElementById('host-setup')?.classList.remove('hidden');
         document.getElementById('host-waiting')?.classList.add('hidden');
     }
 
-    /**
-     * Show host waiting state
-     * @private
-     */
-    _showHostWaiting() {
+    _showHostWaiting(): void {
         document.getElementById('host-setup')?.classList.add('hidden');
         document.getElementById('host-waiting')?.classList.remove('hidden');
     }
 
-    /**
-     * Show guest lobby
-     * @private
-     */
-    _showGuestLobby() {
+    _showGuestLobby(): void {
         document.getElementById('mp-guest-lobby')?.classList.remove('hidden');
         document.getElementById('mp-host-lobby')?.classList.add('hidden');
         if (this.joinBtn) this.joinBtn.disabled = false;
     }
 
-    /**
-     * Show elimination notification when another player is eliminated
-     * @param {string} playerName - Name of the eliminated player
-     */
-    showEliminationNotification(playerName) {
-        // Create notification element
+    showEliminationNotification(playerName: string): void {
         const notification = document.createElement('div');
         notification.className = 'elimination-notification';
         notification.innerHTML = `
@@ -597,7 +458,6 @@ export class MultiplayerUI {
             </div>
         `;
 
-        // Add styles inline for immediate effect
         notification.style.cssText = `
             position: fixed;
             top: 20%;
@@ -617,20 +477,20 @@ export class MultiplayerUI {
             font-family: 'Arial', sans-serif;
         `;
 
-        const icon = notification.querySelector('.elimination-icon');
+        const icon = notification.querySelector('.elimination-icon') as HTMLElement;
         icon.style.cssText = `
             font-size: 48px;
             animation: eliminationPulse 0.5s ease infinite alternate;
         `;
 
-        const textDiv = notification.querySelector('.elimination-text');
+        const textDiv = notification.querySelector('.elimination-text') as HTMLElement;
         textDiv.style.cssText = `
             display: flex;
             flex-direction: column;
             color: white;
         `;
 
-        const nameSpan = notification.querySelector('.elimination-name');
+        const nameSpan = notification.querySelector('.elimination-name') as HTMLElement;
         nameSpan.style.cssText = `
             font-size: 24px;
             font-weight: bold;
@@ -638,14 +498,13 @@ export class MultiplayerUI {
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         `;
 
-        const msgSpan = notification.querySelector('.elimination-msg');
+        const msgSpan = notification.querySelector('.elimination-msg') as HTMLElement;
         msgSpan.style.cssText = `
             font-size: 18px;
             color: #ffffff;
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         `;
 
-        // Add keyframe animations
         const style = document.createElement('style');
         style.textContent = `
             @keyframes eliminationSlideIn {
@@ -665,7 +524,6 @@ export class MultiplayerUI {
 
         document.body.appendChild(notification);
 
-        // Remove after 3 seconds with fade out
         setTimeout(() => {
             notification.style.animation = 'eliminationSlideOut 0.5s ease forwards';
             setTimeout(() => {

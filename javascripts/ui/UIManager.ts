@@ -5,36 +5,44 @@ import { MenuController } from './MenuController.js';
 import { HUDController } from './HUDController.js';
 import { LeaderboardController } from './LeaderboardController.js';
 import { Events } from '../core/EventBus.js';
+import type { EventBus } from '../core/EventBus.js';
+import type { ScoreManager } from '../managers/ScoreManager.js';
 
-// Configuration: Dedicated server URL (placeholder)
-const DEDICATED_SERVER_URL = window.MINESWEEPER_SERVERS?.raspberryCloud || 'http://YOUR_SERVER_IP:3001';
+declare const window: Window & { MINESWEEPER_SERVERS?: { raspberryCloud?: string } };
+
+const DEDICATED_SERVER_URL = (window as any).MINESWEEPER_SERVERS?.raspberryCloud || 'http://YOUR_SERVER_IP:3001';
 
 export class UIManager {
-    constructor(game, renderer, scoreManager, eventBus) {
+    game: any;
+    renderer: any;
+    scoreManager: ScoreManager;
+    events: EventBus;
+    menuController: MenuController;
+    hudController: HUDController;
+    leaderboardController: LeaderboardController;
+    multiplayerUI: MultiplayerUI;
+    isMuted: boolean;
+
+    constructor(game: any, renderer: any, scoreManager: ScoreManager, eventBus: EventBus) {
         Logger.log('UIManager', 'Initializing...');
         this.game = game;
         this.renderer = renderer;
         this.scoreManager = scoreManager;
         this.events = eventBus;
+        this.isMuted = false;
 
-        // UI Components
         this.menuController = new MenuController(eventBus);
         this.hudController = new HUDController(eventBus, scoreManager);
         this.leaderboardController = new LeaderboardController(scoreManager);
         this.leaderboardController.init();
 
-        // Initial setup
         this.bindEvents();
         this.leaderboardController.loadScores();
         this.detectGpuTier();
 
-        // New Multiplayer UI Component
         this.multiplayerUI = new MultiplayerUI(networkManager, this.events);
-        this.multiplayerUI.onGameStart = async (state) => {
-            // Force menu hide via controller
+        this.multiplayerUI.onGameStart = async (state: any) => {
             this.menuController.hide();
-
-            // Setup background using MenuController logic
             const bgName = await this.menuController.setupBackground();
 
             if (this.events) {
@@ -55,41 +63,38 @@ export class UIManager {
         this.multiplayerUI.init();
     }
 
-    bindEvents() {
-        // Listen for Game End to reset Multiplayer UI
+    bindEvents(): void {
         this.events.on(Events.GAME_ENDED, () => {
             if (this.multiplayerUI && this.multiplayerUI.connectionStatus === 'online') {
                 this.multiplayerUI.resetAfterGame();
             }
-            document.getElementById('loading-overlay').style.display = 'none';
+            (document.getElementById('loading-overlay') as HTMLElement).style.display = 'none';
             this.menuController.show();
             this.leaderboardController.loadScores();
         });
     }
 
-    detectGpuTier() {
+    detectGpuTier(): void {
         const canvas = document.createElement('canvas');
-        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
         if (gl) {
-            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            const debugInfo = (gl as WebGLRenderingContext).getExtension('WEBGL_debug_renderer_info');
             if (debugInfo) {
-                const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                const renderer = (gl as WebGLRenderingContext).getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
                 Logger.log('UIManager', 'GPU:', renderer);
             }
         }
     }
 
-    setRenderer(renderer) {
+    setRenderer(renderer: any): void {
         this.renderer = renderer;
-        // Flag style is now handled by EventBus in Renderer, but for safety in case of late init:
         if (this.renderer && this.renderer.setFlagStyle) {
             this.renderer.setFlagStyle(this.menuController.currentFlagStyle);
         }
     }
 
-    showMenu() {
+    showMenu(): void {
         this.menuController.show();
         this.leaderboardController.loadScores();
-        // Let MenuController handle video pausing
     }
 }

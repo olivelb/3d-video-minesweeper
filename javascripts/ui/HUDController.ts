@@ -1,15 +1,31 @@
 
 import { Events } from '../core/EventBus.js';
+import type { EventBus } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
 import { t } from '../i18n.js';
+import type { ScoreManager } from '../managers/ScoreManager.js';
 
 export class HUDController {
-    constructor(eventBus, scoreManager) {
+    events: EventBus;
+    scoreManager: ScoreManager;
+
+    timerEl: HTMLElement | null;
+    scoreEl: HTMLElement | null;
+    minesEl: HTMLElement | null;
+    hintBtn: HTMLElement | null;
+    retryBtn: HTMLElement | null;
+    hintExplainBtn: HTMLElement | null;
+    hintDisplay: HTMLElement | null;
+    notificationEl: HTMLElement | null;
+
+    _hintOverlay: HTMLElement | null;
+    _notifTimeout: ReturnType<typeof setTimeout> | null;
+
+    constructor(eventBus: EventBus, scoreManager: ScoreManager) {
         Logger.log('HUDController', 'Initializing...');
         this.events = eventBus;
         this.scoreManager = scoreManager;
 
-        // UI Elements
         this.timerEl = document.getElementById('timer-display');
         this.scoreEl = document.getElementById('score-display');
         this.minesEl = document.getElementById('mines-display');
@@ -19,10 +35,13 @@ export class HUDController {
         this.hintDisplay = document.getElementById('hint-display');
         this.notificationEl = document.getElementById('game-notification');
 
+        this._hintOverlay = null;
+        this._notifTimeout = null;
+
         this.bindEvents();
     }
 
-    bindEvents() {
+    bindEvents(): void {
         if (this.hintBtn) {
             this.hintBtn.addEventListener('click', () => {
                 this.events.emit(Events.REQUEST_HINT);
@@ -42,7 +61,7 @@ export class HUDController {
         }
     }
 
-    reset() {
+    reset(): void {
         if (this.timerEl) {
             this.timerEl.innerText = t('hud.timer', { time: '00:00' });
             this.timerEl.classList.remove('active');
@@ -65,93 +84,87 @@ export class HUDController {
         this.dismissHintExplanation();
     }
 
-    show() {
+    show(): void {
         if (this.timerEl) this.timerEl.classList.add('active');
         if (this.scoreEl) this.scoreEl.classList.add('active');
         if (this.minesEl) this.minesEl.classList.add('active');
     }
 
-    hide() {
+    hide(): void {
         if (this.timerEl) this.timerEl.classList.remove('active');
         if (this.scoreEl) this.scoreEl.classList.remove('active');
         if (this.minesEl) this.minesEl.classList.remove('active');
         if (this.hintDisplay) this.hintDisplay.classList.remove('active');
     }
 
-    updateTimer(elapsedSeconds) {
+    updateTimer(elapsedSeconds: number): void {
         if (this.timerEl && this.scoreManager) {
             this.timerEl.innerText = t('hud.timer', { time: this.scoreManager.formatTime(elapsedSeconds) });
         }
     }
 
-    updateScore(score) {
+    updateScore(score: number): void {
         if (this.scoreEl) {
             this.scoreEl.innerText = t('hud.score', { score: score });
         }
     }
 
-    updateMineCounter(remaining) {
+    updateMineCounter(remaining: number): void {
         if (this.minesEl) {
             this.minesEl.innerText = t('hud.mines', { count: remaining });
         }
     }
 
-    showHint(message) {
+    showHint(message: string): void {
         if (this.hintDisplay) {
             this.hintDisplay.innerText = message;
             this.hintDisplay.classList.add('active');
 
-            // Auto hide after 3 seconds
             setTimeout(() => {
-                this.hintDisplay.classList.remove('active');
+                this.hintDisplay!.classList.remove('active');
             }, 3000);
         }
     }
 
-    showRetryButton() {
-        if (this.retryBtn) this.retryBtn.style.display = 'inline-flex';
-        if (this.hintBtn) this.hintBtn.style.display = 'none';
+    showRetryButton(): void {
+        if (this.retryBtn) (this.retryBtn as HTMLElement).style.display = 'inline-flex';
+        if (this.hintBtn) (this.hintBtn as HTMLElement).style.display = 'none';
     }
 
-    hideRetryButton() {
-        if (this.retryBtn) this.retryBtn.style.display = 'none';
+    hideRetryButton(): void {
+        if (this.retryBtn) (this.retryBtn as HTMLElement).style.display = 'none';
     }
 
-    showHintButton() {
-        if (this.hintBtn) this.hintBtn.style.display = 'inline-flex';
+    showHintButton(): void {
+        if (this.hintBtn) (this.hintBtn as HTMLElement).style.display = 'inline-flex';
     }
 
-    hideHintButton() {
-        if (this.hintBtn) this.hintBtn.style.display = 'none';
+    hideHintButton(): void {
+        if (this.hintBtn) (this.hintBtn as HTMLElement).style.display = 'none';
     }
 
-    showHintExplainButton() {
-        if (this.hintExplainBtn) this.hintExplainBtn.style.display = 'inline-flex';
+    showHintExplainButton(): void {
+        if (this.hintExplainBtn) (this.hintExplainBtn as HTMLElement).style.display = 'inline-flex';
     }
 
-    hideHintExplainButton() {
-        if (this.hintExplainBtn) this.hintExplainBtn.style.display = 'none';
+    hideHintExplainButton(): void {
+        if (this.hintExplainBtn) (this.hintExplainBtn as HTMLElement).style.display = 'none';
     }
 
-    showNoHintFeedback() {
+    showNoHintFeedback(): void {
         if (this.hintBtn) {
             this.hintBtn.classList.add('no-hint');
-            setTimeout(() => this.hintBtn.classList.remove('no-hint'), 500);
+            setTimeout(() => this.hintBtn!.classList.remove('no-hint'), 500);
         }
     }
 
-    onRetryUsed() {
+    onRetryUsed(): void {
         this.hideRetryButton();
         this.showHintButton();
     }
 
-    /**
-     * Show the hint explanation overlay with glassmorphism panel.
-     * @param {string} text - Explanation text
-     * @param {Function} onDismiss - Callback when OK is clicked
-     */
-    showHintExplanation(text, onDismiss) {
-        this.dismissHintExplanation(); // clean up any existing overlay
+    showHintExplanation(text: string, onDismiss: () => void): void {
+        this.dismissHintExplanation();
 
         const overlay = document.createElement('div');
         overlay.id = 'hint-explain-overlay';
@@ -176,29 +189,18 @@ export class HUDController {
         overlay.appendChild(panel);
         document.body.appendChild(overlay);
 
-        // Trigger animation after a frame
         requestAnimationFrame(() => overlay.classList.add('visible'));
-
         this._hintOverlay = overlay;
     }
 
-    /**
-     * Remove the hint explanation overlay if present.
-     */
-    dismissHintExplanation() {
+    dismissHintExplanation(): void {
         if (this._hintOverlay) {
             this._hintOverlay.remove();
             this._hintOverlay = null;
         }
     }
 
-    /**
-     * Show an in-game notification toast (replaces alert())
-     * @param {string} message - The message to display
-     * @param {string} type - 'warning' or 'error'
-     * @param {number} duration - Duration in ms (default 5000)
-     */
-    showNotification(message, type = 'warning', duration = 5000) {
+    showNotification(message: string, type = 'warning', duration = 5000): void {
         if (!this.notificationEl) return;
 
         this.notificationEl.textContent = message;
@@ -209,7 +211,7 @@ export class HUDController {
 
         if (this._notifTimeout) clearTimeout(this._notifTimeout);
         this._notifTimeout = setTimeout(() => {
-            this.notificationEl.classList.remove('visible');
+            this.notificationEl!.classList.remove('visible');
         }, duration);
     }
 }
