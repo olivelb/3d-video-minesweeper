@@ -5,7 +5,7 @@ import { cpSync } from 'fs';
 // Custom plugin to copy static asset directories to dist
 function copyStaticAssets() {
     const dirs = ['images', 'css'];
-    const files = ['.nojekyll', 'analytics.html'];
+    const files = ['.nojekyll'];
     return {
         name: 'copy-static-assets',
         closeBundle() {
@@ -27,6 +27,12 @@ export default defineConfig({
     build: {
         outDir: 'dist',
         sourcemap: true,
+        rollupOptions: {
+            input: {
+                main: path.resolve(__dirname, 'index.html'),
+                analytics: path.resolve(__dirname, 'analytics.html'),
+            },
+        },
     },
     resolve: {
         alias: {

@@ -324,7 +324,8 @@
         <!-- Tabs -->
         <div class="tabs">
             <button class="tab-btn active" data-tab="general" data-i18n="an.tabGeneral">📈 Vue Générale</button>
-            <button class="tab-btn" data-tab="sensitivity" data-i18n="an.tabSensitivity">🧠 Analyse de Sensibilité</button>
+            <button class="tab-btn" data-tab="sensitivity" data-i18n="an.tabSensitivity">🧠 Analyse de
+                Sensibilité</button>
             <button class="tab-btn" data-tab="history" data-i18n="an.tabHistory">📜 Historique</button>
         </div>
 
@@ -389,12 +390,13 @@
 
         <div class="actions">
             <button class="export-btn" id="export-csv-btn" data-i18n="an.exportCsv">📥 Exporter CSV</button>
-            <button class="export-btn clear-btn" id="clear-data-btn" data-i18n="an.clearData">🗑️ Effacer les données</button>
+            <button class="export-btn clear-btn" id="clear-data-btn" data-i18n="an.clearData">🗑️ Effacer les
+                données</button>
         </div>
     </div>
 
     <script type="module">
-        import { t, initLang, setLang, getLang, getLocale, translateDOM } from './javascripts/i18n.js';
+        import { t, initLang, setLang, getLang, getLocale, translateDOM } from './javascripts/i18n.ts';
 
         const analyticsKey = 'minesweeper3d_analytics';
         const scoresKey = 'minesweeper3d_scores';
@@ -555,12 +557,12 @@
             const customWinRate = customEvents.length > 0 ? Math.round((customWins / customEvents.length) * 100) : 0;
 
             const presetWithData = presetEvents.filter(e => e.clickData && e.clickData.avgDecisionTime > 0);
-            const presetAvgTime = presetWithData.length > 0 
-                ? presetWithData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / presetWithData.length 
+            const presetAvgTime = presetWithData.length > 0
+                ? presetWithData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / presetWithData.length
                 : 0;
             const customWithData = customEvents.filter(e => e.clickData && e.clickData.avgDecisionTime > 0);
-            const customAvgTime = customWithData.length > 0 
-                ? customWithData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / customWithData.length 
+            const customAvgTime = customWithData.length > 0
+                ? customWithData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / customWithData.length
                 : 0;
 
             const presetHesitations = presetEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.hesitations || 0), 0);
@@ -625,7 +627,7 @@
             const baselineWinRate = presetEvents.length > 0 ?
                 (presetEvents.filter(e => e.type === 'win').length / presetEvents.length) * 100 : 50;
             const presetWithData = presetEvents.filter(e => e.clickData && e.clickData.avgDecisionTime > 0);
-            const baselineDecisionTime = presetWithData.length > 0 
+            const baselineDecisionTime = presetWithData.length > 0
                 ? presetWithData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / presetWithData.length
                 : 0;
 
@@ -638,7 +640,7 @@
                 const winRate = total > 0 ? (wins / total) * 100 : 0;
 
                 const eventsWithClickData = uploadEvents.filter(e => e.clickData && e.clickData.avgDecisionTime > 0);
-                const avgDecision = eventsWithClickData.length > 0 
+                const avgDecision = eventsWithClickData.length > 0
                     ? eventsWithClickData.reduce((s, e) => s + e.clickData.avgDecisionTime, 0) / eventsWithClickData.length
                     : 0;
                 const totalHesitations = uploadEvents.filter(e => e.clickData).reduce((s, e) => s + (e.clickData.hesitations || 0), 0);
@@ -647,8 +649,8 @@
 
                 // Calculate anomaly scores
                 const winRateDiff = baselineWinRate - winRate;
-                const decisionDiff = baselineDecisionTime > 0 
-                    ? ((avgDecision - baselineDecisionTime) / baselineDecisionTime) * 100 
+                const decisionDiff = baselineDecisionTime > 0
+                    ? ((avgDecision - baselineDecisionTime) / baselineDecisionTime) * 100
                     : 0;
 
                 let severityClass = '';
