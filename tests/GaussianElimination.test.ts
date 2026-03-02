@@ -389,14 +389,14 @@ describe('GaussianElimination', () => {
             const frontier = [{ x: 0, y: 1 }];
 
             const solverMock = {
-                getCachedNeighbors: (x, y) => {
+                getCachedNeighbors: (x: number, y: number) => {
                     if (x === 0 && y === 0) return [{ x: 0, y: 1 }];
                     if (x === 0 && y === 1) return [{ x: 0, y: 0 }];
                     return [];
                 }
             };
 
-            const result = GaussianElimination.solve(solverMock, visibleGrid, flags, frontier);
+            const result = GaussianElimination.solve(solverMock as any, visibleGrid, flags, frontier);
 
             assert.equal(result.progress, true);
             assert.equal(result.mines.length, 1);

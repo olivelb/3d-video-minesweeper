@@ -141,7 +141,7 @@ export class GameController {
             this.game.hintMode = true;
 
             this.renderer.showHint(hint.x, hint.y, hint.type);
-            if (hint.constraintCells?.length > 0) {
+            if ((hint.constraintCells?.length ?? 0) > 0) {
                 this.renderer.highlightConstraints(hint.constraintCells);
             }
 

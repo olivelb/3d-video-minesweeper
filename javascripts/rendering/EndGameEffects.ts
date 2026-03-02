@@ -51,7 +51,7 @@ export class EndGameEffects {
         const geometry = new TextGeometry(message, {
             font: this.font,
             size: EFFECT_CONFIG.TEXT_SIZE,
-            height: EFFECT_CONFIG.TEXT_DEPTH,
+            depth: EFFECT_CONFIG.TEXT_DEPTH,
             curveSegments: 8,
             bevelEnabled: true,
             bevelThickness: 4,

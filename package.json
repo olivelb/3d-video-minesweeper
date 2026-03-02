@@ -8,9 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/**/*.test.js",
-    "test:gamebase": "node --import tsx --test tests/GameBase.test.js",
-    "test:solver": "node --import tsx --test tests/MinesweeperSolver.test.js"
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test:gamebase": "node --import tsx --test tests/GameBase.test.ts",
+    "test:solver": "node --import tsx --test tests/MinesweeperSolver.test.ts"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -145,7 +145,7 @@ describe('Strategy 1: Basic Rules', () => {
         }
 
         // Now apply basic rules — each "1" cell has 1 hidden neighbor (the mine)
-        const dirtyCells = new Set();
+        const dirtyCells = new Set<number>();
         for (let x = 0; x < 3; x++) {
             for (let y = 0; y < 3; y++) {
                 dirtyCells.add(MinesweeperSolver.cellKey(x, y));
@@ -171,7 +171,7 @@ describe('Strategy 1: Basic Rules', () => {
         game.directReveal(2, 0);
         game.placeFlag(1, 0);
 
-        const dirtyCells = new Set();
+        const dirtyCells = new Set<number>();
         for (let x = 0; x < 4; x++) {
             for (let y = 0; y < 4; y++) {
                 dirtyCells.add(MinesweeperSolver.cellKey(x, y));
@@ -194,7 +194,7 @@ describe('Strategy 1: Basic Rules', () => {
         // Reveal only one cell far from mines
         game.directReveal(4, 4);
 
-        const dirtyCells = new Set();
+        const dirtyCells = new Set<number>();
         dirtyCells.add(MinesweeperSolver.cellKey(4, 4));
 
         const result = MinesweeperSolver.applyBasicRules(
@@ -445,8 +445,8 @@ describe('Configuration Enumeration', () => {
     describe('simulateReveal', () => {
         it('should reveal a single numbered cell', () => {
             const game = Boards.tiny_center_mine();
-            const visibleGrid = Array(3).fill().map(() => Array(3).fill(-1));
-            const flags = Array(3).fill().map(() => Array(3).fill(false));
+            const visibleGrid = Array(3).fill(null).map(() => Array(3).fill(-1));
+            const flags = Array(3).fill(null).map(() => Array(3).fill(false));
 
             MinesweeperSolver.simulateReveal(game.grid, visibleGrid, flags, 3, 3, 0, 0);
 
@@ -457,8 +457,8 @@ describe('Configuration Enumeration', () => {
 
         it('should cascade through zeros', () => {
             const game = Boards.empty_3x3();
-            const visibleGrid = Array(3).fill().map(() => Array(3).fill(-1));
-            const flags = Array(3).fill().map(() => Array(3).fill(false));
+            const visibleGrid = Array(3).fill(null).map(() => Array(3).fill(-1));
+            const flags = Array(3).fill(null).map(() => Array(3).fill(false));
 
             MinesweeperSolver.simulateReveal(game.grid, visibleGrid, flags, 3, 3, 1, 1);
 
@@ -472,8 +472,8 @@ describe('Configuration Enumeration', () => {
 
         it('should not reveal flagged cells', () => {
             const game = Boards.empty_3x3();
-            const visibleGrid = Array(3).fill().map(() => Array(3).fill(-1));
-            const flags = Array(3).fill().map(() => Array(3).fill(false));
+            const visibleGrid = Array(3).fill(null).map(() => Array(3).fill(-1));
+            const flags = Array(3).fill(null).map(() => Array(3).fill(false));
             flags[2][2] = true;
 
             MinesweeperSolver.simulateReveal(game.grid, visibleGrid, flags, 3, 3, 1, 1);
@@ -544,12 +544,12 @@ describe('Frontier Detection', () => {
 
 describe('countFlags', () => {
     it('should return 0 with no flags', () => {
-        const flags = Array(5).fill().map(() => Array(5).fill(false));
+        const flags = Array(5).fill(null).map(() => Array(5).fill(false));
         assert.equal(MinesweeperSolver.countFlags(flags, 5, 5), 0);
     });
 
     it('should count flags correctly', () => {
-        const flags = Array(5).fill().map(() => Array(5).fill(false));
+        const flags = Array(5).fill(null).map(() => Array(5).fill(false));
         flags[0][0] = true;
         flags[2][3] = true;
         flags[4][4] = true;
@@ -614,7 +614,7 @@ describe('Strategy 2: Subset Logic', () => {
         assert.equal(game.visibleGrid[1][0], 1);
         assert.equal(game.visibleGrid[2][0], 1);
 
-        const dirtyCells = new Set();
+        const dirtyCells = new Set<number>();
         for (let x = 0; x < 3; x++) {
             for (let y = 0; y < 2; y++) {
                 dirtyCells.add(MinesweeperSolver.cellKey(x, y));
@@ -649,7 +649,7 @@ describe('Strategy 2: Subset Logic', () => {
 
         assert.equal(game.visibleGrid[1][0], 2);
 
-        const dirtyCells = new Set();
+        const dirtyCells = new Set<number>();
         for (let x = 0; x < 3; x++) {
             for (let y = 0; y < 2; y++) {
                 dirtyCells.add(MinesweeperSolver.cellKey(x, y));
@@ -673,7 +673,7 @@ describe('Strategy 2: Subset Logic', () => {
         // Reveal a single cell
         game.directReveal(4, 4);
 
-        const dirtyCells = new Set();
+        const dirtyCells = new Set<number>();
         dirtyCells.add(MinesweeperSolver.cellKey(4, 4));
 
         const result = MinesweeperSolver.applySubsetLogic(
@@ -977,7 +977,7 @@ describe('Strategy 4: Tank Solver', () => {
                 cellsOutside: []
             }];
 
-            assert.equal(MinesweeperSolver.isValidConfiguration(region, config, constraints), true);
+            assert.equal(MinesweeperSolver.isValidConfiguration(region, config, constraints as any), true);
         });
 
         it('should reject an invalid configuration', () => {
@@ -989,7 +989,7 @@ describe('Strategy 4: Tank Solver', () => {
                 cellsOutside: []
             }];
 
-            assert.equal(MinesweeperSolver.isValidConfiguration(region, config, constraints), false);
+            assert.equal(MinesweeperSolver.isValidConfiguration(region, config, constraints as any), false);
         });
     });
 

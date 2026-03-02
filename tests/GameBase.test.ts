@@ -149,7 +149,7 @@ describe('calculateNumbers', () => {
 describe('floodFill', () => {
     it('should reveal a single numbered cell and stop', () => {
         const game = Boards.tiny_center_mine();
-        const changes = [];
+        const changes: any[] = [];
         game.floodFill(0, 0, changes);
 
         assert.equal(changes.length, 1, 'Only one cell revealed');
@@ -159,7 +159,7 @@ describe('floodFill', () => {
 
     it('should cascade through all zero-cells', () => {
         const game = Boards.empty_3x3();
-        const changes = [];
+        const changes: any[] = [];
         game.floodFill(1, 1, changes);
 
         // All 9 cells should be revealed (all zeros)
@@ -176,7 +176,7 @@ describe('floodFill', () => {
         const game = Boards.empty_3x3();
         game.placeFlag(2, 2);
 
-        const changes = [];
+        const changes: any[] = [];
         game.floodFill(0, 0, changes);
 
         assert.equal(changes.length, 8, 'Flagged cell skipped');
@@ -185,10 +185,10 @@ describe('floodFill', () => {
 
     it('should not reveal already-revealed cells', () => {
         const game = Boards.empty_3x3();
-        const changes1 = [];
+        const changes1: any[] = [];
         game.floodFill(0, 0, changes1);
 
-        const changes2 = [];
+        const changes2: any[] = [];
         game.floodFill(0, 0, changes2);
         assert.equal(changes2.length, 0, 'No new cells revealed on second call');
     });
@@ -197,7 +197,7 @@ describe('floodFill', () => {
         const game = Boards.small_5x5();
         // Mines at (0,2), (2,2), (4,0)
         // Bottom-right area (3,3)-(4,4) should be safe zeros
-        const changes = [];
+        const changes: any[] = [];
         game.floodFill(4, 4, changes);
 
         // Should cascade from (4,4) through the zero region
@@ -212,7 +212,7 @@ describe('floodFill', () => {
 
     it('should handle out-of-bounds start gracefully', () => {
         const game = Boards.empty_3x3();
-        const changes = [];
+        const changes: any[] = [];
         // The stack starts with the OOB coord but the bounds check skips it
         game.floodFill(-1, -1, changes);
         assert.equal(changes.length, 0);
@@ -229,7 +229,7 @@ describe('reveal (non-first-click)', () => {
         const result = await game.reveal(0, 0);
 
         assert.equal(result.type, 'reveal');
-        assert.ok(result.changes.length >= 1);
+        assert.ok(result.changes!.length >= 1);
         assert.equal(game.visibleGrid[0][0], 1);
     });
 
@@ -292,12 +292,12 @@ describe('reveal (non-first-click)', () => {
             [0, 1], [2, 1],
             [0, 2], [1, 2], [2, 2],
         ];
-        let lastResult;
+        let lastResult: any;
         for (const [x, y] of safeCells) {
             lastResult = await game.reveal(x, y);
         }
 
-        assert.equal(lastResult.type, 'win');
+        assert.equal(lastResult!.type, 'win');
         assert.equal(game.victory, true);
     });
 });
@@ -396,7 +396,7 @@ describe('chord', () => {
         const result = game.chord(0, 0);
         // On this small board, chording might reveal all remaining safe cells, leading to a win.
         assert.ok(result.type === 'reveal' || result.type === 'win', 'Should either reveal neighbors or win');
-        assert.ok(result.changes.length > 0, 'Should reveal at least one neighbor');
+        assert.ok(result.changes!.length > 0, 'Should reveal at least one neighbor');
 
         // (1,0) and (0,1) should now be revealed
         assert.notEqual(game.visibleGrid[1][0], -1, '(1,0) should be revealed');
@@ -597,7 +597,7 @@ describe('Serialization', () => {
         assert.equal(positions.length, 3);
 
         // Sort both for comparison
-        const sortFn = (a, b) => a.x - b.x || a.y - b.y;
+        const sortFn = (a: any, b: any) => a.x - b.x || a.y - b.y;
         assert.deepEqual(positions.sort(sortFn), mines.sort(sortFn));
     });
 
@@ -838,7 +838,7 @@ describe('reveal (first click)', () => {
         // After first click, mines should be placed and first click zone revealed
         assert.equal(game.firstClick, false, 'firstClick should be false after reveal');
         assert.ok(['reveal', 'win'].includes(result.type), `Expected reveal or win, got ${result.type}`);
-        assert.ok(result.changes.length > 0, 'Should reveal cells');
+        assert.ok(result.changes!.length > 0, 'Should reveal cells');
 
         // The clicked cell and its neighbors should be revealed (3×3 zone)
         assert.notEqual(game.visibleGrid[4][4], -1, 'Clicked cell should be revealed');

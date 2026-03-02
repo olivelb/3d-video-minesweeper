@@ -3,7 +3,7 @@
         "target": "ES2022",
         "module": "ESNext",
         "moduleResolution": "bundler",
-        "strict": false,
+        "strict": true,
         "noEmit": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
@@ -21,11 +21,15 @@
         },
         "outDir": "./dist",
         "rootDir": ".",
-        "allowJs": true
+        "allowJs": true,
+        "types": [
+            "node"
+        ]
     },
     "include": [
         "javascripts/**/*",
-        "shared/**/*"
+        "shared/**/*",
+        "tests/**/*"
     ],
     "exclude": [
         "node_modules",

@@ -127,9 +127,9 @@ export class MenuController {
             presetContainer.querySelectorAll('.preset-btn').forEach((btn) => {
                 const el = btn as HTMLElement;
                 btn.setAttribute('title', t('diff.tooltip', {
-                    w: el.dataset.presetW,
-                    h: el.dataset.presetH,
-                    b: el.dataset.presetB
+                    w: el.dataset.presetW || '',
+                    h: el.dataset.presetH || '',
+                    b: el.dataset.presetB || ''
                 }));
             });
         });
