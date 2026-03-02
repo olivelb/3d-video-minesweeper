@@ -3,6 +3,7 @@ import path from 'path';
 
 export default defineConfig({
     root: '.',
+    base: process.env.BASE_URL || '/',
     build: {
         outDir: 'dist',
         sourcemap: true,
