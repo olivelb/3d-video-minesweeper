@@ -43,9 +43,10 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'npm'
 
-    - name: Install tsx
-      run: npm install -g tsx
-        
+    - name: Install Node.js dependencies
+      run: npm ci
+
     - name: Run Node.js equivalence tests
-      run: node --import tsx shared/solver-wasm/test/equivalence.mjs
+      run: npx tsx shared/solver-wasm/test/equivalence.mjs
