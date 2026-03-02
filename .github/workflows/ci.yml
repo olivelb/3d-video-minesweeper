@@ -39,12 +39,13 @@ jobs:
       working-directory: shared/solver-wasm
       run: wasm-pack build --target web --out-dir pkg
       
-    - name: Run equivalence tests (JS/WASM)
-      # Need Node.js environment to run the test script
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+
+    - name: Install tsx
+      run: npm install -g tsx
         
     - name: Run Node.js equivalence tests
-      # Adjust path to match repo structure
-      run: node --experimental-vm-modules shared/solver-wasm/test/equivalence.mjs
+      run: node --import tsx shared/solver-wasm/test/equivalence.mjs
