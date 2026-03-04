@@ -56,6 +56,10 @@ export class GridManager {
     activeHints: ActiveHint[];
     _constraintHighlights: number[] | null;
 
+    // Shared overlay geometry + material cache (avoids per-cell allocations)
+    _sharedOverlayGeo: Map<number, THREE.PlaneGeometry>;
+    _sharedOverlayMat: Map<THREE.Texture, THREE.MeshBasicMaterial>;
+
     constructor(scene: THREE.Scene, game: any, mediaTexture: THREE.Texture, textures: Record<string | number, THREE.Texture>) {
         this.scene = scene;
         this.game = game;
@@ -73,6 +77,8 @@ export class GridManager {
         this._colorLerp = new THREE.Color();
         this.activeHints = [];
         this._constraintHighlights = null;
+        this._sharedOverlayGeo = new Map();
+        this._sharedOverlayMat = new Map();
         this._createGrid();
     }
 
@@ -180,12 +186,21 @@ export class GridManager {
         } else if (value > 0 && value <= 8) {
             this._createOverlayMesh(x, y, this.textures[value], GRID_CONFIG.NUMBER_PLANE_SIZE, 1);
         }
+        // Batch: caller is responsible for setting instanceMatrix.needsUpdate
+    }
+
+    /** Flush pending instance matrix changes to GPU (call after batch updates). */
+    flushInstanceMatrix(): void {
+        if (this.gridMesh) {
+            this.gridMesh.instanceMatrix.needsUpdate = true;
+        }
     }
 
     createDeathFlagMesh(x: number, y: number): void {
         const index = x * this.game.height + y;
         this._hideInstance(index);
         this._createOverlayMesh(x, y, this.textures['deathFlag'], 18, 2);
+        this.flushInstanceMatrix();
     }
 
     _hideInstance(index: number): void {
@@ -194,21 +209,37 @@ export class GridManager {
         this.dummy.scale.set(0, 0, 0);
         this.dummy.updateMatrix();
         this.gridMesh!.setMatrixAt(index, this.dummy.matrix);
-        this.gridMesh!.instanceMatrix.needsUpdate = true;
+        // NOTE: needsUpdate is NOT set here — callers batch it
+    }
+
+    _getSharedGeo(size: number): THREE.PlaneGeometry {
+        let geo = this._sharedOverlayGeo.get(size);
+        if (!geo) {
+            geo = new THREE.PlaneGeometry(size, size);
+            this._sharedOverlayGeo.set(size, geo);
+        }
+        return geo;
+    }
+
+    _getSharedMat(texture: THREE.Texture): THREE.MeshBasicMaterial {
+        let mat = this._sharedOverlayMat.get(texture);
+        if (!mat) {
+            mat = new THREE.MeshBasicMaterial({
+                map: texture,
+                transparent: true,
+                opacity: 1.0,
+                depthWrite: true,
+                depthTest: true,
+                side: THREE.DoubleSide,
+                alphaTest: 0.1
+            });
+            this._sharedOverlayMat.set(texture, mat);
+        }
+        return mat;
     }
 
     _createOverlayMesh(x: number, y: number, texture: THREE.Texture, size: number, renderOrder: number): void {
-        const planeGeo = new THREE.PlaneGeometry(size, size);
-        const material = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            opacity: 1.0,
-            depthWrite: true,
-            depthTest: true,
-            side: THREE.DoubleSide,
-            alphaTest: 0.1
-        });
-        const mesh = new THREE.Mesh(planeGeo, material);
+        const mesh = new THREE.Mesh(this._getSharedGeo(size), this._getSharedMat(texture));
         const { wx, wz } = gridToWorld(x, y, this.game.width, this.game.height);
         mesh.position.set(wx, GRID_CONFIG.NUMBER_HEIGHT, wz);
         mesh.rotation.x = -Math.PI / 2;
@@ -218,13 +249,17 @@ export class GridManager {
     }
 
     updateHover(instanceId: number, useHoverHelper: boolean): void {
+        // Reset previous hover only when switching cells
         if (this.lastHoveredId !== instanceId && this.lastHoveredId !== -1) {
             this.resetInstance(this.lastHoveredId);
         }
 
         if (useHoverHelper && instanceId !== -1 && !this.isExploding && !this.game.victory) {
-            this.gridMesh!.getMatrixAt(instanceId, this.dummy.matrix);
-            this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
+            // Only decompose when first hovering a new cell
+            if (this.lastHoveredId !== instanceId) {
+                this.gridMesh!.getMatrixAt(instanceId, this.dummy.matrix);
+                this.dummy.matrix.decompose(this.dummy.position, this.dummy.quaternion, this.dummy.scale);
+            }
 
             if (this.dummy.scale.x > 0.1) {
                 const pulse = Math.sin(Date.now() * 0.01);
@@ -255,7 +290,7 @@ export class GridManager {
         const y = instanceId % this.game.height;
         const x = Math.floor(instanceId / this.game.height);
 
-        if (this.game.visibleGrid[x][y] !== -1) {
+        if (this.game.visibleGrid[x]?.[y] !== -1) {
             this.dummy.scale.set(0, 0, 0);
         } else {
             this.dummy.scale.set(1, 1, 1);
@@ -394,13 +429,18 @@ export class GridManager {
     dispose(): void {
         this.numberMeshes.forEach(mesh => {
             this.scene.remove(mesh);
-            if (mesh.geometry) mesh.geometry.dispose();
-            if (mesh.material) {
-                if ((mesh.material as THREE.MeshBasicMaterial).map) (mesh.material as THREE.MeshBasicMaterial).map!.dispose();
-                (mesh.material as THREE.Material).dispose();
-            }
+            // geometry & material are shared — don't dispose per-mesh
         });
         this.numberMeshes = [];
+
+        // Dispose shared overlay assets
+        this._sharedOverlayGeo.forEach(geo => geo.dispose());
+        this._sharedOverlayGeo.clear();
+        this._sharedOverlayMat.forEach(mat => {
+            if (mat.map) mat.map.dispose();
+            mat.dispose();
+        });
+        this._sharedOverlayMat.clear();
 
         if (this.gridMesh) {
             this.scene.remove(this.gridMesh);

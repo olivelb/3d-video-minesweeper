@@ -53,7 +53,7 @@ export class ParticleSystem {
 
     createEmitter(position: THREE.Vector3, type: string, options: Partial<EmitterConfig> = {}): ParticleSystemEntry {
         let config: EmitterConfig = type === 'flag' ? {
-            count: 1000,
+            count: 500,
             texture: this.textures['flag'],
             colorStart: new THREE.Color('yellow'),
             colorEnd: new THREE.Color('red'),

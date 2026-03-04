@@ -295,15 +295,20 @@ export class MinesweeperRenderer {
 
     _handleGameUpdate(result: any): void {
         if (result.type === 'reveal' || result.type === 'win') {
-            result.changes.forEach((change: any) => {
-                this.updateCellVisual(change.x, change.y, change.value);
-            });
+            const changes = result.changes;
+            for (let i = 0; i < changes.length; i++) {
+                this.updateCellVisual(changes[i].x, changes[i].y, changes[i].value);
+            }
+            // Single GPU upload after all cells processed
+            this.gridManager!.flushInstanceMatrix();
             if (result.type === 'win') this.triggerWin();
         } else if (result.type === 'explode') {
             if (result.changes && result.changes.length > 0) {
-                result.changes.forEach((change: any) => {
-                    this.updateCellVisual(change.x, change.y, change.value);
-                });
+                const changes = result.changes;
+                for (let i = 0; i < changes.length; i++) {
+                    this.updateCellVisual(changes[i].x, changes[i].y, changes[i].value);
+                }
+                this.gridManager!.flushInstanceMatrix();
             }
             this.triggerExplosion();
         } else if (result.type === 'flag') {

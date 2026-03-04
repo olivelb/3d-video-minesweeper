@@ -16,6 +16,7 @@ export class InputManager {
 
     _groundPlane: THREE.Plane;
     _hitPoint: THREE.Vector3;
+    _lastMoveTime: number;
 
     _boundOnMouseMove: (e: PointerEvent) => void;
     _boundOnMouseClick: (e: PointerEvent) => void;
@@ -34,8 +35,10 @@ export class InputManager {
         this.mouse = new THREE.Vector2();
         this.hoveredInstanceId = -1;
 
+        // Plane at cube-top height for hover detection
         this._groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -10);
         this._hitPoint = new THREE.Vector3();
+        this._lastMoveTime = 0;
 
         this._boundOnMouseMove = (e) => this.onMouseMove(e);
         this._boundOnMouseClick = (e) => this.onMouseClick(e);
@@ -68,18 +71,39 @@ export class InputManager {
         // Optional: periodic updates if needed, currently event-driven
     }
 
+    /**
+     * O(1) grid lookup: ray-plane intersection + math conversion.
+     * Replaces the previous O(n) raycasting against all InstancedMesh instances.
+     */
+    _getGridCellFromMouse(): { x: number; y: number } | null {
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        if (!this.raycaster.ray.intersectPlane(this._groundPlane, this._hitPoint)) return null;
+
+        const { x, y } = worldToGrid(this._hitPoint.x, this._hitPoint.z, this.game.width, this.game.height);
+        if (x < 0 || x >= this.game.width || y < 0 || y >= this.game.height) return null;
+        return { x, y };
+    }
+
     onMouseMove(event: PointerEvent): void {
         if (this.game.gameOver || this.game.victory || this.game.isSpectating || this.game.hintMode) return;
+
+        // Throttle to ~30fps — still perfectly responsive for hover
+        const now = performance.now();
+        if (now - this._lastMoveTime < 33) return;
+        this._lastMoveTime = now;
 
         const rect = this.renderer.domElement.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-        this.raycaster.setFromCamera(this.mouse, this.camera);
-        const intersection = this.raycaster.intersectObject(this.gridMesh);
-
-        if (intersection.length > 0) {
-            this.hoveredInstanceId = intersection[0].instanceId!;
+        const cell = this._getGridCellFromMouse();
+        if (cell) {
+            // Check that the cell is still unrevealed (visible cube)
+            if (this.game.visibleGrid[cell.x]?.[cell.y] === -1) {
+                this.hoveredInstanceId = cell.x * this.game.height + cell.y;
+            } else {
+                this.hoveredInstanceId = -1;
+            }
         } else {
             this.hoveredInstanceId = -1;
         }
@@ -89,15 +113,7 @@ export class InputManager {
         const rect = this.renderer.domElement.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-        this.raycaster.setFromCamera(this.mouse, this.camera);
-
-        const hitPoint = this._hitPoint;
-        if (!this.raycaster.ray.intersectPlane(this._groundPlane, hitPoint)) return null;
-
-        const { x, y } = worldToGrid(hitPoint.x, hitPoint.z, this.game.width, this.game.height);
-
-        if (x < 0 || x >= this.game.width || y < 0 || y >= this.game.height) return null;
-        return { x, y };
+        return this._getGridCellFromMouse();
     }
 
     async onMouseClick(event: PointerEvent): Promise<void> {

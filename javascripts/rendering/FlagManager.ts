@@ -12,12 +12,13 @@ const FLAG_CONFIG = {
 export class FlagManager {
     scene: THREE.Scene;
     particleSystem: ParticleSystem;
-    flagEmitters: Map<string, any>;
-    flag2DMeshes: Map<string, THREE.Mesh>;
+    flagEmitters: Map<number, any>;
+    flag2DMeshes: Map<number, THREE.Mesh>;
     flagStyle: string;
     flag2DGeometry: THREE.PlaneGeometry | null;
     flag2DMaterial: THREE.MeshBasicMaterial | null;
     flag2DTexture: THREE.CanvasTexture | null;
+    _prevHoveredKey: number;
 
     constructor(scene: THREE.Scene, particleSystem: ParticleSystem) {
         this.scene = scene;
@@ -28,6 +29,7 @@ export class FlagManager {
         this.flag2DGeometry = null;
         this.flag2DMaterial = null;
         this.flag2DTexture = null;
+        this._prevHoveredKey = -1;
         this._createFlag2DAssets();
     }
 
@@ -95,8 +97,8 @@ export class FlagManager {
         ctx.fillRect(12, 10, 4, 108);
     }
 
-    _getKey(x: number, y: number): string {
-        return `${x},${y}`;
+    _getKey(x: number, y: number): number {
+        return x * 100000 + y;
     }
 
     _getWorldPosition(x: number, y: number, gridWidth: number, gridHeight: number): THREE.Vector3 {
@@ -115,7 +117,7 @@ export class FlagManager {
         }
     }
 
-    _addFlag(key: string, pos: THREE.Vector3, x: number, y: number): void {
+    _addFlag(key: number, pos: THREE.Vector3, x: number, y: number): void {
         if (this.flagStyle === 'particle') {
             pos.y = 20;
             const emitter = this.particleSystem.createEmitter(pos, 'flag');
@@ -139,7 +141,7 @@ export class FlagManager {
         return mesh;
     }
 
-    _removeFlag(key: string): void {
+    _removeFlag(key: number): void {
         if (this.flagEmitters.has(key)) {
             const emitter = this.flagEmitters.get(key);
             emitter.alive = false;
@@ -177,19 +179,32 @@ export class FlagManager {
     animate(hoveredX: number, hoveredY: number): void {
         if (this.flagStyle === 'particle') return;
 
-        const time = Date.now() / 1000;
-        const pulse = Math.sin(time * 10);
+        const hoveredKey = (hoveredX >= 0 && hoveredY >= 0)
+            ? this._getKey(hoveredX, hoveredY)
+            : -1;
 
-        this.flag2DMeshes.forEach(flag => {
-            if (flag.userData.gridX === hoveredX && flag.userData.gridY === hoveredY) {
+        // Reset previous hovered flag (if different from current)
+        if (this._prevHoveredKey !== -1 && this._prevHoveredKey !== hoveredKey) {
+            const prev = this.flag2DMeshes.get(this._prevHoveredKey);
+            if (prev) {
+                prev.scale.set(1, 1, 1);
+                prev.position.y = prev.userData.baseY;
+            }
+        }
+
+        // Animate current hovered flag
+        if (hoveredKey !== -1) {
+            const flag = this.flag2DMeshes.get(hoveredKey);
+            if (flag) {
+                const time = Date.now() / 1000;
+                const pulse = Math.sin(time * 10);
                 const scale = 1.0 + pulse * 0.15;
                 flag.scale.set(scale, scale, 1);
                 flag.position.y = flag.userData.baseY + pulse * 2;
-            } else {
-                flag.scale.set(1, 1, 1);
-                flag.position.y = flag.userData.baseY;
             }
-        });
+        }
+
+        this._prevHoveredKey = hoveredKey;
     }
 
     clearAll(): void {
