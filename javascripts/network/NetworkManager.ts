@@ -5,6 +5,7 @@
 
 import { Logger } from '../utils/Logger.js';
 import { Events } from '../core/EventBus.js';
+import { SocketEvents } from '../../shared/SocketEvents.js';
 import type { EventBus } from '../core/EventBus.js';
 
 declare const io: any;
@@ -51,10 +52,10 @@ export class NetworkManager {
 
             this.socket.on('connect', () => {
                 Logger.log('NetworkManager', 'Connected to server! ID:', this.socket.id);
-                this.socket.emit('join', { playerName });
+                this.socket.emit(SocketEvents.JOIN, { playerName });
             });
 
-            this.socket.on('welcome', (data: WelcomeData) => {
+            this.socket.on(SocketEvents.WELCOME, (data: WelcomeData) => {
                 this.playerId = data.playerId;
                 this.playerNumber = data.playerNumber;
                 this.isHost = data.isHost;
@@ -65,66 +66,66 @@ export class NetworkManager {
                 resolve(data);
             });
 
-            this.socket.on('stateSync', (data: any) => {
+            this.socket.on(SocketEvents.STATE_SYNC, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.MP_STATE_SYNC, data.state);
             });
 
-            this.socket.on('lobbyUpdate', (data: any) => {
+            this.socket.on(SocketEvents.LOBBY_UPDATE, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_LOBBY_UPDATE, data);
             });
 
-            this.socket.on('gameCreated', (data: any) => {
+            this.socket.on(SocketEvents.GAME_CREATED, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_GAME_CREATED, data);
             });
 
-            this.socket.on('gameStart', (data: any) => {
+            this.socket.on(SocketEvents.GAME_START, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_GAME_START, data.state);
             });
 
-            this.socket.on('hostLeft', () => {
+            this.socket.on(SocketEvents.HOST_LEFT, () => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_HOST_LEFT);
             });
 
-            this.socket.on('playerJoined', (data: any) => {
+            this.socket.on(SocketEvents.PLAYER_JOINED, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_PLAYER_JOINED, data);
             });
 
-            this.socket.on('playerLeft', (data: any) => {
+            this.socket.on(SocketEvents.PLAYER_LEFT, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_PLAYER_LEFT, data);
             });
 
-            this.socket.on('gameReady', (data: any) => {
+            this.socket.on(SocketEvents.GAME_READY, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_GAME_READY, data);
             });
 
-            this.socket.on('gameUpdate', (data: any) => {
+            this.socket.on(SocketEvents.GAME_UPDATE, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_GAME_UPDATE, data);
             });
 
-            this.socket.on('gameOver', (data: any) => {
+            this.socket.on(SocketEvents.GAME_OVER, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_GAME_OVER, data);
             });
 
-            this.socket.on('playerEliminated', (data: any) => {
+            this.socket.on(SocketEvents.PLAYER_ELIMINATED, (data: any) => {
                 Logger.log('NetworkManager', 'Player eliminated:', data.playerName);
                 if (this.eventBus) this.eventBus.emit(Events.NET_PLAYER_ELIMINATED, data);
             });
 
-            this.socket.on('minesPlaced', (data: any) => {
+            this.socket.on(SocketEvents.MINES_PLACED, (data: any) => {
                 Logger.log('NetworkManager', 'Received minesPlaced:', data.minePositions?.length, 'mines');
                 if (this.eventBus) this.eventBus.emit(Events.NET_MINES_PLACED, data.minePositions);
             });
 
-            this.socket.on('generatingGrid', (data: any) => {
+            this.socket.on(SocketEvents.GENERATING_GRID, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_GENERATING_GRID, data);
             });
 
-            this.socket.on('gameEnded', () => {
+            this.socket.on(SocketEvents.GAME_ENDED, () => {
                 Logger.log('NetworkManager', 'Game session ended by server');
                 if (this.eventBus) this.eventBus.emit(Events.GAME_ENDED);
             });
 
-            this.socket.on('error', (data: any) => {
+            this.socket.on(SocketEvents.ERROR, (data: any) => {
                 if (this.eventBus) this.eventBus.emit(Events.NET_ERROR, data.message);
                 reject(new Error(data.message));
             });
@@ -149,26 +150,26 @@ export class NetworkManager {
 
     createGame(width: number, height: number, bombCount: number, maxPlayers: number, noGuessMode = false): void {
         if (this.socket) {
-            this.socket.emit('createGame', { width, height, bombCount, maxPlayers, noGuessMode });
+            this.socket.emit(SocketEvents.CREATE_GAME, { width, height, bombCount, maxPlayers, noGuessMode });
         }
     }
 
     startGame(): void {
         if (this.socket) {
-            this.socket.emit('startGame');
+            this.socket.emit(SocketEvents.START_GAME);
         }
     }
 
     joinGame(): void {
         if (this.socket) {
-            this.socket.emit('joinGame');
+            this.socket.emit(SocketEvents.JOIN_GAME);
         }
     }
 
     sendAction(action: { type: string; x: number; y: number }): void {
         if (this.socket) {
             Logger.log('NetworkManager', 'Sending action:', action);
-            this.socket.emit('action', action);
+            this.socket.emit(SocketEvents.ACTION, action);
         } else {
             Logger.warn('NetworkManager', 'No socket, cannot send action');
         }

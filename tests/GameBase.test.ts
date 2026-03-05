@@ -418,6 +418,31 @@ describe('chord', () => {
         assert.equal(game.gameOver, true);
     });
 
+    it('should still reveal safe neighbors when chord hits a mine', () => {
+        const game = Boards.corner_mines();
+        // Mines at (0,0) and (1,0) — 4×4 board
+        // Reveal (1,1) — value is 2
+        game.directReveal(1, 1);
+        // Incorrectly flag (0,1) and a non-mine cell (1,2) as mines
+        game.placeFlag(0, 1);
+        game.placeFlag(1, 2);
+
+        // Chord on (1,1): flags==2, value==2, triggers chord
+        // (0,0) IS a mine, NOT flagged → explode
+        // (1,0) IS a mine, NOT flagged → also mine
+        // (2,0), (2,1), (2,2) are safe and should be revealed
+        const result = game.chord(1, 1);
+        assert.equal(result.type, 'explode');
+        assert.equal(game.gameOver, true);
+
+        // Safe neighbors should have been revealed despite explosion
+        assert.ok(result.changes!.length > 0, 'Should reveal safe neighbors even on explosion');
+
+        // (2,0) is value 1, (2,1) is value 1 — both safe, both should be revealed
+        assert.notEqual(game.visibleGrid[2][0], -1, '(2,0) should be revealed');
+        assert.notEqual(game.visibleGrid[2][1], -1, '(2,1) should be revealed');
+    });
+
     it('should detect win via chord', () => {
         const game = Boards.tiny_center_mine();
         // Reveal all corners and edges except via chord

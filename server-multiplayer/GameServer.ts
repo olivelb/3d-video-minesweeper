@@ -4,6 +4,7 @@
  */
 
 import { MinesweeperGame } from './Game.js';
+import { SocketEvents } from '../shared/SocketEvents.js';
 import type { Cell } from '../shared/types.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -130,7 +131,7 @@ export class GameServer {
         });
 
         if (this.onBroadcast) {
-            this.onBroadcast('playerJoined', {
+            this.onBroadcast(SocketEvents.PLAYER_JOINED, {
                 playerId,
                 playerName,
                 playerNumber,
@@ -148,7 +149,7 @@ export class GameServer {
         this.players.delete(playerId);
 
         if (this.onBroadcast) {
-            this.onBroadcast('playerLeft', {
+            this.onBroadcast(SocketEvents.PLAYER_LEFT, {
                 playerId,
                 playerName: player.name
             });
@@ -162,7 +163,7 @@ export class GameServer {
         this.gameStarted = false;
 
         if (this.onBroadcast) {
-            this.onBroadcast('gameReady', {
+            this.onBroadcast(SocketEvents.GAME_READY, {
                 width: this.width,
                 height: this.height,
                 bombCount: this.bombCount
@@ -215,27 +216,27 @@ export class GameServer {
             console.log(`[GameServer] First click at (${x}, ${y}), placing mines with safe zone`);
 
             if (this.onBroadcast) {
-                this.onBroadcast('generatingGrid', { attempt: 0, max: 10000 });
+                this.onBroadcast(SocketEvents.GENERATING_GRID, { attempt: 0, max: 10000 });
             }
 
             let placementResult: any;
             try {
                 placementResult = await this.game.placeMines(x, y, (attempt: number, max: number) => {
                     if (this.onBroadcast) {
-                        this.onBroadcast('generatingGrid', { attempt, max });
+                        this.onBroadcast(SocketEvents.GENERATING_GRID, { attempt, max });
                     }
                 });
             } catch (err) {
                 console.error('[GameServer] Mine placement failed:', err);
                 if (this.onBroadcast) {
-                    this.onBroadcast('generatingGrid', { attempt: -1, max: 0, error: true });
+                    this.onBroadcast(SocketEvents.GENERATING_GRID, { attempt: -1, max: 0, error: true });
                 }
                 return { success: false, error: 'Mine placement failed: ' + (err as Error).message };
             }
 
             if (placementResult && placementResult.cancelled) {
                 if (this.onBroadcast) {
-                    this.onBroadcast('generatingGrid', { attempt: -1, max: 0, error: true });
+                    this.onBroadcast(SocketEvents.GENERATING_GRID, { attempt: -1, max: 0, error: true });
                 }
                 return { success: false, error: 'Generation cancelled' };
             }
@@ -289,11 +290,11 @@ export class GameServer {
             };
 
             if (this.onBroadcast) {
-                this.onBroadcast('gameUpdate', update);
+                this.onBroadcast(SocketEvents.GAME_UPDATE, update);
             }
 
             if (this.onBroadcast) {
-                this.onBroadcast('playerEliminated', {
+                this.onBroadcast(SocketEvents.PLAYER_ELIMINATED, {
                     playerId,
                     playerName: player.name,
                     playerNumber: player.number,
@@ -308,7 +309,7 @@ export class GameServer {
                 this._calculateFinalFlagScores();
 
                 if (this.onBroadcast) {
-                    this.onBroadcast('gameOver', {
+                    this.onBroadcast(SocketEvents.GAME_OVER, {
                         victory: false,
                         reason: 'allEliminated',
                         finalScores: this.getScoreboard()
@@ -333,7 +334,7 @@ export class GameServer {
         };
 
         if (this.onBroadcast) {
-            this.onBroadcast('gameUpdate', update);
+            this.onBroadcast(SocketEvents.GAME_UPDATE, update);
         }
 
         // Check for win
@@ -342,7 +343,7 @@ export class GameServer {
             this._applyWinnerBonus(playerId);
 
             if (this.onBroadcast) {
-                this.onBroadcast('gameOver', {
+                this.onBroadcast(SocketEvents.GAME_OVER, {
                     victory: true,
                     winnerId: playerId,
                     winnerName: player.name,
@@ -390,7 +391,7 @@ export class GameServer {
         const player = this.players.get(playerId)!;
 
         if (this.onBroadcast) {
-            this.onBroadcast('cursorUpdate', {
+            this.onBroadcast(SocketEvents.CURSOR_UPDATE, {
                 playerId,
                 playerNumber: player.number,
                 x: position.x,

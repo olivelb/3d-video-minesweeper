@@ -339,6 +339,8 @@ export class MinesweeperGameBase {
         if (adjacentFlags !== value) return { type: 'none', changes: [] };
 
         const changes: { x: number; y: number; value: number }[] = [];
+        let explodedCell: { x: number; y: number } | null = null;
+
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
                 if (dx === 0 && dy === 0) continue;
@@ -347,14 +349,20 @@ export class MinesweeperGameBase {
                 if (this.flags[nx][ny] || this.visibleGrid[nx][ny] !== -1) continue;
 
                 if (this.mines[nx][ny]) {
-                    this.gameOver = true;
-                    this.lastMove = { x: nx, y: ny };
-                    this.visibleGrid[nx][ny] = 9;
-                    return { type: 'explode', x: nx, y: ny, changes };
+                    if (!explodedCell) {
+                        explodedCell = { x: nx, y: ny };
+                    }
+                } else {
+                    this.floodFill(nx, ny, changes);
                 }
-
-                this.floodFill(nx, ny, changes);
             }
+        }
+
+        if (explodedCell) {
+            this.gameOver = true;
+            this.lastMove = explodedCell;
+            this.visibleGrid[explodedCell.x][explodedCell.y] = 9;
+            return { type: 'explode', x: explodedCell.x, y: explodedCell.y, changes };
         }
 
         if (changes.length === 0) return { type: 'none', changes: [] };

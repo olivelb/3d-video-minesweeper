@@ -5,6 +5,7 @@
 
 import type { Server, Socket } from 'socket.io';
 import { GameServer } from './GameServer.js';
+import { SocketEvents } from '../shared/SocketEvents.js';
 import type { StatsDatabase } from './StatsDatabase.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -117,12 +118,12 @@ export function createGameServer(
     io.on('connection', (socket: Socket) => {
         console.log('[GameServer] Client connected:', socket.id);
 
-        socket.on('join', ({ playerName }: { playerName: string }) => {
+        socket.on(SocketEvents.JOIN, ({ playerName }: { playerName: string }) => {
             const isFirstPlayer = socketToPlayer.size === 0;
             const playerNumber = socketToPlayer.size + 1;
 
             if (socketToPlayer.size >= MAX_LOBBY_SIZE) {
-                socket.emit('error', { message: 'Game is full' });
+                socket.emit(SocketEvents.ERROR, { message: 'Game is full' });
                 socket.disconnect();
                 return;
             }
@@ -138,21 +139,21 @@ export function createGameServer(
                 hostSocketId = socket.id;
             }
 
-            socket.emit('welcome', {
+            socket.emit(SocketEvents.WELCOME, {
                 playerId: socket.id,
                 playerNumber,
                 isHost: isFirstPlayer
             });
 
-            io.emit('lobbyUpdate', getLobbyState());
+            io.emit(SocketEvents.LOBBY_UPDATE, getLobbyState());
             console.log(`[GameServer] Player ${playerNumber} joined: ${playerName}`);
         });
 
-        socket.on('createGame', ({ width, height, bombCount, maxPlayers, noGuessMode }: {
+        socket.on(SocketEvents.CREATE_GAME, ({ width, height, bombCount, maxPlayers, noGuessMode }: {
             width: number; height: number; bombCount: number; maxPlayers: number; noGuessMode: boolean;
         }) => {
             if (socket.id !== hostSocketId) {
-                socket.emit('error', { message: 'Only host can create game' });
+                socket.emit(SocketEvents.ERROR, { message: 'Only host can create game' });
                 return;
             }
 
@@ -171,7 +172,7 @@ export function createGameServer(
                 const totalCells = width * height;
                 const maxDensityBombs = Math.floor(totalCells * 0.22);
                 if (bombCount > maxDensityBombs) {
-                    socket.emit('error', {
+                    socket.emit(SocketEvents.ERROR, {
                         message: `Mode 'No Guess': Densité trop élevée! Max ${maxDensityBombs} bombes.`
                     });
                     return;
@@ -191,33 +192,33 @@ export function createGameServer(
 
             console.log('[GameServer] Game created, waiting for first click to place mines');
 
-            io.emit('lobbyUpdate', getLobbyState());
-            io.emit('gameCreated', {
+            io.emit(SocketEvents.LOBBY_UPDATE, getLobbyState());
+            io.emit(SocketEvents.GAME_CREATED, {
                 config: { width, height, bombCount, maxPlayers: actualMaxPlayers, noGuessMode }
             });
         });
 
-        socket.on('joinGame', () => {
+        socket.on(SocketEvents.JOIN_GAME, () => {
             if (!gameServer) {
-                socket.emit('error', { message: 'No game to join' });
+                socket.emit(SocketEvents.ERROR, { message: 'No game to join' });
                 return;
             }
 
             const player = socketToPlayer.get(socket.id);
             if (!player) {
-                socket.emit('error', { message: 'Invalid player' });
+                socket.emit(SocketEvents.ERROR, { message: 'Invalid player' });
                 return;
             }
 
             const joinResult = gameServer.addPlayer(player.id, player.name);
             if (!joinResult.success) {
-                socket.emit('error', { message: joinResult.error });
+                socket.emit(SocketEvents.ERROR, { message: joinResult.error });
                 return;
             }
 
             console.log(`[GameServer] Player ${player.number} joined the game instance: ${player.name}`);
 
-            io.emit('lobbyUpdate', getLobbyState());
+            io.emit(SocketEvents.LOBBY_UPDATE, getLobbyState());
 
             if (gameServer.players.size >= gameServer.maxPlayers) {
                 console.log('[GameServer] Max players reached, auto-starting game!');
@@ -225,19 +226,19 @@ export function createGameServer(
             }
         });
 
-        socket.on('startGame', () => {
+        socket.on(SocketEvents.START_GAME, () => {
             if (socket.id !== hostSocketId) {
-                socket.emit('error', { message: 'Only host can start the game' });
+                socket.emit(SocketEvents.ERROR, { message: 'Only host can start the game' });
                 return;
             }
 
             if (!gameServer) {
-                socket.emit('error', { message: 'Game not created' });
+                socket.emit(SocketEvents.ERROR, { message: 'Game not created' });
                 return;
             }
 
             if (gameServer.players.size < 2) {
-                socket.emit('error', { message: 'At least 2 players required' });
+                socket.emit(SocketEvents.ERROR, { message: 'At least 2 players required' });
                 return;
             }
 
@@ -253,12 +254,12 @@ export function createGameServer(
                 gameServer.game.startChronometer();
             }
 
-            io.emit('gameStart', { state: gameServer.getFullState() });
+            io.emit(SocketEvents.GAME_START, { state: gameServer.getFullState() });
         }
 
-        socket.on('action', async (action: { type: string; x: number; y: number }) => {
+        socket.on(SocketEvents.ACTION, async (action: { type: string; x: number; y: number }) => {
             if (!checkRateLimit(socket.id, 'actions')) {
-                socket.emit('error', { message: 'Rate limit exceeded' });
+                socket.emit(SocketEvents.ERROR, { message: 'Rate limit exceeded' });
                 return;
             }
             console.log('[GameServer] Action received:', action, 'from socket:', socket.id);
@@ -293,7 +294,7 @@ export function createGameServer(
             }
         });
 
-        socket.on('cursor', ({ x, y }: { x: number; y: number }) => {
+        socket.on(SocketEvents.CURSOR, ({ x, y }: { x: number; y: number }) => {
             if (!checkRateLimit(socket.id, 'cursor')) return;
             if (!gameServer) return;
             const player = socketToPlayer.get(socket.id);
@@ -317,7 +318,7 @@ export function createGameServer(
                     console.log('[GameServer] Host disconnected unexpectedly, resetting game');
                     resetServer();
                     for (const [sid] of socketToPlayer) {
-                        io.to(sid).emit('hostLeft');
+                        io.to(sid).emit(SocketEvents.HOST_LEFT);
                     }
                     socketToPlayer.clear();
                 } else if (socket.id === hostSocketId && player.eliminated) {
@@ -340,7 +341,7 @@ export function createGameServer(
         gameServer = null;
         hostSocketId = null;
 
-        io.emit('gameEnded');
+        io.emit(SocketEvents.GAME_ENDED);
 
         for (const [socketId] of socketToPlayer) {
             io.sockets.sockets.get(socketId)?.disconnect(true);
