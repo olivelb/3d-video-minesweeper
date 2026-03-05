@@ -69,6 +69,7 @@ export class MultiplayerController {
                     this.gc.game.visibleGrid[c.x][c.y] = c.value;
                     this.gc.renderer.updateCellVisual(c.x, c.y, c.value);
                 });
+                this.gc.renderer.gridManager!.flushInstanceMatrix();
                 if (result.type === 'win' && !this.gc.game.victory) {
                     this.gc.game.victory = true;
                     this.gc.renderer.triggerWin();
@@ -79,6 +80,7 @@ export class MultiplayerController {
                         this.gc.game.visibleGrid[c.x][c.y] = c.value;
                         this.gc.renderer.updateCellVisual(c.x, c.y, c.value);
                     });
+                    this.gc.renderer.gridManager!.flushInstanceMatrix();
                 }
                 this.gc.game.visibleGrid[result.x][result.y] = 10;
 
@@ -192,6 +194,10 @@ export class MultiplayerController {
 
         if (state.minePositions) {
             this.gc.game.setMinesFromPositions(state.minePositions);
+        }
+
+        if (this.gc.renderer && this.gc.renderer.gridManager) {
+            this.gc.renderer.gridManager.flushInstanceMatrix();
         }
     }
 }
